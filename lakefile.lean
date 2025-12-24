@@ -13,3 +13,8 @@ lean_lib HomebaseApp where
 
 lean_exe homebaseApp where
   root := `HomebaseApp.Main
+
+-- Test executable
+@[test_driver]
+lean_exe tests where
+  root := `Tests.Main
