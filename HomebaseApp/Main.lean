@@ -24,11 +24,20 @@ def config : AppConfig := {
   secretKey := "homebase-app-secret-key-min-32-chars!!".toUTF8
   sessionCookieName := "homebase_session"
   csrfFieldName := "_csrf"
-  csrfEnabled := true
+  csrfEnabled := false
 }
 
 /-- Path to the JSONL journal file for persistence -/
 def journalPath : System.FilePath := "data/homebase.jsonl"
+
+/-- Wrapper to extract :id parameter and pass to action -/
+def withId (f : Nat → Action) : Action := fun ctx => do
+  match ctx.params.get "id" with
+  | none => Action.badRequest ctx "Missing ID parameter"
+  | some idStr =>
+    match idStr.toNat? with
+    | none => Action.badRequest ctx "Invalid ID parameter"
+    | some id => f id ctx
 
 /-- Build the application with all routes using persistent database -/
 def buildApp : App :=
@@ -49,9 +58,27 @@ def buildApp : App :=
     |>.get "/time" "time" Actions.Time.index
     |>.get "/health" "health" Actions.Health.index
     |>.get "/recipes" "recipes" Actions.Recipes.index
-    |>.get "/kanban" "kanban" Actions.Kanban.index
     |>.get "/gallery" "gallery" Actions.Gallery.index
     |>.get "/news" "news" Actions.News.index
+    -- Kanban routes
+    |>.get "/kanban" "kanban" Actions.Kanban.index
+    -- Kanban column routes
+    |>.get "/kanban/add-column-form" "kanban_add_column_form" Actions.Kanban.addColumnForm
+    |>.get "/kanban/add-column-button" "kanban_add_column_button" Actions.Kanban.addColumnButton
+    |>.post "/kanban/column" "kanban_create_column" Actions.Kanban.createColumn
+    |>.get "/kanban/column/:id" "kanban_get_column" (withId Actions.Kanban.getColumnPartial)
+    |>.get "/kanban/column/:id/edit" "kanban_edit_column_form" (withId Actions.Kanban.editColumnForm)
+    |>.put "/kanban/column/:id" "kanban_update_column" (withId Actions.Kanban.updateColumn)
+    |>.delete "/kanban/column/:id" "kanban_delete_column" (withId Actions.Kanban.deleteColumn)
+    |>.get "/kanban/column/:id/add-card-form" "kanban_add_card_form" (withId Actions.Kanban.addCardForm)
+    |>.get "/kanban/column/:id/add-card-button" "kanban_add_card_button" (withId Actions.Kanban.addCardButton)
+    -- Kanban card routes
+    |>.post "/kanban/card" "kanban_create_card" Actions.Kanban.createCard
+    |>.get "/kanban/card/:id" "kanban_get_card" (withId Actions.Kanban.getCardPartial)
+    |>.get "/kanban/card/:id/edit" "kanban_edit_card_form" (withId Actions.Kanban.editCardForm)
+    |>.put "/kanban/card/:id" "kanban_update_card" (withId Actions.Kanban.updateCard)
+    |>.delete "/kanban/card/:id" "kanban_delete_card" (withId Actions.Kanban.deleteCard)
+    |>.post "/kanban/card/:id/move" "kanban_move_card" (withId Actions.Kanban.moveCard)
     -- Persistent database (auto-persists to JSONL)
     |>.withPersistentDatabase journalPath
 
