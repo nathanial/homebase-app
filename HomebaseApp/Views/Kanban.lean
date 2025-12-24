@@ -255,26 +255,32 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
   -- HTMX script
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
+  -- HTMX SSE extension for real-time updates
+  script [src_ "https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"]
   -- SortableJS for drag and drop
   script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
 
-  div [class_ "h-full flex flex-col"] do
-    -- Header
-    div [class_ "flex justify-between items-center mb-6"] do
-      h1 [class_ "text-2xl font-bold text-slate-800"] (text "Kanban Board")
-      div [class_ "flex gap-2"] do
-        span [class_ "text-sm text-slate-500"]
-          (text s!"{columns.length} columns")
+  -- SSE connection wrapper - listens for real-time updates
+  div [id_ "kanban-board", hx_ext "sse", attr_ "sse-connect" "/events/kanban"] do
+    div [class_ "h-full flex flex-col"] do
+      -- Header
+      div [class_ "flex justify-between items-center mb-6"] do
+        h1 [class_ "text-2xl font-bold text-slate-800"] (text "Kanban Board")
+        div [class_ "flex gap-2"] do
+          -- SSE connection indicator
+          span [id_ "sse-status", class_ "text-xs text-green-500"] (text "● Live")
+          span [class_ "text-sm text-slate-500"]
+            (text s!"{columns.length} columns")
 
-    -- Board container with horizontal scroll
-    div [class_ "flex-1 overflow-x-auto pb-4"] do
-      div [id_ "board-columns",
-           class_ "flex gap-4 h-full items-start"] do
-        -- Render existing columns
-        for col in columns do
-          renderColumn ctx col
-        -- Add column button
-        renderAddColumnButton
+      -- Board container with horizontal scroll
+      div [class_ "flex-1 overflow-x-auto pb-4"] do
+        div [id_ "board-columns",
+             class_ "flex gap-4 h-full items-start"] do
+          -- Render existing columns
+          for col in columns do
+            renderColumn ctx col
+          -- Add column button
+          renderAddColumnButton
 
   -- SortableJS initialization
   let sortableJs := "
@@ -318,6 +324,56 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
     }
   "
   script [] sortableJs
+  -- SSE event handling
+  let sseJs := "
+    // SSE event handlers for real-time board updates
+    document.addEventListener('DOMContentLoaded', function() {
+      var board = document.getElementById('kanban-board');
+      var status = document.getElementById('sse-status');
+
+      // Track SSE connection state
+      if (board) {
+        board.addEventListener('htmx:sseOpen', function() {
+          if (status) {
+            status.textContent = '● Live';
+            status.className = 'text-xs text-green-500';
+          }
+          console.log('SSE connected');
+        });
+
+        board.addEventListener('htmx:sseError', function() {
+          if (status) {
+            status.textContent = '○ Offline';
+            status.className = 'text-xs text-red-500';
+          }
+          console.log('SSE disconnected');
+        });
+
+        board.addEventListener('htmx:sseClose', function() {
+          if (status) {
+            status.textContent = '○ Reconnecting...';
+            status.className = 'text-xs text-yellow-500';
+          }
+          console.log('SSE closed, will reconnect');
+        });
+      }
+
+      // Listen for SSE events and refresh board
+      var eventTypes = ['column-created', 'column-updated', 'column-deleted',
+                        'card-created', 'card-updated', 'card-deleted',
+                        'card-moved', 'card-reordered'];
+
+      eventTypes.forEach(function(eventType) {
+        document.body.addEventListener('sse:' + eventType, function(evt) {
+          console.log('SSE event received:', eventType, evt.detail);
+          // Refresh the board to show updates from other users
+          htmx.ajax('GET', '/kanban', {target: 'body', swap: 'innerHTML'});
+        });
+      });
+    });
+  "
+  script [] sseJs
+
   -- Custom styles for sortable
   style [] "
     .sortable-ghost { opacity: 0.5; }

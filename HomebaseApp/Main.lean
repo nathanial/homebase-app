@@ -45,6 +45,8 @@ def buildApp : App :=
     -- Middleware
     |>.use Middleware.logging
     |>.use Middleware.securityHeaders
+    -- SSE endpoints for real-time updates
+    |>.sseEndpoint "/events/kanban" "kanban"
     -- Public routes
     |>.get "/" "home" Actions.Home.index
     |>.get "/login" "login_form" Actions.Auth.loginForm
