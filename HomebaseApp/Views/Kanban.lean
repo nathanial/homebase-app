@@ -3,8 +3,9 @@
 
   Region safety:
   - #board-columns is volatile (SSE refreshes it)
-  - #add-card-dialog is stable (modal survives refreshes)
-  - Inline edit forms currently use liftStable (known issue: can be clobbered by SSE)
+  - #modal-container is stable (modal survives refreshes)
+  - ALL forms are modal-based: edit card, edit column, add column
+  - Forms rendered into stable region → compile-time safety against SSE clobbering
 
   Level safety:
   - Scripts only at toplevel (boardContent)
@@ -76,11 +77,11 @@ def renderCard (ctx : Context) (card : Card) : HtmlM .volatile .nested Unit := d
     div [class_ "flex justify-between items-start mb-2"] do
       h4 [class_ "font-medium text-slate-800 flex-1"] (text card.title)
       div [class_ "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"] do
-        -- Edit button (typed route)
+        -- Edit button - opens modal (typed route)
         button [class_ "p-1 text-slate-400 hover:text-blue-600",
                 hx_get' (Route.kanbanEditCardForm card.id),
-                hx_target s!"#card-{card.id}",
-                hx_swap "outerHTML"]
+                hx_target "#modal-container",
+                hx_swap "innerHTML"]
           (span [class_ "text-sm"] (text "✏️"))
         -- Delete button (typed route)
         button [class_ "p-1 text-slate-400 hover:text-red-600",
@@ -96,74 +97,87 @@ def renderCard (ctx : Context) (card : Card) : HtmlM .volatile .nested Unit := d
     if !card.description.isEmpty then
       p [class_ "text-sm text-slate-500 line-clamp-2"] (text card.description)
 
--- Render card edit form (STABLE region, NESTED level - contains form inputs)
--- NOTE: This is rendered into a volatile context via liftStable.
--- SSE refresh while editing will clobber the form. Consider using a modal.
+-- Render card edit form as MODAL (STABLE region, NESTED level)
+-- Modal is in stable region → survives SSE refreshes
 def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable .nested Unit := do
-  div [id_ s!"card-{card.id}",
-       class_ "bg-white p-3 rounded-lg shadow-sm border-2 border-blue-400"] do
-    form [hx_put' (Route.kanbanUpdateCard card.id),
-          hx_target s!"#card-{card.id}",
-          hx_swap "outerHTML"] do
-      input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-      div [class_ "space-y-2"] do
-        input [type_ "text", name_ "title", value_ card.title,
-               class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-               placeholder_ "Card title", required_]
-        textarea [name_ "description", rows_ 2,
-                  class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  placeholder_ "Description (optional)"]
-          card.description
-        input [type_ "text", name_ "labels", value_ card.labels,
-               class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-               placeholder_ "Labels (comma-separated)"]
-        div [class_ "flex gap-2 justify-end"] do
-          button [type_ "button",
-                  class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                  hx_get' (Route.kanbanGetCard card.id),
-                  hx_target s!"#card-{card.id}",
-                  hx_swap "outerHTML"]
-            (text "Cancel")
-          button [type_ "submit",
-                  class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
-            (text "Save")
+  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+    div [class_ "bg-white rounded-lg shadow-xl p-4 w-96"] do
+      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Edit Card")
+      form [hx_put' (Route.kanbanUpdateCard card.id),
+            hx_target s!"#card-{card.id}",
+            hx_swap "outerHTML",
+            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
+        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+        div [class_ "space-y-3"] do
+          div [] do
+            label [for_ "title", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Title")
+            input [type_ "text", name_ "title", id_ "title", value_ card.title,
+                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                   placeholder_ "Card title", required_, autofocus_]
+          div [] do
+            label [for_ "description", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Description")
+            textarea [name_ "description", id_ "description", rows_ 3,
+                      class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                      placeholder_ "Description (optional)"]
+              card.description
+          div [] do
+            label [for_ "labels", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Labels")
+            input [type_ "text", name_ "labels", id_ "labels", value_ card.labels,
+                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                   placeholder_ "bug, feature, urgent (comma-separated)"]
+          div [class_ "flex gap-2 justify-end pt-2"] do
+            button [type_ "button",
+                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
+              (text "Cancel")
+            button [type_ "submit",
+                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+              (text "Save Changes")
 
--- Render add card form (STABLE region, NESTED level - modal dialog outside SSE refresh zone)
+-- Render add card form as MODAL (STABLE region, NESTED level)
+-- Modal is in stable region → survives SSE refreshes
 def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable .nested Unit := do
-  div [id_ "add-card-dialog",
-       class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"] do
-    div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
+  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+    div [class_ "bg-white rounded-lg shadow-xl p-4 w-96"] do
       h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Card")
       form [hx_post' Route.kanbanCreateCard,
             hx_target_vol (volatileTarget s!"column-cards-{columnId}"),
             hx_swap "beforeend",
-            attr_ "hx-on::after-request" "document.getElementById('add-card-dialog').innerHTML = ''"] do
+            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
         input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
         input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
-        div [class_ "space-y-2"] do
-          input [type_ "text", name_ "title",
-                 class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                 placeholder_ "Card title", required_, autofocus_]
-          textarea [name_ "description", rows_ 2,
-                    class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                    placeholder_ "Description (optional)"]
-          input [type_ "text", name_ "labels",
-                 class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                 placeholder_ "Labels (comma-separated)"]
-          div [class_ "flex gap-2 justify-end"] do
+        div [class_ "space-y-3"] do
+          div [] do
+            label [for_ "title", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Title")
+            input [type_ "text", name_ "title", id_ "title",
+                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                   placeholder_ "Card title", required_, autofocus_]
+          div [] do
+            label [for_ "description", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Description")
+            textarea [name_ "description", id_ "description", rows_ 2,
+                      class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                      placeholder_ "Description (optional)"]
+          div [] do
+            label [for_ "labels", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Labels")
+            input [type_ "text", name_ "labels", id_ "labels",
+                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                   placeholder_ "bug, feature, urgent (comma-separated)"]
+          div [class_ "flex gap-2 justify-end pt-2"] do
             button [type_ "button",
-                    class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                    attr_ "onclick" "document.getElementById('add-card-dialog').innerHTML = ''"]
+                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
               (text "Cancel")
             button [type_ "submit",
-                    class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
+                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
               (text "Add Card")
 
 -- Render add card button (volatile region, nested level - opens modal)
 def renderAddCardButton (columnId : Nat) : HtmlM .volatile .nested Unit := do
   button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
           hx_get' (Route.kanbanAddCardForm columnId),
-          hx_target "#add-card-dialog",
+          hx_target "#modal-container",
           hx_swap "innerHTML"]
     (text "+ Add card")
 
@@ -175,11 +189,11 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile .nested Unit :
     div [class_ "flex justify-between items-center mb-3 group"] do
       h3 [class_ "font-semibold text-slate-700"] (text col.name)
       div [class_ "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"] do
-        -- Edit column button (typed route)
+        -- Edit column button - opens modal (typed route)
         button [class_ "p-1 text-slate-400 hover:text-blue-600",
                 hx_get' (Route.kanbanEditColumnForm col.id),
-                hx_target s!"#column-{col.id}",
-                hx_swap "outerHTML"]
+                hx_target "#modal-container",
+                hx_swap "innerHTML"]
           (span [class_ "text-xs"] (text "✏️"))
         -- Delete column button (typed route)
         button [class_ "p-1 text-slate-400 hover:text-red-600",
@@ -198,63 +212,67 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile .nested Unit :
     div [class_ "mt-3"] do
       renderAddCardButton col.id
 
--- Render column edit form (STABLE region, NESTED level - contains form inputs)
--- NOTE: This is rendered into a volatile context via liftStable.
--- SSE refresh while editing will clobber the form. Consider using a modal.
+-- Render column edit form as MODAL (STABLE region, NESTED level)
+-- Modal is in stable region → survives SSE refreshes
 def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable .nested Unit := do
-  div [id_ s!"column-{col.id}",
-       class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3"] do
-    form [hx_put' (Route.kanbanUpdateColumn col.id),
-          hx_target s!"#column-{col.id}",
-          hx_swap "outerHTML"] do
-      input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-      div [class_ "flex gap-2"] do
-        input [type_ "text", name_ "name", value_ col.name,
-               class_ "flex-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-               placeholder_ "Column name", required_, autofocus_]
-        button [type_ "submit",
-                class_ "px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
-          (text "Save")
-        button [type_ "button",
-                class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                hx_get' (Route.kanbanGetColumn col.id),
-                hx_target s!"#column-{col.id}",
-                hx_swap "outerHTML"]
-          (text "Cancel")
+  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+    div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
+      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Edit Column")
+      form [hx_put' (Route.kanbanUpdateColumn col.id),
+            hx_target s!"#column-{col.id}",
+            hx_swap "outerHTML",
+            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
+        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+        div [class_ "space-y-3"] do
+          div [] do
+            label [for_ "name", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Column Name")
+            input [type_ "text", name_ "name", id_ "name", value_ col.name,
+                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                   placeholder_ "Column name", required_, autofocus_]
+          div [class_ "flex gap-2 justify-end pt-2"] do
+            button [type_ "button",
+                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
+              (text "Cancel")
+            button [type_ "submit",
+                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+              (text "Save")
 
--- Render add column form (STABLE region, NESTED level - contains form inputs)
--- NOTE: This replaces add-column-button inside board-columns.
--- SSE refresh while filling form will clobber it. Consider using a modal.
+-- Render add column form as MODAL (STABLE region, NESTED level)
+-- Modal is in stable region → survives SSE refreshes
 def renderAddColumnForm (ctx : Context) : HtmlM .stable .nested Unit := do
-  div [id_ "add-column-form",
-       class_ "flex-shrink-0 w-72 bg-slate-50 rounded-xl p-3 border-2 border-dashed border-slate-300"] do
-    form [hx_post' Route.kanbanCreateColumn,
-          hx_target "#add-column-form",
-          hx_swap "outerHTML"] do
-      input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-      div [class_ "space-y-2"] do
-        input [type_ "text", name_ "name",
-               class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-               placeholder_ "Column name", required_, autofocus_]
-        div [class_ "flex gap-2 justify-end"] do
-          button [type_ "button",
-                  class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                  hx_get' Route.kanbanAddColumnButton,
-                  hx_target "#add-column-form",
-                  hx_swap "outerHTML"]
-            (text "Cancel")
-          button [type_ "submit",
-                  class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
-            (text "Add Column")
+  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+    div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
+      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Column")
+      form [hx_post' Route.kanbanCreateColumn,
+            hx_target_vol (volatileTarget "board-columns"),
+            hx_swap "beforeend",
+            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
+        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+        div [class_ "space-y-3"] do
+          div [] do
+            label [for_ "name", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Column Name")
+            input [type_ "text", name_ "name", id_ "name",
+                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                   placeholder_ "Column name", required_, autofocus_]
+          div [class_ "flex gap-2 justify-end pt-2"] do
+            button [type_ "button",
+                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
+              (text "Cancel")
+            button [type_ "submit",
+                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+              (text "Add Column")
 
--- Render add column button (volatile region, nested level - inside SSE refresh zone)
+-- Render add column button (volatile region, nested level - opens modal)
 def renderAddColumnButton : HtmlM .volatile .nested Unit := do
-  div [id_ "add-column-form",
-       class_ "flex-shrink-0 w-72"] do
+  div [class_ "flex-shrink-0 w-72"] do
     button [class_ "w-full py-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 transition-colors",
             hx_get' Route.kanbanAddColumnForm,
-            hx_target "#add-column-form",
-            hx_swap "outerHTML"]
+            hx_target "#modal-container",
+            hx_swap "innerHTML"]
       (text "+ Add column")
 
 -- Move card dropdown (polymorphic in region and level - no user input)
@@ -301,8 +319,9 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable .toplev
           -- Add column button
           renderAddColumnButton
 
-  -- Modal dialog container (STABLE - outside board-columns, survives SSE)
-  stableRegion "add-card-dialog" [] do
+  -- Modal container (STABLE - outside board-columns, survives SSE refreshes)
+  -- All edit forms are rendered here via HTMX
+  stableRegion "modal-container" [] do
     pure ()
 
   -- Kanban JavaScript (drag-and-drop + SSE) - toplevel-only
@@ -320,39 +339,43 @@ def render (ctx : Context) (columns : List Column) : String :=
   Layout.render ctx "Kanban - Homebase" "/kanban" (boardContent ctx columns)
 
 -- Partial renders for HTMX responses
--- Card partials (volatile context - lifted from stable for edit form)
+
+-- Card partials (volatile - updates card in-place)
 def renderCardPartial (ctx : Context) (card : Card) : String :=
   HtmlM.render (renderCard ctx card)
 
+-- Card edit form (stable - goes into modal container)
 def renderCardEditFormPartial (ctx : Context) (card : Card) : String :=
-  HtmlM.render (renderCardEditForm ctx card)
+  HtmlM.renderStable (renderCardEditForm ctx card)
 
--- Column partials (volatile context - lifted from stable for edit form)
+-- Column partial (volatile - updates column in-place)
 def renderColumnPartial (ctx : Context) (col : Column) : String :=
   HtmlM.render (renderColumn ctx col)
 
+-- Column edit form (stable - goes into modal container)
 def renderColumnEditFormPartial (ctx : Context) (col : Column) : String :=
-  HtmlM.render (renderColumnEditForm ctx col)
+  HtmlM.renderStable (renderColumnEditForm ctx col)
 
--- Add card form partial (stable - modal)
+-- Add card form (stable - goes into modal container)
 def renderAddCardFormPartial (ctx : Context) (columnId : Nat) : String :=
-  HtmlM.render (renderAddCardForm ctx columnId)
+  HtmlM.renderStable (renderAddCardForm ctx columnId)
 
--- Add card button partial (volatile)
+-- Add card button (volatile - inside columns)
 def renderAddCardButtonPartial (columnId : Nat) : String :=
   HtmlM.render (renderAddCardButton columnId)
 
--- Add column form partial (stable - but replaces volatile content)
+-- Add column form (stable - goes into modal container)
 def renderAddColumnFormPartial (ctx : Context) : String :=
-  HtmlM.render (renderAddColumnForm ctx)
+  HtmlM.renderStable (renderAddColumnForm ctx)
 
--- Render all columns (for SSE refresh - volatile)
+-- Render all columns (volatile - for SSE refresh)
 def renderColumnsPartial (ctx : Context) (columns : List Column) : String :=
   HtmlM.render do
     for col in columns do
       renderColumn ctx col
     renderAddColumnButton
 
+-- Add column button (volatile - inside board)
 def renderAddColumnButtonPartial : String :=
   HtmlM.render renderAddColumnButton
 
