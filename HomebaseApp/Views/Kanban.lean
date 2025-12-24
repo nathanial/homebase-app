@@ -255,13 +255,11 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
   -- HTMX script
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
-  -- HTMX SSE extension for real-time updates
-  script [src_ "https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"]
   -- SortableJS for drag and drop
   script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
 
-  -- SSE connection wrapper - listens for real-time updates
-  div [id_ "kanban-board", hx_ext "sse", attr_ "sse-connect" "/events/kanban"] do
+  -- Kanban board container (SSE handled via native EventSource below)
+  div [id_ "kanban-board"] do
     div [class_ "h-full flex flex-col"] do
       -- Header
       div [class_ "flex justify-between items-center mb-6"] do
@@ -324,53 +322,71 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
     }
   "
   script [] sortableJs
-  -- SSE event handling
+  -- SSE event handling using native EventSource
   let sseJs := "
     // SSE event handlers for real-time board updates
-    document.addEventListener('DOMContentLoaded', function() {
-      var board = document.getElementById('kanban-board');
+    (function() {
       var status = document.getElementById('sse-status');
+      var eventSource = null;
+      var refreshPending = false;
 
-      // Track SSE connection state
-      if (board) {
-        board.addEventListener('htmx:sseOpen', function() {
-          if (status) {
-            status.textContent = '● Live';
-            status.className = 'text-xs text-green-500';
-          }
+      function updateStatus(text, className) {
+        if (status) {
+          status.textContent = text;
+          status.className = className;
+        }
+      }
+
+      function refreshBoard() {
+        if (refreshPending) return;
+        refreshPending = true;
+        console.log('Refreshing kanban board...');
+        setTimeout(function() {
+          // Only refresh the columns container, not the whole page
+          // This preserves the SSE connection
+          htmx.ajax('GET', '/kanban/columns', {target: '#board-columns', swap: 'innerHTML'});
+          refreshPending = false;
+        }, 100);
+      }
+
+      function connectSSE() {
+        if (eventSource) {
+          eventSource.close();
+        }
+
+        console.log('Connecting to SSE...');
+        eventSource = new EventSource('/events/kanban');
+
+        eventSource.onopen = function() {
           console.log('SSE connected');
-        });
+          updateStatus('● Live', 'text-xs text-green-500');
+        };
 
-        board.addEventListener('htmx:sseError', function() {
-          if (status) {
-            status.textContent = '○ Offline';
-            status.className = 'text-xs text-red-500';
-          }
-          console.log('SSE disconnected');
-        });
+        eventSource.onerror = function(e) {
+          console.log('SSE error, reconnecting...', e);
+          updateStatus('○ Reconnecting...', 'text-xs text-yellow-500');
+        };
 
-        board.addEventListener('htmx:sseClose', function() {
-          if (status) {
-            status.textContent = '○ Reconnecting...';
-            status.className = 'text-xs text-yellow-500';
-          }
-          console.log('SSE closed, will reconnect');
+        // Listen for specific event types
+        var eventTypes = ['column-created', 'column-updated', 'column-deleted',
+                          'card-created', 'card-updated', 'card-deleted',
+                          'card-moved', 'card-reordered'];
+
+        eventTypes.forEach(function(eventType) {
+          eventSource.addEventListener(eventType, function(e) {
+            console.log('SSE event:', eventType, e.data);
+            refreshBoard();
+          });
         });
       }
 
-      // Listen for SSE events and refresh board
-      var eventTypes = ['column-created', 'column-updated', 'column-deleted',
-                        'card-created', 'card-updated', 'card-deleted',
-                        'card-moved', 'card-reordered'];
-
-      eventTypes.forEach(function(eventType) {
-        document.body.addEventListener('sse:' + eventType, function(evt) {
-          console.log('SSE event received:', eventType, evt.detail);
-          // Refresh the board to show updates from other users
-          htmx.ajax('GET', '/kanban', {target: 'body', swap: 'innerHTML'});
-        });
-      });
-    });
+      // Connect on page load
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', connectSSE);
+      } else {
+        connectSSE();
+      }
+    })();
   "
   script [] sseJs
 
@@ -406,6 +422,13 @@ def renderAddCardButtonPartial (columnId : Nat) : String :=
 
 def renderAddColumnFormPartial (ctx : Context) : String :=
   HtmlM.render (renderAddColumnForm ctx)
+
+-- Render all columns (for SSE refresh)
+def renderColumnsPartial (ctx : Context) (columns : List Column) : String :=
+  HtmlM.render do
+    for col in columns do
+      renderColumn ctx col
+    renderAddColumnButton
 
 def renderAddColumnButtonPartial : String :=
   HtmlM.render renderAddColumnButton

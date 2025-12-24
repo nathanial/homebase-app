@@ -123,6 +123,14 @@ def addColumnButton : Action := fun ctx => do
   let html := Views.Kanban.renderAddColumnButtonPartial
   Action.html html ctx
 
+/-- Get all columns (HTMX partial for SSE refresh) -/
+def columns : Action := fun ctx => do
+  if !isLoggedIn ctx then
+    return ← Action.redirect "/login" ctx
+  let columns := getColumnsWithCards ctx
+  let html := Views.Kanban.renderColumnsPartial ctx columns
+  Action.html html ctx
+
 /-- Create a new column -/
 def createColumn : Action := fun ctx => do
   if !isLoggedIn ctx then

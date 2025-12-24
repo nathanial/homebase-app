@@ -64,6 +64,7 @@ def buildApp : App :=
     |>.get "/news" "news" Actions.News.index
     -- Kanban routes
     |>.get "/kanban" "kanban" Actions.Kanban.index
+    |>.get "/kanban/columns" "kanban_columns" Actions.Kanban.columns
     -- Kanban column routes
     |>.get "/kanban/add-column-form" "kanban_add_column_form" Actions.Kanban.addColumnForm
     |>.get "/kanban/add-column-button" "kanban_add_column_button" Actions.Kanban.addColumnButton
