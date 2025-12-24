@@ -5,16 +5,26 @@
   - #board-columns is volatile (SSE refreshes it)
   - #add-card-dialog is stable (modal survives refreshes)
   - Inline edit forms currently use liftStable (known issue: can be clobbered by SSE)
+
+  Level safety:
+  - Scripts only at toplevel (boardContent)
+  - Components are nested (no script injection possible)
+
+  Route safety:
+  - All HTMX routes use typed Route constructors
+  - Invalid routes are compile-time errors
 -/
 import Scribe
 import Loom
 import HomebaseApp.Views.Layout
+import HomebaseApp.Routes
 
 namespace HomebaseApp.Views.Kanban
 
 open Scribe
 open Loom
 open HomebaseApp.Views.Layout
+open HomebaseApp (Route)
 
 -- Data structures for view rendering
 structure Card where
@@ -43,22 +53,22 @@ def labelColor (label : String) : String :=
   | "blocked" => "bg-purple-100 text-purple-800"
   | _ => "bg-slate-100 text-slate-800"
 
--- Render a single label (polymorphic - no user input)
-def renderLabel (label : String) : HtmlM r Unit := do
+-- Render a single label (polymorphic in region and level - no user input)
+def renderLabel (label : String) : HtmlM r l Unit := do
   if label.trim.isEmpty then pure ()
   else
     span [class_ s!"px-2 py-0.5 text-xs rounded-full {labelColor label}"]
       (text label.trim)
 
--- Render labels for a card (polymorphic - no user input)
-def renderLabels (labelsStr : String) : HtmlM r Unit := do
+-- Render labels for a card (polymorphic in region and level - no user input)
+def renderLabels (labelsStr : String) : HtmlM r l Unit := do
   let labels := labelsStr.splitOn ","
   div [class_ "flex flex-wrap gap-1 mb-2"] do
     for label in labels do
       renderLabel label
 
--- Render a single card (volatile - inside SSE-refreshed region)
-def renderCard (ctx : Context) (card : Card) : HtmlM .volatile Unit := do
+-- Render a single card (volatile region, nested level - inside SSE-refreshed region)
+def renderCard (ctx : Context) (card : Card) : HtmlM .volatile .nested Unit := do
   div [id_ s!"card-{card.id}",
        data_ "card-id" (toString card.id),
        class_ "bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"] do
@@ -66,15 +76,15 @@ def renderCard (ctx : Context) (card : Card) : HtmlM .volatile Unit := do
     div [class_ "flex justify-between items-start mb-2"] do
       h4 [class_ "font-medium text-slate-800 flex-1"] (text card.title)
       div [class_ "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"] do
-        -- Edit button
+        -- Edit button (typed route)
         button [class_ "p-1 text-slate-400 hover:text-blue-600",
-                hx_get s!"/kanban/card/{card.id}/edit",
+                hx_get' (Route.kanbanEditCardForm card.id),
                 hx_target s!"#card-{card.id}",
                 hx_swap "outerHTML"]
           (span [class_ "text-sm"] (text "✏️"))
-        -- Delete button
+        -- Delete button (typed route)
         button [class_ "p-1 text-slate-400 hover:text-red-600",
-                hx_delete s!"/kanban/card/{card.id}",
+                hx_delete' (Route.kanbanDeleteCard card.id),
                 hx_target s!"#card-{card.id}",
                 hx_swap "outerHTML",
                 hx_confirm "Delete this card?"]
@@ -86,13 +96,13 @@ def renderCard (ctx : Context) (card : Card) : HtmlM .volatile Unit := do
     if !card.description.isEmpty then
       p [class_ "text-sm text-slate-500 line-clamp-2"] (text card.description)
 
--- Render card edit form (STABLE - contains form inputs)
+-- Render card edit form (STABLE region, NESTED level - contains form inputs)
 -- NOTE: This is rendered into a volatile context via liftStable.
 -- SSE refresh while editing will clobber the form. Consider using a modal.
-def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable Unit := do
+def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable .nested Unit := do
   div [id_ s!"card-{card.id}",
        class_ "bg-white p-3 rounded-lg shadow-sm border-2 border-blue-400"] do
-    form [hx_put s!"/kanban/card/{card.id}",
+    form [hx_put' (Route.kanbanUpdateCard card.id),
           hx_target s!"#card-{card.id}",
           hx_swap "outerHTML"] do
       input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
@@ -110,7 +120,7 @@ def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable Unit := do
         div [class_ "flex gap-2 justify-end"] do
           button [type_ "button",
                   class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                  hx_get s!"/kanban/card/{card.id}",
+                  hx_get' (Route.kanbanGetCard card.id),
                   hx_target s!"#card-{card.id}",
                   hx_swap "outerHTML"]
             (text "Cancel")
@@ -118,13 +128,13 @@ def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable Unit := do
                   class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
             (text "Save")
 
--- Render add card form (STABLE - modal dialog outside SSE refresh zone)
-def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable Unit := do
+-- Render add card form (STABLE region, NESTED level - modal dialog outside SSE refresh zone)
+def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable .nested Unit := do
   div [id_ "add-card-dialog",
        class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"] do
     div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
       h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Card")
-      form [hx_post "/kanban/card",
+      form [hx_post' Route.kanbanCreateCard,
             hx_target_vol (volatileTarget s!"column-cards-{columnId}"),
             hx_swap "beforeend",
             attr_ "hx-on::after-request" "document.getElementById('add-card-dialog').innerHTML = ''"] do
@@ -149,31 +159,31 @@ def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable Unit := d
                     class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
               (text "Add Card")
 
--- Render add card button (volatile - opens modal)
-def renderAddCardButton (columnId : Nat) : HtmlM .volatile Unit := do
+-- Render add card button (volatile region, nested level - opens modal)
+def renderAddCardButton (columnId : Nat) : HtmlM .volatile .nested Unit := do
   button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
-          hx_get s!"/kanban/column/{columnId}/add-card-form",
+          hx_get' (Route.kanbanAddCardForm columnId),
           hx_target "#add-card-dialog",
           hx_swap "innerHTML"]
     (text "+ Add card")
 
--- Render a single column (volatile - inside SSE-refreshed region)
-def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile Unit := do
+-- Render a single column (volatile region, nested level - inside SSE-refreshed region)
+def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile .nested Unit := do
   div [id_ s!"column-{col.id}",
        class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3 flex flex-col max-h-full"] do
     -- Column header
     div [class_ "flex justify-between items-center mb-3 group"] do
       h3 [class_ "font-semibold text-slate-700"] (text col.name)
       div [class_ "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"] do
-        -- Edit column button
+        -- Edit column button (typed route)
         button [class_ "p-1 text-slate-400 hover:text-blue-600",
-                hx_get s!"/kanban/column/{col.id}/edit",
+                hx_get' (Route.kanbanEditColumnForm col.id),
                 hx_target s!"#column-{col.id}",
                 hx_swap "outerHTML"]
           (span [class_ "text-xs"] (text "✏️"))
-        -- Delete column button
+        -- Delete column button (typed route)
         button [class_ "p-1 text-slate-400 hover:text-red-600",
-                hx_delete s!"/kanban/column/{col.id}",
+                hx_delete' (Route.kanbanDeleteColumn col.id),
                 hx_target s!"#column-{col.id}",
                 hx_swap "outerHTML",
                 hx_confirm s!"Delete column '{col.name}' and all its cards?"]
@@ -188,13 +198,13 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile Unit := do
     div [class_ "mt-3"] do
       renderAddCardButton col.id
 
--- Render column edit form (STABLE - contains form inputs)
+-- Render column edit form (STABLE region, NESTED level - contains form inputs)
 -- NOTE: This is rendered into a volatile context via liftStable.
 -- SSE refresh while editing will clobber the form. Consider using a modal.
-def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable Unit := do
+def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable .nested Unit := do
   div [id_ s!"column-{col.id}",
        class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3"] do
-    form [hx_put s!"/kanban/column/{col.id}",
+    form [hx_put' (Route.kanbanUpdateColumn col.id),
           hx_target s!"#column-{col.id}",
           hx_swap "outerHTML"] do
       input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
@@ -207,18 +217,18 @@ def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable Unit := 
           (text "Save")
         button [type_ "button",
                 class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                hx_get s!"/kanban/column/{col.id}",
+                hx_get' (Route.kanbanGetColumn col.id),
                 hx_target s!"#column-{col.id}",
                 hx_swap "outerHTML"]
           (text "Cancel")
 
--- Render add column form (STABLE - contains form inputs)
+-- Render add column form (STABLE region, NESTED level - contains form inputs)
 -- NOTE: This replaces add-column-button inside board-columns.
 -- SSE refresh while filling form will clobber it. Consider using a modal.
-def renderAddColumnForm (ctx : Context) : HtmlM .stable Unit := do
+def renderAddColumnForm (ctx : Context) : HtmlM .stable .nested Unit := do
   div [id_ "add-column-form",
        class_ "flex-shrink-0 w-72 bg-slate-50 rounded-xl p-3 border-2 border-dashed border-slate-300"] do
-    form [hx_post "/kanban/column",
+    form [hx_post' Route.kanbanCreateColumn,
           hx_target "#add-column-form",
           hx_swap "outerHTML"] do
       input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
@@ -229,7 +239,7 @@ def renderAddColumnForm (ctx : Context) : HtmlM .stable Unit := do
         div [class_ "flex gap-2 justify-end"] do
           button [type_ "button",
                   class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                  hx_get "/kanban/add-column-button",
+                  hx_get' Route.kanbanAddColumnButton,
                   hx_target "#add-column-form",
                   hx_swap "outerHTML"]
             (text "Cancel")
@@ -237,18 +247,18 @@ def renderAddColumnForm (ctx : Context) : HtmlM .stable Unit := do
                   class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
             (text "Add Column")
 
--- Render add column button (volatile - inside SSE refresh zone)
-def renderAddColumnButton : HtmlM .volatile Unit := do
+-- Render add column button (volatile region, nested level - inside SSE refresh zone)
+def renderAddColumnButton : HtmlM .volatile .nested Unit := do
   div [id_ "add-column-form",
        class_ "flex-shrink-0 w-72"] do
     button [class_ "w-full py-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 transition-colors",
-            hx_get "/kanban/add-column-form",
+            hx_get' Route.kanbanAddColumnForm,
             hx_target "#add-column-form",
             hx_swap "outerHTML"]
       (text "+ Add column")
 
--- Move card dropdown (polymorphic - no user input)
-def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM r Unit := do
+-- Move card dropdown (polymorphic in region and level - no user input)
+def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM r l Unit := do
   div [class_ "relative group/move"] do
     button [class_ "p-1 text-slate-400 hover:text-green-600"]
       (span [class_ "text-sm"] (text "➡️"))
@@ -256,17 +266,17 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
       for col in columns do
         if col.id != currentColumnId then
           button [class_ "w-full px-3 py-1 text-left text-sm hover:bg-slate-100",
-                  hx_post s!"/kanban/card/{card.id}/move",
+                  hx_post' (Route.kanbanMoveCard card.id),
                   hx_vals s!"\{\"column_id\": {col.id}}",
                   hx_target s!"#card-{card.id}",
                   hx_swap "outerHTML swap:1s"]
             (text col.name)
 
--- Main board content (stable shell with volatile inner region)
-def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable Unit := do
-  -- HTMX script
+-- Main board content (stable region, toplevel - contains scripts)
+def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable .toplevel Unit := do
+  -- HTMX script (toplevel-only)
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
-  -- SortableJS for drag and drop
+  -- SortableJS for drag and drop (toplevel-only)
   script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
 
   -- Kanban board container (SSE handled via native EventSource below)
@@ -282,9 +292,10 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable Unit :=
             (text s!"{columns.length} columns")
 
       -- Board container with horizontal scroll (VOLATILE - SSE refreshes this)
+      -- Note: volatileRegion transitions to nested level for its children
       div [class_ "flex-1 overflow-x-auto pb-4"] do
         volatileRegion "board-columns" [class_ "flex gap-4 h-full items-start"] do
-          -- Render existing columns
+          -- Render existing columns (nested level - no scripts allowed here)
           for col in columns do
             renderColumn ctx col
           -- Add column button
@@ -294,10 +305,10 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable Unit :=
   stableRegion "add-card-dialog" [] do
     pure ()
 
-  -- Kanban JavaScript (drag-and-drop + SSE)
-  script [src_ "/js/kanban.js"]
+  -- Kanban JavaScript (drag-and-drop + SSE) - toplevel-only
+  script [src' (Route.staticJs "kanban.js")]
 
-  -- Custom styles for sortable
+  -- Custom styles for sortable (toplevel-only)
   style [] "
     .sortable-ghost { opacity: 0.5; }
     .sortable-drag { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
