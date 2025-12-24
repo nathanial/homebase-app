@@ -368,22 +368,32 @@ def moveCard (cardId : Nat) : Action := fun ctx => do
   match columnIdStr.toNat? with
   | none => Action.badRequest ctx "Invalid column ID"
   | some newColumnId =>
-    -- Get next order in the target column
-    let order := getNextCardOrder ctx newColumnId
-    let tx : Transaction := [
-      TxOp.add ⟨cardId⟩ cardColumn (.ref ⟨newColumnId⟩),
-      TxOp.add ⟨cardId⟩ cardOrder (.int order)
-    ]
-    match ← ctx.transact tx with
-    | .ok ctx' =>
-      match getCard ctx' cardId with
-      | none => Action.notFound ctx' "Card not found"
-      | some (card, _) =>
-        let html := Views.Kanban.renderCardPartial ctx' card
-        -- Notify SSE clients about the card move
-        let _ ← SSE.publishEvent "kanban" "card-moved" s!"\{\"cardId\": {cardId}, \"newColumnId\": {newColumnId}}"
-        Action.html html ctx'
-    | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
+    match ctx.database with
+    | none => Action.badRequest ctx "Database not available"
+    | some db =>
+      let cardEid : EntityId := ⟨cardId⟩
+      -- Get the card's current column to retract it
+      match db.getOne cardEid cardColumn with
+      | none => Action.notFound ctx "Card not found"
+      | some oldColumnRef =>
+        -- Get next order in the target column
+        let order := getNextCardOrder ctx newColumnId
+        -- Retract old column reference, then add new one
+        let tx : Transaction := [
+          TxOp.retract cardEid cardColumn oldColumnRef,
+          TxOp.add cardEid cardColumn (.ref ⟨newColumnId⟩),
+          TxOp.add cardEid cardOrder (.int order)
+        ]
+        match ← ctx.transact tx with
+        | .ok ctx' =>
+          match getCard ctx' cardId with
+          | none => Action.notFound ctx' "Card not found"
+          | some (card, _) =>
+            let html := Views.Kanban.renderCardPartial ctx' card
+            -- Notify SSE clients about the card move
+            let _ ← SSE.publishEvent "kanban" "card-moved" s!"\{\"cardId\": {cardId}, \"newColumnId\": {newColumnId}}"
+            Action.html html ctx'
+        | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
 
 /-- Reorder card (drag and drop) - handles both within-column and cross-column moves -/
 def reorderCard (cardId : Nat) : Action := fun ctx => do
@@ -417,8 +427,14 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
       -- Build transaction operations
       let mut txOps : List TxOp := []
 
-      -- Update the moved card's column (always set, even if same column)
-      txOps := TxOp.add cardEid cardColumn (.ref colEid) :: txOps
+      -- Get the card's current column
+      match db.getOne cardEid cardColumn with
+      | none => return ← Action.notFound ctx "Card not found"
+      | some oldColumnRef =>
+        -- Only update column reference if it's actually changing
+        if oldColumnRef != Value.ref colEid then
+          txOps := TxOp.retract cardEid cardColumn oldColumnRef :: txOps
+          txOps := TxOp.add cardEid cardColumn (.ref colEid) :: txOps
 
       -- Calculate new order values
       -- Position the moved card at 'position', shift others accordingly
