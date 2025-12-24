@@ -18,25 +18,29 @@ def flashMessages (ctx : Context) : HtmlM Unit := do
   if let some msg := ctx.flash.get "info" then
     div [class_ "mb-4 p-4 rounded-lg bg-blue-100 text-blue-800 border border-blue-200"] (text msg)
 
-/-- Render a sidebar link with active state -/
-def sidebarLink (href label currentPath : String) : HtmlM Unit := do
-  let baseClass := "block px-6 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+/-- Render a sidebar link with active state and icon -/
+def sidebarLink (href icon label currentPath : String) : HtmlM Unit := do
+  let baseClass := "flex items-center gap-3 px-6 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
   let activeClass := if currentPath == href then " bg-blue-600 text-white" else ""
-  a [href_ href, class_ s!"{baseClass}{activeClass}"] (text label)
+  a [href_ href, class_ s!"{baseClass}{activeClass}"] do
+    span [class_ "text-lg"] (text icon)
+    span [] (text label)
 
 /-- Sidebar navigation -/
 def sidebar (currentPath : String) : HtmlM Unit :=
   aside [class_ "w-56 bg-slate-800 text-white flex-shrink-0"] do
-    div [class_ "p-5 text-xl font-bold border-b border-slate-700"] (text "Homebase")
+    div [class_ "p-5 text-xl font-bold border-b border-slate-700"] do
+      span [class_ "mr-2"] (text "🏠")
+      text "Homebase"
     nav [class_ "py-4"] do
-      sidebarLink "/chat" "Chat" currentPath
-      sidebarLink "/notebook" "Notebook" currentPath
-      sidebarLink "/time" "Time" currentPath
-      sidebarLink "/health" "Crohn's Disease" currentPath
-      sidebarLink "/recipes" "Recipes" currentPath
-      sidebarLink "/kanban" "Kanban" currentPath
-      sidebarLink "/gallery" "Gallery" currentPath
-      sidebarLink "/news" "News" currentPath
+      sidebarLink "/chat" "💬" "Chat" currentPath
+      sidebarLink "/notebook" "📓" "Notebook" currentPath
+      sidebarLink "/time" "⏰" "Time" currentPath
+      sidebarLink "/health" "🏥" "Health" currentPath
+      sidebarLink "/recipes" "🍳" "Recipes" currentPath
+      sidebarLink "/kanban" "📋" "Kanban" currentPath
+      sidebarLink "/gallery" "🖼️" "Gallery" currentPath
+      sidebarLink "/news" "📰" "News" currentPath
 
 /-- Top navigation bar -/
 def navbar (ctx : Context) : HtmlM Unit :=
