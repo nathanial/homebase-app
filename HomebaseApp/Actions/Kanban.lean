@@ -31,13 +31,19 @@ def getColumns (ctx : Context) : List (EntityId × String × Int) :=
 def getCardsForColumn (db : Db) (colId : EntityId) : List Card :=
   let cardIds := db.findByAttrValue cardColumn (.ref colId)
   let cards := cardIds.filterMap fun cardId =>
-    match db.getOne cardId cardTitle, db.getOne cardId cardDescription,
-          db.getOne cardId cardOrder, db.getOne cardId cardLabels with
-    | some (.string title), some (.string desc), some (.int order), some (.string labels) =>
-      some { id := cardId.id.toNat, title := title, description := desc, labels := labels, order := order.toNat }
-    | some (.string title), some (.string desc), some (.int order), none =>
-      some { id := cardId.id.toNat, title := title, description := desc, labels := "", order := order.toNat }
-    | _, _, _, _ => none
+    -- Verify the card's CURRENT column is this column (filter out historical references)
+    match db.getOne cardId cardColumn with
+    | some (.ref currentColId) =>
+      if currentColId != colId then none
+      else
+        match db.getOne cardId cardTitle, db.getOne cardId cardDescription,
+              db.getOne cardId cardOrder, db.getOne cardId cardLabels with
+        | some (.string title), some (.string desc), some (.int order), some (.string labels) =>
+          some { id := cardId.id.toNat, title := title, description := desc, labels := labels, order := order.toNat }
+        | some (.string title), some (.string desc), some (.int order), none =>
+          some { id := cardId.id.toNat, title := title, description := desc, labels := "", order := order.toNat }
+        | _, _, _, _ => none
+    | _ => none
   -- Sort by order
   cards.toArray.qsort (fun a b => a.order < b.order) |>.toList
 
@@ -356,5 +362,74 @@ def moveCard (cardId : Nat) : Action := fun ctx => do
         let html := Views.Kanban.renderCardPartial ctx' card
         Action.html html ctx'
     | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
+
+/-- Reorder card (drag and drop) - handles both within-column and cross-column moves -/
+def reorderCard (cardId : Nat) : Action := fun ctx => do
+  if !isLoggedIn ctx then
+    return ← Action.redirect "/login" ctx
+
+  let columnIdStr := ctx.params.getD "column_id" ""
+  let positionStr := ctx.params.getD "position" "0"
+
+  IO.println s!"[reorderCard] cardId={cardId} column_id={columnIdStr} position={positionStr}"
+
+  match columnIdStr.toNat?, positionStr.toNat? with
+  | none, _ => Action.badRequest ctx "Invalid column ID"
+  | _, none => Action.badRequest ctx "Invalid position"
+  | some newColumnId, some position =>
+    match ctx.database with
+    | none => Action.badRequest ctx "Database not available"
+    | some db =>
+      -- Get the current card info
+      let cardEid : EntityId := ⟨cardId⟩
+      let colEid : EntityId := ⟨newColumnId⟩
+
+      IO.println s!"[reorderCard] cardEid={cardEid.id} colEid={colEid.id}"
+
+      -- Get all cards in the target column (excluding the moved card)
+      let targetCards := getCardsForColumn db colEid
+      let otherCards := targetCards.filter (·.id != cardId)
+
+      IO.println s!"[reorderCard] targetCards={targetCards.length} otherCards={otherCards.length}"
+
+      -- Build transaction operations
+      let mut txOps : List TxOp := []
+
+      -- Update the moved card's column (always set, even if same column)
+      txOps := TxOp.add cardEid cardColumn (.ref colEid) :: txOps
+
+      -- Calculate new order values
+      -- Position the moved card at 'position', shift others accordingly
+      let mut currentOrder := 0
+      let mut insertedCard := false
+      let mut idx := 0
+
+      for card in otherCards do
+        -- Insert the moved card at the target position
+        if idx == position && !insertedCard then
+          txOps := TxOp.add cardEid cardOrder (.int currentOrder) :: txOps
+          currentOrder := currentOrder + 1
+          insertedCard := true
+
+        -- Update existing card's order
+        if card.order != currentOrder.toNat then
+          txOps := TxOp.add ⟨card.id⟩ cardOrder (.int currentOrder) :: txOps
+        currentOrder := currentOrder + 1
+        idx := idx + 1
+
+      -- If position is at the end (or beyond), add moved card at end
+      if !insertedCard then
+        txOps := TxOp.add cardEid cardOrder (.int currentOrder) :: txOps
+
+      IO.println s!"[reorderCard] txOps count={txOps.length}"
+
+      match ← ctx.transact txOps with
+      | .ok ctx' =>
+        IO.println s!"[reorderCard] Transaction succeeded"
+        -- Return empty response - the DOM is already updated by SortableJS
+        Action.html "" ctx'
+      | .error e =>
+        IO.println s!"[reorderCard] Transaction failed: {e}"
+        Action.badRequest ctx s!"Failed to reorder card: {e}"
 
 end HomebaseApp.Actions.Kanban

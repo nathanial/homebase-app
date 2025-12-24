@@ -55,7 +55,8 @@ def renderLabels (labelsStr : String) : HtmlM Unit := do
 -- Render a single card
 def renderCard (ctx : Context) (card : Card) : HtmlM Unit := do
   div [id_ s!"card-{card.id}",
-       class_ "bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer group"] do
+       data_ "card-id" (toString card.id),
+       class_ "bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"] do
     -- Card header with actions
     div [class_ "flex justify-between items-start mb-2"] do
       h4 [class_ "font-medium text-slate-800 flex-1"] (text card.title)
@@ -170,9 +171,10 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
                 hx_swap "outerHTML",
                 hx_confirm s!"Delete column '{col.name}' and all its cards?"]
           (span [class_ "text-xs"] (text "🗑️"))
-    -- Cards container
+    -- Cards container (sortable drop zone)
     div [id_ s!"column-cards-{col.id}",
-         class_ "flex-1 space-y-2 overflow-y-auto min-h-[100px]"] do
+         data_ "column-id" (toString col.id),
+         class_ "flex-1 space-y-2 overflow-y-auto min-h-[100px] sortable-cards"] do
       for card in col.cards do
         renderCard ctx card
     -- Add card button/form
@@ -253,6 +255,8 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
   -- HTMX script
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
+  -- SortableJS for drag and drop
+  script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
 
   div [class_ "h-full flex flex-col"] do
     -- Header
@@ -271,6 +275,55 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
           renderColumn ctx col
         -- Add column button
         renderAddColumnButton
+
+  -- SortableJS initialization
+  let sortableJs := "
+    document.addEventListener('DOMContentLoaded', function() {
+      initSortable();
+    });
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+      initSortable();
+    });
+    function initSortable() {
+      document.querySelectorAll('.sortable-cards').forEach(function(el) {
+        if (el.sortableInstance) return;
+        el.sortableInstance = new Sortable(el, {
+          group: 'kanban-cards',
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          dragClass: 'sortable-drag',
+          chosenClass: 'sortable-chosen',
+          onEnd: function(evt) {
+            var cardId = evt.item.dataset.cardId;
+            var newColumnId = evt.to.dataset.columnId;
+            var newIndex = evt.newIndex;
+            console.log('Reorder:', cardId, 'to column', newColumnId, 'at position', newIndex);
+            fetch('/kanban/card/' + cardId + '/reorder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: 'column_id=' + newColumnId + '&position=' + newIndex
+            }).then(function(response) {
+              console.log('Response status:', response.status);
+              if (!response.ok) {
+                console.error('Reorder failed with status:', response.status);
+                window.location.reload();
+              }
+            }).catch(function(err) {
+              console.error('Reorder failed:', err);
+              window.location.reload();
+            });
+          }
+        });
+      });
+    }
+  "
+  script [] sortableJs
+  -- Custom styles for sortable
+  style [] "
+    .sortable-ghost { opacity: 0.5; }
+    .sortable-drag { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    .sortable-chosen { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  "
 
 -- Full page render
 def render (ctx : Context) (columns : List Column) : String :=

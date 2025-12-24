@@ -79,6 +79,7 @@ def buildApp : App :=
     |>.put "/kanban/card/:id" "kanban_update_card" (withId Actions.Kanban.updateCard)
     |>.delete "/kanban/card/:id" "kanban_delete_card" (withId Actions.Kanban.deleteCard)
     |>.post "/kanban/card/:id/move" "kanban_move_card" (withId Actions.Kanban.moveCard)
+    |>.post "/kanban/card/:id/reorder" "kanban_reorder_card" (withId Actions.Kanban.reorderCard)
     -- Persistent database (auto-persists to JSONL)
     |>.withPersistentDatabase journalPath
 
