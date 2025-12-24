@@ -1,5 +1,5 @@
 /-
-  HomebaseApp.Views.Layout - HTML layout wrapper with sidebar navigation
+  HomebaseApp.Views.Layout - HTML layout wrapper with sidebar navigation (Tailwind CSS)
 -/
 import Scribe
 import Loom
@@ -12,22 +12,23 @@ open Loom
 /-- Render flash messages from context -/
 def flashMessages (ctx : Context) : HtmlM Unit := do
   if let some msg := ctx.flash.get "success" then
-    div [class_ "flash flash-success"] (text msg)
+    div [class_ "mb-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-200"] (text msg)
   if let some msg := ctx.flash.get "error" then
-    div [class_ "flash flash-error"] (text msg)
+    div [class_ "mb-4 p-4 rounded-lg bg-red-100 text-red-800 border border-red-200"] (text msg)
   if let some msg := ctx.flash.get "info" then
-    div [class_ "flash flash-info"] (text msg)
+    div [class_ "mb-4 p-4 rounded-lg bg-blue-100 text-blue-800 border border-blue-200"] (text msg)
 
 /-- Render a sidebar link with active state -/
 def sidebarLink (href label currentPath : String) : HtmlM Unit := do
-  let activeClass := if currentPath == href then " active" else ""
-  a [href_ href, class_ s!"sidebar-link{activeClass}"] (text label)
+  let baseClass := "block px-6 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+  let activeClass := if currentPath == href then " bg-blue-600 text-white" else ""
+  a [href_ href, class_ s!"{baseClass}{activeClass}"] (text label)
 
 /-- Sidebar navigation -/
 def sidebar (currentPath : String) : HtmlM Unit :=
-  aside [class_ "sidebar"] do
-    div [class_ "sidebar-header"] (text "Homebase")
-    nav [class_ "sidebar-nav"] do
+  aside [class_ "w-56 bg-slate-800 text-white flex-shrink-0"] do
+    div [class_ "p-5 text-xl font-bold border-b border-slate-700"] (text "Homebase")
+    nav [class_ "py-4"] do
       sidebarLink "/chat" "Chat" currentPath
       sidebarLink "/notebook" "Notebook" currentPath
       sidebarLink "/time" "Time" currentPath
@@ -39,17 +40,16 @@ def sidebar (currentPath : String) : HtmlM Unit :=
 
 /-- Top navigation bar -/
 def navbar (ctx : Context) : HtmlM Unit :=
-  nav [class_ "top-nav"] do
+  nav [class_ "bg-slate-900 text-white px-6 py-4 flex justify-end"] do
     match ctx.session.get "user_name" with
     | some userName =>
-      span [class_ "nav-right"] do
-        text s!"Hello, {userName} | "
-        a [href_ "/logout"] (text "Logout")
+      div [class_ "flex items-center gap-4"] do
+        span [class_ "text-slate-300"] (text s!"Hello, {userName}")
+        a [href_ "/logout", class_ "text-slate-300 hover:text-white transition-colors"] (text "Logout")
     | none =>
-      span [class_ "nav-right"] do
-        a [href_ "/login"] (text "Login")
-        text " "
-        a [href_ "/register"] (text "Register")
+      div [class_ "flex items-center gap-4"] do
+        a [href_ "/login", class_ "text-slate-300 hover:text-white transition-colors"] (text "Login")
+        a [href_ "/register", class_ "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors"] (text "Register")
 
 /-- Main layout wrapper with sidebar -/
 def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM Unit) : Html :=
@@ -60,13 +60,13 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         meta_ [charset_ "utf-8"]
         meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         title pageTitle
-        raw "<link rel=\"stylesheet\" href=\"/styles.css\">"
-      body [] do
-        div [class_ "app-container"] do
+        raw "<script src=\"https://cdn.tailwindcss.com\"></script>"
+      body [class_ "bg-slate-100 text-slate-900"] do
+        div [class_ "flex min-h-screen"] do
           sidebar currentPath
-          div [class_ "main-area"] do
+          div [class_ "flex-1 flex flex-col"] do
             navbar ctx
-            div [class_ "main-content"] do
+            div [class_ "flex-1 p-6"] do
               flashMessages ctx
               content
 
@@ -83,9 +83,9 @@ def renderSimple (ctx : Context) (pageTitle : String) (content : HtmlM Unit) : S
         meta_ [charset_ "utf-8"]
         meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         title pageTitle
-        raw "<link rel=\"stylesheet\" href=\"/styles.css\">"
-      body [] do
-        div [class_ "simple-container"] do
+        raw "<script src=\"https://cdn.tailwindcss.com\"></script>"
+      body [class_ "bg-slate-100 text-slate-900 min-h-screen flex items-center justify-center"] do
+        div [class_ "w-full max-w-md p-6"] do
           flashMessages ctx
           content
   html.render

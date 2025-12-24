@@ -12,28 +12,19 @@ open Loom
 open HomebaseApp.Views.Layout
 
 /-- Home page content -/
-def homeContent (ctx : Context) : HtmlM Unit := do
-  div [class_ "card"] do
-    h1 [] (text "Welcome to Homebase")
-    p [] do
+def homeContent : HtmlM Unit := do
+  div [class_ "bg-white rounded-xl shadow-sm p-8"] do
+    h1 [class_ "text-3xl font-bold text-slate-800 mb-4"] (text "Welcome to Homebase")
+    p [class_ "text-slate-600 mb-6"] do
       text "Your personal dashboard built with "
-      strong [] (text "Lean 4")
+      span [class_ "font-semibold text-slate-800"] (text "Lean 4")
       text " and "
-      strong [] (text "Loom")
+      span [class_ "font-semibold text-slate-800"] (text "Loom")
       text "."
-    div [class_ "mt-2"] do
-      match ctx.session.get "user_id" with
-      | some _ =>
-        p [] (text "Select a section from the sidebar to get started.")
-      | none =>
-        p [] (text "Get started by creating an account or logging in.")
-        div [class_ "mt-2"] do
-          a [href_ "/register", class_ "btn"] (text "Register")
-          text " "
-          a [href_ "/login", class_ "btn btn-secondary"] (text "Login")
+    p [class_ "text-slate-600"] (text "Select a section from the sidebar to get started.")
 
 /-- Render home page -/
 def render (ctx : Context) : String :=
-  Layout.render ctx "Homebase" "/" (homeContent ctx)
+  Layout.render ctx "Homebase" "/" homeContent
 
 end HomebaseApp.Views.Home
