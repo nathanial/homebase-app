@@ -91,44 +91,10 @@ def path : Route → String
 instance : ToString Route where
   toString := path
 
+/-- HasPath instance for type-safe HTMX attributes -/
+instance : Scribe.HasPath Route where
+  path := path
+
 end Route
 
--- ============================================================================
--- Type-safe HTMX attribute helpers (in Scribe namespace for ergonomics)
--- ============================================================================
-
 end HomebaseApp
-
-namespace Scribe
-
-open HomebaseApp (Route)
-
-/-- Type-safe hx-get attribute -/
-def hx_get' (route : Route) : Attr :=
-  { name := "hx-get", value := route.path }
-
-/-- Type-safe hx-post attribute -/
-def hx_post' (route : Route) : Attr :=
-  { name := "hx-post", value := route.path }
-
-/-- Type-safe hx-put attribute -/
-def hx_put' (route : Route) : Attr :=
-  { name := "hx-put", value := route.path }
-
-/-- Type-safe hx-delete attribute -/
-def hx_delete' (route : Route) : Attr :=
-  { name := "hx-delete", value := route.path }
-
-/-- Type-safe hx-patch attribute -/
-def hx_patch' (route : Route) : Attr :=
-  { name := "hx-patch", value := route.path }
-
-/-- Type-safe src attribute for scripts -/
-def src' (route : Route) : Attr :=
-  { name := "src", value := route.path }
-
-/-- Type-safe href attribute for links -/
-def href' (route : Route) : Attr :=
-  { name := "href", value := route.path }
-
-end Scribe
