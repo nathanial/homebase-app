@@ -1,0 +1,89 @@
+/-
+  HomebaseApp.Helpers - Auth guards, database utilities, password hashing
+-/
+import Loom
+import Ledger
+import HomebaseApp.Models
+
+namespace HomebaseApp.Helpers
+
+open Loom
+open Ledger
+open HomebaseApp.Models
+
+/-! ## Password Hashing -/
+
+/-- Simple polynomial hash (demo only - use bcrypt/argon2 in production) -/
+private def polyHash (data : ByteArray) : Nat :=
+  let prime : Nat := 31
+  data.foldl (init := 0) fun hash byte =>
+    hash * prime + byte.toNat
+
+/-- Convert Nat to hex string -/
+private def toHexString (n : Nat) : String :=
+  let hex := n.toDigits 16
+  String.mk hex
+
+/-- Hash a password with the app secret -/
+def hashPassword (password : String) (secret : ByteArray) : String :=
+  let passBytes := password.toUTF8
+  let combined := secret ++ passBytes
+  let hash1 := polyHash combined
+  let hash1Str := toString hash1
+  let hash2 := polyHash (combined ++ hash1Str.toUTF8)
+  s!"{toHexString hash1}-{toHexString hash2}"
+
+/-- Verify a password against a hash -/
+def verifyPassword (password hash : String) (secret : ByteArray) : Bool :=
+  hashPassword password secret == hash
+
+/-! ## Auth Guards -/
+
+/-- Require authentication - redirect to login if not authenticated -/
+def requireAuth (action : Action) : Action := fun ctx => do
+  match ctx.session.get "user_id" with
+  | none =>
+    let ctx := ctx.withFlash fun f => f.set "error" "Please log in to continue"
+    Action.redirect "/login" ctx
+  | some _ => action ctx
+
+/-- Get current user ID from session -/
+def currentUserId (ctx : Context) : Option String :=
+  ctx.session.get "user_id"
+
+/-- Get current user name from session -/
+def currentUserName (ctx : Context) : Option String :=
+  ctx.session.get "user_name"
+
+/-- Check if user is logged in -/
+def isLoggedIn (ctx : Context) : Bool :=
+  ctx.session.has "user_id"
+
+/-! ## Database Helpers -/
+
+/-- Find user by email -/
+def findUserByEmail (ctx : Context) (email : String) : Option EntityId :=
+  ctx.database.bind fun db =>
+    db.findOneByAttrValue userEmail (.string email)
+
+/-- Find user by ID -/
+def findUserById (ctx : Context) (id : String) : Option EntityId :=
+  match id.toInt? with
+  | some n => some ⟨n⟩
+  | none => none
+
+/-- Get a single attribute value as string -/
+def getAttrString (ctx : Context) (entityId : EntityId) (attr : Attribute) : Option String :=
+  ctx.database.bind fun db =>
+    match db.getOne entityId attr with
+    | some (.string s) => some s
+    | _ => none
+
+/-- Get a single attribute value as bool -/
+def getAttrBool (ctx : Context) (entityId : EntityId) (attr : Attribute) : Option Bool :=
+  ctx.database.bind fun db =>
+    match db.getOne entityId attr with
+    | some (.bool b) => some b
+    | _ => none
+
+end HomebaseApp.Helpers
