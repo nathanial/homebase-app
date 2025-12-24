@@ -24,6 +24,7 @@ namespace HomebaseApp.Views.Kanban
 
 open Scribe
 open Loom
+open Loom.Json
 open HomebaseApp.Views.Layout
 open HomebaseApp (Route)
 
@@ -285,7 +286,7 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
         if col.id != currentColumnId then
           button [class_ "w-full px-3 py-1 text-left text-sm hover:bg-slate-100",
                   hx_post' (Route.kanbanMoveCard card.id),
-                  hx_vals s!"\{\"column_id\": {col.id}}",
+                  hx_vals (jsonStr! { "column_id" : col.id }),
                   hx_target s!"#card-{card.id}",
                   hx_swap "outerHTML swap:1s"]
             (text col.name)
