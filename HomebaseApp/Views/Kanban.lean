@@ -1,5 +1,10 @@
 /-
   HomebaseApp.Views.Kanban - Kanban board view with columns and cards
+
+  Region safety:
+  - #board-columns is volatile (SSE refreshes it)
+  - #add-card-dialog is stable (modal survives refreshes)
+  - Inline edit forms currently use liftStable (known issue: can be clobbered by SSE)
 -/
 import Scribe
 import Loom
@@ -38,22 +43,22 @@ def labelColor (label : String) : String :=
   | "blocked" => "bg-purple-100 text-purple-800"
   | _ => "bg-slate-100 text-slate-800"
 
--- Render a single label
-def renderLabel (label : String) : HtmlM Unit := do
+-- Render a single label (polymorphic - no user input)
+def renderLabel (label : String) : HtmlM r Unit := do
   if label.trim.isEmpty then pure ()
   else
     span [class_ s!"px-2 py-0.5 text-xs rounded-full {labelColor label}"]
       (text label.trim)
 
--- Render labels for a card
-def renderLabels (labelsStr : String) : HtmlM Unit := do
+-- Render labels for a card (polymorphic - no user input)
+def renderLabels (labelsStr : String) : HtmlM r Unit := do
   let labels := labelsStr.splitOn ","
   div [class_ "flex flex-wrap gap-1 mb-2"] do
     for label in labels do
       renderLabel label
 
--- Render a single card
-def renderCard (ctx : Context) (card : Card) : HtmlM Unit := do
+-- Render a single card (volatile - inside SSE-refreshed region)
+def renderCard (ctx : Context) (card : Card) : HtmlM .volatile Unit := do
   div [id_ s!"card-{card.id}",
        data_ "card-id" (toString card.id),
        class_ "bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"] do
@@ -81,8 +86,10 @@ def renderCard (ctx : Context) (card : Card) : HtmlM Unit := do
     if !card.description.isEmpty then
       p [class_ "text-sm text-slate-500 line-clamp-2"] (text card.description)
 
--- Render card edit form
-def renderCardEditForm (ctx : Context) (card : Card) : HtmlM Unit := do
+-- Render card edit form (STABLE - contains form inputs)
+-- NOTE: This is rendered into a volatile context via liftStable.
+-- SSE refresh while editing will clobber the form. Consider using a modal.
+def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable Unit := do
   div [id_ s!"card-{card.id}",
        class_ "bg-white p-3 rounded-lg shadow-sm border-2 border-blue-400"] do
     form [hx_put s!"/kanban/card/{card.id}",
@@ -111,14 +118,14 @@ def renderCardEditForm (ctx : Context) (card : Card) : HtmlM Unit := do
                   class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
             (text "Save")
 
--- Render add card form (in modal dialog)
-def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM Unit := do
+-- Render add card form (STABLE - modal dialog outside SSE refresh zone)
+def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable Unit := do
   div [id_ "add-card-dialog",
        class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"] do
     div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
       h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Card")
       form [hx_post "/kanban/card",
-            hx_target s!"#column-cards-{columnId}",
+            hx_target_vol (volatileTarget s!"column-cards-{columnId}"),
             hx_swap "beforeend",
             attr_ "hx-on::after-request" "document.getElementById('add-card-dialog').innerHTML = ''"] do
         input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
@@ -142,16 +149,16 @@ def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM Unit := do
                     class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
               (text "Add Card")
 
--- Render add card button (opens modal dialog)
-def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
+-- Render add card button (volatile - opens modal)
+def renderAddCardButton (columnId : Nat) : HtmlM .volatile Unit := do
   button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
           hx_get s!"/kanban/column/{columnId}/add-card-form",
           hx_target "#add-card-dialog",
           hx_swap "innerHTML"]
     (text "+ Add card")
 
--- Render a single column
-def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
+-- Render a single column (volatile - inside SSE-refreshed region)
+def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile Unit := do
   div [id_ s!"column-{col.id}",
        class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3 flex flex-col max-h-full"] do
     -- Column header
@@ -181,8 +188,10 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
     div [class_ "mt-3"] do
       renderAddCardButton col.id
 
--- Render column edit form
-def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM Unit := do
+-- Render column edit form (STABLE - contains form inputs)
+-- NOTE: This is rendered into a volatile context via liftStable.
+-- SSE refresh while editing will clobber the form. Consider using a modal.
+def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable Unit := do
   div [id_ s!"column-{col.id}",
        class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3"] do
     form [hx_put s!"/kanban/column/{col.id}",
@@ -203,8 +212,10 @@ def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM Unit := do
                 hx_swap "outerHTML"]
           (text "Cancel")
 
--- Render add column form
-def renderAddColumnForm (ctx : Context) : HtmlM Unit := do
+-- Render add column form (STABLE - contains form inputs)
+-- NOTE: This replaces add-column-button inside board-columns.
+-- SSE refresh while filling form will clobber it. Consider using a modal.
+def renderAddColumnForm (ctx : Context) : HtmlM .stable Unit := do
   div [id_ "add-column-form",
        class_ "flex-shrink-0 w-72 bg-slate-50 rounded-xl p-3 border-2 border-dashed border-slate-300"] do
     form [hx_post "/kanban/column",
@@ -226,8 +237,8 @@ def renderAddColumnForm (ctx : Context) : HtmlM Unit := do
                   class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
             (text "Add Column")
 
--- Render add column button
-def renderAddColumnButton : HtmlM Unit := do
+-- Render add column button (volatile - inside SSE refresh zone)
+def renderAddColumnButton : HtmlM .volatile Unit := do
   div [id_ "add-column-form",
        class_ "flex-shrink-0 w-72"] do
     button [class_ "w-full py-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 transition-colors",
@@ -236,8 +247,8 @@ def renderAddColumnButton : HtmlM Unit := do
             hx_swap "outerHTML"]
       (text "+ Add column")
 
--- Move card dropdown (for moving cards between columns)
-def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM Unit := do
+-- Move card dropdown (polymorphic - no user input)
+def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM r Unit := do
   div [class_ "relative group/move"] do
     button [class_ "p-1 text-slate-400 hover:text-green-600"]
       (span [class_ "text-sm"] (text "➡️"))
@@ -251,8 +262,8 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
                   hx_swap "outerHTML swap:1s"]
             (text col.name)
 
--- Main board content
-def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
+-- Main board content (stable shell with volatile inner region)
+def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable Unit := do
   -- HTMX script
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
   -- SortableJS for drag and drop
@@ -270,18 +281,18 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
           span [class_ "text-sm text-slate-500"]
             (text s!"{columns.length} columns")
 
-      -- Board container with horizontal scroll
+      -- Board container with horizontal scroll (VOLATILE - SSE refreshes this)
       div [class_ "flex-1 overflow-x-auto pb-4"] do
-        div [id_ "board-columns",
-             class_ "flex gap-4 h-full items-start"] do
+        volatileRegion "board-columns" [class_ "flex gap-4 h-full items-start"] do
           -- Render existing columns
           for col in columns do
             renderColumn ctx col
           -- Add column button
           renderAddColumnButton
 
-  -- Modal dialog container (outside board-columns so it survives SSE refreshes)
-  div [id_ "add-card-dialog"] (pure ())
+  -- Modal dialog container (STABLE - outside board-columns, survives SSE)
+  stableRegion "add-card-dialog" [] do
+    pure ()
 
   -- Kanban JavaScript (drag-and-drop + SSE)
   script [src_ "/js/kanban.js"]
@@ -298,28 +309,33 @@ def render (ctx : Context) (columns : List Column) : String :=
   Layout.render ctx "Kanban - Homebase" "/kanban" (boardContent ctx columns)
 
 -- Partial renders for HTMX responses
+-- Card partials (volatile context - lifted from stable for edit form)
 def renderCardPartial (ctx : Context) (card : Card) : String :=
   HtmlM.render (renderCard ctx card)
 
 def renderCardEditFormPartial (ctx : Context) (card : Card) : String :=
   HtmlM.render (renderCardEditForm ctx card)
 
+-- Column partials (volatile context - lifted from stable for edit form)
 def renderColumnPartial (ctx : Context) (col : Column) : String :=
   HtmlM.render (renderColumn ctx col)
 
 def renderColumnEditFormPartial (ctx : Context) (col : Column) : String :=
   HtmlM.render (renderColumnEditForm ctx col)
 
+-- Add card form partial (stable - modal)
 def renderAddCardFormPartial (ctx : Context) (columnId : Nat) : String :=
   HtmlM.render (renderAddCardForm ctx columnId)
 
+-- Add card button partial (volatile)
 def renderAddCardButtonPartial (columnId : Nat) : String :=
   HtmlM.render (renderAddCardButton columnId)
 
+-- Add column form partial (stable - but replaces volatile content)
 def renderAddColumnFormPartial (ctx : Context) : String :=
   HtmlM.render (renderAddColumnForm ctx)
 
--- Render all columns (for SSE refresh)
+-- Render all columns (for SSE refresh - volatile)
 def renderColumnsPartial (ctx : Context) (columns : List Column) : String :=
   HtmlM.render do
     for col in columns do
