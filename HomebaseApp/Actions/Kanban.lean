@@ -10,6 +10,7 @@ import HomebaseApp.Views.Kanban
 namespace HomebaseApp.Actions.Kanban
 
 open Loom
+open Loom.Json
 open Ledger
 open HomebaseApp.Helpers
 open HomebaseApp.Models
@@ -156,7 +157,8 @@ def createColumn : Action := fun ctx => do
       let colHtml := Views.Kanban.renderColumnPartial ctx'' col
       let btnHtml := Views.Kanban.renderAddColumnButtonPartial
       -- Notify SSE clients about the new column
-      let _ ← SSE.publishEvent "kanban" "column-created" s!"\{\"columnId\": {eid.id.toNat}, \"name\": \"{name}\"}"
+      let columnId := eid.id.toNat
+      let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { columnId, name })
       Action.html (colHtml ++ btnHtml) ctx''
     | .error e => Action.badRequest ctx' s!"Failed to create column: {e}"
 
@@ -198,7 +200,7 @@ def updateColumn (columnId : Nat) : Action := fun ctx => do
     | some col =>
       let html := Views.Kanban.renderColumnPartial ctx' col
       -- Notify SSE clients about the column update
-      let _ ← SSE.publishEvent "kanban" "column-updated" s!"\{\"columnId\": {columnId}, \"name\": \"{name}\"}"
+      let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { columnId, name })
       Action.html html ctx'
   | .error e => Action.badRequest ctx s!"Failed to update column: {e}"
 
@@ -233,7 +235,7 @@ def deleteColumn (columnId : Nat) : Action := fun ctx => do
     match ← ctx.transact txOps with
     | .ok ctx' =>
       -- Notify SSE clients about the column deletion
-      let _ ← SSE.publishEvent "kanban" "column-deleted" s!"\{\"columnId\": {columnId}}"
+      let _ ← SSE.publishEvent "kanban" "column-deleted" (jsonStr! { columnId })
       -- Return empty string to remove from DOM
       Action.html "" ctx'
     | .error e => Action.badRequest ctx s!"Failed to delete column: {e}"
@@ -287,7 +289,8 @@ def createCard : Action := fun ctx => do
         let card : Card := { id := eid.id.toNat, title := title, description := description, labels := labels, order := order.toNat }
         let html := Views.Kanban.renderCardPartial ctx'' card
         -- Notify SSE clients about the new card
-        let _ ← SSE.publishEvent "kanban" "card-created" s!"\{\"cardId\": {eid.id.toNat}, \"columnId\": {columnId}, \"title\": \"{title}\"}"
+        let cardId := eid.id.toNat
+        let _ ← SSE.publishEvent "kanban" "card-created" (jsonStr! { cardId, columnId, title })
         Action.html html ctx''
       | .error e => Action.badRequest ctx' s!"Failed to create card: {e}"
 
@@ -334,7 +337,7 @@ def updateCard (cardId : Nat) : Action := fun ctx => do
     | some (card, _) =>
       let html := Views.Kanban.renderCardPartial ctx' card
       -- Notify SSE clients about the card update
-      let _ ← SSE.publishEvent "kanban" "card-updated" s!"\{\"cardId\": {cardId}, \"title\": \"{title}\"}"
+      let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { cardId, title })
       Action.html html ctx'
   | .error e => Action.badRequest ctx s!"Failed to update card: {e}"
 
@@ -354,7 +357,7 @@ def deleteCard (cardId : Nat) : Action := fun ctx => do
     match ← ctx.transact txOps with
     | .ok ctx' =>
       -- Notify SSE clients about the card deletion
-      let _ ← SSE.publishEvent "kanban" "card-deleted" s!"\{\"cardId\": {cardId}}"
+      let _ ← SSE.publishEvent "kanban" "card-deleted" (jsonStr! { cardId })
       -- Return empty string to remove from DOM
       Action.html "" ctx'
     | .error e => Action.badRequest ctx s!"Failed to delete card: {e}"
@@ -391,7 +394,7 @@ def moveCard (cardId : Nat) : Action := fun ctx => do
           | some (card, _) =>
             let html := Views.Kanban.renderCardPartial ctx' card
             -- Notify SSE clients about the card move
-            let _ ← SSE.publishEvent "kanban" "card-moved" s!"\{\"cardId\": {cardId}, \"newColumnId\": {newColumnId}}"
+            let _ ← SSE.publishEvent "kanban" "card-moved" (jsonStr! { cardId, newColumnId })
             Action.html html ctx'
         | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
 
@@ -465,7 +468,7 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
       | .ok ctx' =>
         IO.println s!"[reorderCard] Transaction succeeded"
         -- Notify SSE clients about the card reorder
-        let _ ← SSE.publishEvent "kanban" "card-reordered" s!"\{\"cardId\": {cardId}, \"columnId\": {newColumnId}, \"position\": {position}}"
+        let _ ← SSE.publishEvent "kanban" "card-reordered" (jsonStr! { cardId, "columnId" : newColumnId, position })
         -- Return empty response - the DOM is already updated by SortableJS
         Action.html "" ctx'
       | .error e =>
