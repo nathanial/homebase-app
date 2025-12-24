@@ -111,44 +111,44 @@ def renderCardEditForm (ctx : Context) (card : Card) : HtmlM Unit := do
                   class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
             (text "Save")
 
--- Render add card form (inline)
+-- Render add card form (in modal dialog)
 def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM Unit := do
-  div [id_ s!"add-card-form-{columnId}",
-       class_ "p-2 bg-slate-50 rounded-lg"] do
-    form [hx_post "/kanban/card",
-          hx_target s!"#column-cards-{columnId}",
-          hx_swap "beforeend"] do
-      input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-      input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
-      div [class_ "space-y-2"] do
-        input [type_ "text", name_ "title",
-               class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-               placeholder_ "Card title", required_, autofocus_]
-        textarea [name_ "description", rows_ 2,
-                  class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  placeholder_ "Description (optional)"]
-        input [type_ "text", name_ "labels",
-               class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-               placeholder_ "Labels (comma-separated)"]
-        div [class_ "flex gap-2 justify-end"] do
-          button [type_ "button",
-                  class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
-                  hx_get s!"/kanban/column/{columnId}/add-card-button",
-                  hx_target s!"#add-card-form-{columnId}",
-                  hx_swap "outerHTML"]
-            (text "Cancel")
-          button [type_ "submit",
-                  class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
-            (text "Add Card")
+  div [id_ "add-card-dialog",
+       class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"] do
+    div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
+      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Card")
+      form [hx_post "/kanban/card",
+            hx_target s!"#column-cards-{columnId}",
+            hx_swap "beforeend",
+            attr_ "hx-on::after-request" "document.getElementById('add-card-dialog').innerHTML = ''"] do
+        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+        input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
+        div [class_ "space-y-2"] do
+          input [type_ "text", name_ "title",
+                 class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                 placeholder_ "Card title", required_, autofocus_]
+          textarea [name_ "description", rows_ 2,
+                    class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    placeholder_ "Description (optional)"]
+          input [type_ "text", name_ "labels",
+                 class_ "w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+                 placeholder_ "Labels (comma-separated)"]
+          div [class_ "flex gap-2 justify-end"] do
+            button [type_ "button",
+                    class_ "px-2 py-1 text-sm text-slate-600 hover:text-slate-800",
+                    attr_ "onclick" "document.getElementById('add-card-dialog').innerHTML = ''"]
+              (text "Cancel")
+            button [type_ "submit",
+                    class_ "px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"]
+              (text "Add Card")
 
--- Render add card button (shows form when clicked)
+-- Render add card button (opens modal dialog)
 def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
-  div [id_ s!"add-card-form-{columnId}"] do
-    button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
-            hx_get s!"/kanban/column/{columnId}/add-card-form",
-            hx_target s!"#add-card-form-{columnId}",
-            hx_swap "outerHTML"]
-      (text "+ Add card")
+  button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
+          hx_get s!"/kanban/column/{columnId}/add-card-form",
+          hx_target "#add-card-dialog",
+          hx_swap "innerHTML"]
+    (text "+ Add card")
 
 -- Render a single column
 def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
@@ -279,6 +279,9 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
             renderColumn ctx col
           -- Add column button
           renderAddColumnButton
+
+  -- Modal dialog container (outside board-columns so it survives SSE refreshes)
+  div [id_ "add-card-dialog"] (pure ())
 
   -- Kanban JavaScript (drag-and-drop + SSE)
   script [src_ "/js/kanban.js"]
