@@ -30,28 +30,27 @@ structure Column where
   cards : List Card
   deriving Inhabited
 
--- Label colors mapping
-def labelColor (label : String) : String :=
+-- Label class mapping
+def labelClass (label : String) : String :=
   match label.trim.toLower with
-  | "bug" => "bg-red-100 text-red-800"
-  | "feature" => "bg-blue-100 text-blue-800"
-  | "urgent" => "bg-orange-100 text-orange-800"
-  | "low" => "bg-gray-100 text-gray-800"
-  | "high" => "bg-yellow-100 text-yellow-800"
-  | "blocked" => "bg-purple-100 text-purple-800"
-  | _ => "bg-slate-100 text-slate-800"
+  | "bug" => "label-bug"
+  | "feature" => "label-feature"
+  | "urgent" => "label-urgent"
+  | "low" => "label-low"
+  | "high" => "label-high"
+  | "blocked" => "label-blocked"
+  | _ => "label-default"
 
 -- Render a single label
 def renderLabel (label : String) : HtmlM Unit := do
   if label.trim.isEmpty then pure ()
   else
-    span [class_ s!"px-2 py-0.5 text-xs rounded-full {labelColor label}"]
-      (text label.trim)
+    span [class_ s!"label {labelClass label}"] (text label.trim)
 
 -- Render labels for a card
 def renderLabels (labelsStr : String) : HtmlM Unit := do
   let labels := labelsStr.splitOn ","
-  div [class_ "flex flex-wrap gap-1 mb-2"] do
+  div [class_ "kanban-labels"] do
     for label in labels do
       renderLabel label
 
@@ -59,108 +58,98 @@ def renderLabels (labelsStr : String) : HtmlM Unit := do
 def renderCard (ctx : Context) (card : Card) : HtmlM Unit := do
   div [id_ s!"card-{card.id}",
        data_ "card-id" (toString card.id),
-       class_ "bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"] do
+       class_ "kanban-card"] do
     -- Card header with actions
-    div [class_ "flex justify-between items-start mb-2"] do
-      h4 [class_ "font-medium text-slate-800 flex-1"] (text card.title)
-      div [class_ "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"] do
+    div [class_ "kanban-card-header"] do
+      h4 [class_ "kanban-card-title"] (text card.title)
+      div [class_ "kanban-card-actions"] do
         -- Edit button - opens modal (typed route)
-        button [class_ "p-1 text-slate-400 hover:text-blue-600",
+        button [class_ "btn-icon",
                 hx_get' (Route.kanbanEditCardForm card.id),
                 hx_target "#modal-container",
                 hx_swap "innerHTML"]
-          (span [class_ "text-sm"] (text "✏️"))
+          (text "✏️")
         -- Delete button (typed route)
-        button [class_ "p-1 text-slate-400 hover:text-red-600",
+        button [class_ "btn-icon btn-icon-danger",
                 hx_delete' (Route.kanbanDeleteCard card.id),
                 hx_target s!"#card-{card.id}",
                 hx_swap "outerHTML",
                 hx_confirm "Delete this card?"]
-          (span [class_ "text-sm"] (text "🗑️"))
+          (text "🗑️")
     -- Labels
     if !card.labels.isEmpty then
       renderLabels card.labels
     -- Description preview
     if !card.description.isEmpty then
-      p [class_ "text-sm text-slate-500 line-clamp-2"] (text card.description)
+      p [class_ "kanban-card-description"] (text card.description)
 
 -- Render card edit form as modal
 def renderCardEditForm (ctx : Context) (card : Card) : HtmlM Unit := do
-  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+  div [class_ "modal-overlay",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "bg-white rounded-lg shadow-xl p-4 w-96"] do
-      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Edit Card")
+    div [class_ "modal-container modal-md"] do
+      h3 [class_ "modal-title"] (text "Edit Card")
       form [hx_put' (Route.kanbanUpdateCard card.id),
             hx_target s!"#card-{card.id}",
             hx_swap "outerHTML",
             attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
         input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-        div [class_ "space-y-3"] do
-          div [] do
-            label [for_ "title", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Title")
+        div [class_ "form-stack"] do
+          div [class_ "form-group"] do
+            label [for_ "title", class_ "form-label"] (text "Title")
             input [type_ "text", name_ "title", id_ "title", value_ card.title,
-                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                   placeholder_ "Card title", required_, autofocus_]
-          div [] do
-            label [for_ "description", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Description")
+                   class_ "form-input", placeholder_ "Card title", required_, autofocus_]
+          div [class_ "form-group"] do
+            label [for_ "description", class_ "form-label"] (text "Description")
             textarea [name_ "description", id_ "description", rows_ 3,
-                      class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      placeholder_ "Description (optional)"]
+                      class_ "form-textarea", placeholder_ "Description (optional)"]
               card.description
-          div [] do
-            label [for_ "labels", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Labels")
+          div [class_ "form-group"] do
+            label [for_ "labels", class_ "form-label"] (text "Labels")
             input [type_ "text", name_ "labels", id_ "labels", value_ card.labels,
-                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                   placeholder_ "bug, feature, urgent (comma-separated)"]
-          div [class_ "flex gap-2 justify-end pt-2"] do
-            button [type_ "button",
-                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                   class_ "form-input", placeholder_ "bug, feature, urgent (comma-separated)"]
+          div [class_ "form-actions"] do
+            button [type_ "button", class_ "btn btn-secondary",
                     attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
               (text "Cancel")
-            button [type_ "submit",
-                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+            button [type_ "submit", class_ "btn btn-primary"]
               (text "Save Changes")
 
 -- Render add card form as modal
 def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM Unit := do
-  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+  div [class_ "modal-overlay",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "bg-white rounded-lg shadow-xl p-4 w-96"] do
-      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Card")
+    div [class_ "modal-container modal-md"] do
+      h3 [class_ "modal-title"] (text "Add Card")
       form [hx_post' Route.kanbanCreateCard,
             hx_target_vol (volatileTarget s!"column-cards-{columnId}"),
             hx_swap "beforeend",
             attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
         input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
         input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
-        div [class_ "space-y-3"] do
-          div [] do
-            label [for_ "title", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Title")
+        div [class_ "form-stack"] do
+          div [class_ "form-group"] do
+            label [for_ "title", class_ "form-label"] (text "Title")
             input [type_ "text", name_ "title", id_ "title",
-                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                   placeholder_ "Card title", required_, autofocus_]
-          div [] do
-            label [for_ "description", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Description")
+                   class_ "form-input", placeholder_ "Card title", required_, autofocus_]
+          div [class_ "form-group"] do
+            label [for_ "description", class_ "form-label"] (text "Description")
             textarea [name_ "description", id_ "description", rows_ 2,
-                      class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      placeholder_ "Description (optional)"]
-          div [] do
-            label [for_ "labels", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Labels")
+                      class_ "form-textarea", placeholder_ "Description (optional)"]
+          div [class_ "form-group"] do
+            label [for_ "labels", class_ "form-label"] (text "Labels")
             input [type_ "text", name_ "labels", id_ "labels",
-                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                   placeholder_ "bug, feature, urgent (comma-separated)"]
-          div [class_ "flex gap-2 justify-end pt-2"] do
-            button [type_ "button",
-                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                   class_ "form-input", placeholder_ "bug, feature, urgent (comma-separated)"]
+          div [class_ "form-actions"] do
+            button [type_ "button", class_ "btn btn-secondary",
                     attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
               (text "Cancel")
-            button [type_ "submit",
-                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+            button [type_ "submit", class_ "btn btn-primary"]
               (text "Add Card")
 
 -- Render add card button
 def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
-  button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
+  button [class_ "kanban-add-card",
           hx_get' (Route.kanbanAddCardForm columnId),
           hx_target "#modal-container",
           hx_swap "innerHTML"]
@@ -168,105 +157,96 @@ def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
 
 -- Render a single column
 def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
-  div [id_ s!"column-{col.id}",
-       class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3 flex flex-col max-h-full"] do
+  div [id_ s!"column-{col.id}", class_ "kanban-column"] do
     -- Column header
-    div [class_ "flex justify-between items-center mb-3 group"] do
-      h3 [class_ "font-semibold text-slate-700"] (text col.name)
-      div [class_ "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"] do
+    div [class_ "kanban-column-header"] do
+      h3 [class_ "kanban-column-title"] (text col.name)
+      div [class_ "kanban-column-actions"] do
         -- Edit column button - opens modal (typed route)
-        button [class_ "p-1 text-slate-400 hover:text-blue-600",
+        button [class_ "btn-icon",
                 hx_get' (Route.kanbanEditColumnForm col.id),
                 hx_target "#modal-container",
                 hx_swap "innerHTML"]
-          (span [class_ "text-xs"] (text "✏️"))
+          (text "✏️")
         -- Delete column button (typed route)
-        button [class_ "p-1 text-slate-400 hover:text-red-600",
+        button [class_ "btn-icon btn-icon-danger",
                 hx_delete' (Route.kanbanDeleteColumn col.id),
                 hx_target s!"#column-{col.id}",
                 hx_swap "outerHTML",
                 hx_confirm s!"Delete column '{col.name}' and all its cards?"]
-          (span [class_ "text-xs"] (text "🗑️"))
+          (text "🗑️")
     -- Cards container (sortable drop zone)
     div [id_ s!"column-cards-{col.id}",
          data_ "column-id" (toString col.id),
-         class_ "flex-1 space-y-2 overflow-y-auto min-h-[100px] sortable-cards"] do
+         class_ "kanban-column-cards sortable-cards"] do
       for card in col.cards do
         renderCard ctx card
     -- Add card button/form
-    div [class_ "mt-3"] do
-      renderAddCardButton col.id
+    renderAddCardButton col.id
 
 -- Render column edit form as modal
 def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM Unit := do
-  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+  div [class_ "modal-overlay",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
-      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Edit Column")
+    div [class_ "modal-container modal-sm"] do
+      h3 [class_ "modal-title"] (text "Edit Column")
       form [hx_put' (Route.kanbanUpdateColumn col.id),
             hx_target s!"#column-{col.id}",
             hx_swap "outerHTML",
             attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
         input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-        div [class_ "space-y-3"] do
-          div [] do
-            label [for_ "name", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Column Name")
+        div [class_ "form-stack"] do
+          div [class_ "form-group"] do
+            label [for_ "name", class_ "form-label"] (text "Column Name")
             input [type_ "text", name_ "name", id_ "name", value_ col.name,
-                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                   placeholder_ "Column name", required_, autofocus_]
-          div [class_ "flex gap-2 justify-end pt-2"] do
-            button [type_ "button",
-                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                   class_ "form-input", placeholder_ "Column name", required_, autofocus_]
+          div [class_ "form-actions"] do
+            button [type_ "button", class_ "btn btn-secondary",
                     attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
               (text "Cancel")
-            button [type_ "submit",
-                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+            button [type_ "submit", class_ "btn btn-primary"]
               (text "Save")
 
 -- Render add column form as modal
 def renderAddColumnForm (ctx : Context) : HtmlM Unit := do
-  div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+  div [class_ "modal-overlay",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
-      h3 [class_ "font-semibold text-slate-700 mb-3"] (text "Add Column")
+    div [class_ "modal-container modal-sm"] do
+      h3 [class_ "modal-title"] (text "Add Column")
       form [hx_post' Route.kanbanCreateColumn,
             hx_target_vol (volatileTarget "board-columns"),
             hx_swap "beforeend",
             attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
         input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-        div [class_ "space-y-3"] do
-          div [] do
-            label [for_ "name", class_ "block text-sm font-medium text-slate-700 mb-1"] (text "Column Name")
+        div [class_ "form-stack"] do
+          div [class_ "form-group"] do
+            label [for_ "name", class_ "form-label"] (text "Column Name")
             input [type_ "text", name_ "name", id_ "name",
-                   class_ "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                   placeholder_ "Column name", required_, autofocus_]
-          div [class_ "flex gap-2 justify-end pt-2"] do
-            button [type_ "button",
-                    class_ "px-3 py-2 text-sm text-slate-600 hover:text-slate-800",
+                   class_ "form-input", placeholder_ "Column name", required_, autofocus_]
+          div [class_ "form-actions"] do
+            button [type_ "button", class_ "btn btn-secondary",
                     attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
               (text "Cancel")
-            button [type_ "submit",
-                    class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
+            button [type_ "submit", class_ "btn btn-primary"]
               (text "Add Column")
 
 -- Render add column button
 def renderAddColumnButton : HtmlM Unit := do
-  div [class_ "flex-shrink-0 w-72"] do
-    button [class_ "w-full py-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 transition-colors",
+  div [class_ "kanban-add-column-wrapper"] do
+    button [class_ "kanban-add-column",
             hx_get' Route.kanbanAddColumnForm,
             hx_target "#modal-container",
             hx_swap "innerHTML"]
       (text "+ Add column")
 
--- Move card dropdown
+-- Move card dropdown (currently unused but kept for future use)
 def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM Unit := do
-  div [class_ "relative group/move"] do
-    button [class_ "p-1 text-slate-400 hover:text-green-600"]
-      (span [class_ "text-sm"] (text "➡️"))
-    div [class_ "hidden group-hover/move:block absolute right-0 top-6 bg-white border rounded shadow-lg z-10 min-w-[120px]"] do
+  div [class_ "move-dropdown"] do
+    button [class_ "btn-icon"] (text "➡️")
+    div [class_ "move-dropdown-menu"] do
       for col in columns do
         if col.id != currentColumnId then
-          button [class_ "w-full px-3 py-1 text-left text-sm hover:bg-slate-100",
+          button [class_ "move-dropdown-item",
                   hx_post' (Route.kanbanMoveCard card.id),
                   hx_vals (jsonStr! { "column_id" : col.id }),
                   hx_target s!"#card-{card.id}",
@@ -275,31 +255,31 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
 
 -- Main board content
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
+  -- Kanban CSS
+  link [rel_ "stylesheet", href' (Route.staticCss "kanban.css")]
   -- HTMX script
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
   -- SortableJS for drag and drop
   script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
 
   -- Kanban board container
-  div [id_ "kanban-board"] do
-    div [class_ "h-full flex flex-col"] do
-      -- Header
-      div [class_ "flex justify-between items-center mb-6"] do
-        h1 [class_ "text-2xl font-bold text-slate-800"] (text "Kanban Board")
-        div [class_ "flex gap-2"] do
-          -- SSE connection indicator
-          span [id_ "sse-status", class_ "text-xs text-green-500"] (text "● Live")
-          span [class_ "text-sm text-slate-500"]
-            (text s!"{columns.length} columns")
+  div [id_ "kanban-board", class_ "kanban-board"] do
+    -- Header
+    div [class_ "kanban-header"] do
+      h1 [class_ "kanban-title"] (text "Kanban Board")
+      div [class_ "kanban-meta"] do
+        -- SSE connection indicator
+        span [id_ "sse-status", class_ "status-indicator"] (text "● Live")
+        span [class_ "kanban-count"] (text s!"{columns.length} columns")
 
-      -- Board container with horizontal scroll
-      div [class_ "flex-1 overflow-x-auto pb-4"] do
-        div [id_ "board-columns", class_ "flex gap-4 h-full items-start"] do
-          -- Render existing columns
-          for col in columns do
-            renderColumn ctx col
-          -- Add column button
-          renderAddColumnButton
+    -- Board container with horizontal scroll
+    div [class_ "kanban-scroll"] do
+      div [id_ "board-columns", class_ "kanban-columns"] do
+        -- Render existing columns
+        for col in columns do
+          renderColumn ctx col
+        -- Add column button
+        renderAddColumnButton
 
   -- Modal container
   div [id_ "modal-container"] do
@@ -307,13 +287,6 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
 
   -- Kanban JavaScript (drag-and-drop + SSE)
   script [src' (Route.staticJs "kanban.js")]
-
-  -- Custom styles for sortable
-  style [] "
-    .sortable-ghost { opacity: 0.5; }
-    .sortable-drag { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-    .sortable-chosen { outline: 2px solid #3b82f6; outline-offset: 2px; }
-  "
 
 -- Full page render
 def render (ctx : Context) (columns : List Column) : String :=

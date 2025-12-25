@@ -1,0 +1,363 @@
+/* Homebase App - Main Stylesheet */
+
+/* CSS Custom Properties for theming */
+:root {
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-green-100: #dcfce7;
+  --color-green-200: #bbf7d0;
+  --color-green-800: #166534;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-800: #991b1b;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-800: #1e40af;
+  --color-white: #ffffff;
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-slate-100);
+  color: var(--color-slate-900);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+/* App container */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 14rem;
+  background-color: var(--color-slate-800);
+  color: var(--color-white);
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: 1.25rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-slate-700);
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-header-icon {
+  margin-right: 0.5rem;
+}
+
+.sidebar-nav {
+  padding: 1rem 0;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  color: var(--color-slate-300);
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.sidebar-link:hover {
+  background-color: var(--color-slate-700);
+  color: var(--color-white);
+}
+
+.sidebar-link.active {
+  background-color: var(--color-blue-600);
+  color: var(--color-white);
+}
+
+.sidebar-link-icon {
+  font-size: 1.125rem;
+}
+
+/* Main content area */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+/* Navbar */
+.navbar {
+  background-color: var(--color-slate-900);
+  color: var(--color-white);
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.navbar-user {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navbar-username {
+  color: var(--color-slate-300);
+}
+
+.navbar-link {
+  color: var(--color-slate-300);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.navbar-link:hover {
+  color: var(--color-white);
+}
+
+.navbar-link-primary {
+  background-color: var(--color-blue-600);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.15s;
+}
+
+.navbar-link-primary:hover {
+  background-color: var(--color-blue-700);
+  color: var(--color-white);
+}
+
+/* Flash messages */
+.flash {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid;
+}
+
+.flash-success {
+  background-color: var(--color-green-100);
+  color: var(--color-green-800);
+  border-color: var(--color-green-200);
+}
+
+.flash-error {
+  background-color: var(--color-red-100);
+  color: var(--color-red-800);
+  border-color: var(--color-red-200);
+}
+
+.flash-info {
+  background-color: var(--color-blue-100);
+  color: var(--color-blue-800);
+  border-color: var(--color-blue-200);
+}
+
+/* Auth container (for login/register pages) */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.5rem;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-container {
+  background-color: var(--color-white);
+  border-radius: 0.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  padding: 1rem;
+}
+
+.modal-sm {
+  width: 20rem;
+}
+
+.modal-md {
+  width: 24rem;
+}
+
+.modal-title {
+  font-weight: 600;
+  color: var(--color-slate-700);
+  margin-bottom: 0.75rem;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 0.75rem;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-slate-700);
+  margin-bottom: 0.25rem;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-slate-300);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  border-color: var(--color-blue-500);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+  border: none;
+}
+
+.btn-primary {
+  background-color: var(--color-blue-600);
+  color: var(--color-white);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-blue-700);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-slate-600);
+}
+
+.btn-secondary:hover {
+  color: var(--color-slate-800);
+}
+
+.btn-icon {
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-slate-500);
+  transition: color 0.15s;
+}
+
+.btn-icon:hover {
+  color: var(--color-blue-600);
+}
+
+.btn-icon-danger:hover {
+  color: var(--color-red-800);
+}
+
+/* Status indicator */
+.status-indicator {
+  font-size: 0.75rem;
+  color: #22c55e;
+}
+
+/* Utility classes */
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+}
+
+.text-muted {
+  color: var(--color-slate-500);
+}
+
+.gap-1 {
+  gap: 0.25rem;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.hidden {
+  display: none;
+}
+
+.group:hover .group-hover-visible {
+  display: flex;
+}

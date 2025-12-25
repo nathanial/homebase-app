@@ -49,6 +49,7 @@ inductive Route where
   | kanbanReorderCard (id : Nat)
   -- Static files
   | staticJs (name : String)
+  | staticCss (name : String)
   deriving Repr
 
 namespace Route
@@ -86,6 +87,7 @@ def path : Route → String
   | .kanbanMoveCard id => s!"/kanban/card/{id}/move"
   | .kanbanReorderCard id => s!"/kanban/card/{id}/reorder"
   | .staticJs name => s!"/js/{name}"
+  | .staticCss name => s!"/css/{name}"
 
 /-- Convert route to string (alias for path) -/
 instance : ToString Route where
