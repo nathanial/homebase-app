@@ -1,19 +1,5 @@
 /-
   HomebaseApp.Views.Kanban - Kanban board view with columns and cards
-
-  Region safety:
-  - #board-columns is volatile (SSE refreshes it)
-  - #modal-container is stable (modal survives refreshes)
-  - ALL forms are modal-based: edit card, edit column, add column
-  - Forms rendered into stable region → compile-time safety against SSE clobbering
-
-  Level safety:
-  - Scripts only at toplevel (boardContent)
-  - Components are nested (no script injection possible)
-
-  Route safety:
-  - All HTMX routes use typed Route constructors
-  - Invalid routes are compile-time errors
 -/
 import Scribe
 import Loom
@@ -55,22 +41,22 @@ def labelColor (label : String) : String :=
   | "blocked" => "bg-purple-100 text-purple-800"
   | _ => "bg-slate-100 text-slate-800"
 
--- Render a single label (polymorphic in region and level - no user input)
-def renderLabel (label : String) : HtmlM r l Unit := do
+-- Render a single label
+def renderLabel (label : String) : HtmlM Unit := do
   if label.trim.isEmpty then pure ()
   else
     span [class_ s!"px-2 py-0.5 text-xs rounded-full {labelColor label}"]
       (text label.trim)
 
--- Render labels for a card (polymorphic in region and level - no user input)
-def renderLabels (labelsStr : String) : HtmlM r l Unit := do
+-- Render labels for a card
+def renderLabels (labelsStr : String) : HtmlM Unit := do
   let labels := labelsStr.splitOn ","
   div [class_ "flex flex-wrap gap-1 mb-2"] do
     for label in labels do
       renderLabel label
 
--- Render a single card (volatile region, nested level - inside SSE-refreshed region)
-def renderCard (ctx : Context) (card : Card) : HtmlM .volatile .nested Unit := do
+-- Render a single card
+def renderCard (ctx : Context) (card : Card) : HtmlM Unit := do
   div [id_ s!"card-{card.id}",
        data_ "card-id" (toString card.id),
        class_ "bg-white p-3 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"] do
@@ -98,9 +84,8 @@ def renderCard (ctx : Context) (card : Card) : HtmlM .volatile .nested Unit := d
     if !card.description.isEmpty then
       p [class_ "text-sm text-slate-500 line-clamp-2"] (text card.description)
 
--- Render card edit form as MODAL (STABLE region, NESTED level)
--- Modal is in stable region → survives SSE refreshes
-def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable .nested Unit := do
+-- Render card edit form as modal
+def renderCardEditForm (ctx : Context) (card : Card) : HtmlM Unit := do
   div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
     div [class_ "bg-white rounded-lg shadow-xl p-4 w-96"] do
@@ -136,9 +121,8 @@ def renderCardEditForm (ctx : Context) (card : Card) : HtmlM .stable .nested Uni
                     class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
               (text "Save Changes")
 
--- Render add card form as MODAL (STABLE region, NESTED level)
--- Modal is in stable region → survives SSE refreshes
-def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable .nested Unit := do
+-- Render add card form as modal
+def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM Unit := do
   div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
     div [class_ "bg-white rounded-lg shadow-xl p-4 w-96"] do
@@ -174,16 +158,16 @@ def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM .stable .nested U
                     class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
               (text "Add Card")
 
--- Render add card button (volatile region, nested level - opens modal)
-def renderAddCardButton (columnId : Nat) : HtmlM .volatile .nested Unit := do
+-- Render add card button
+def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
   button [class_ "w-full py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors",
           hx_get' (Route.kanbanAddCardForm columnId),
           hx_target "#modal-container",
           hx_swap "innerHTML"]
     (text "+ Add card")
 
--- Render a single column (volatile region, nested level - inside SSE-refreshed region)
-def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile .nested Unit := do
+-- Render a single column
+def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
   div [id_ s!"column-{col.id}",
        class_ "flex-shrink-0 w-72 bg-slate-100 rounded-xl p-3 flex flex-col max-h-full"] do
     -- Column header
@@ -213,9 +197,8 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM .volatile .nested Unit :
     div [class_ "mt-3"] do
       renderAddCardButton col.id
 
--- Render column edit form as MODAL (STABLE region, NESTED level)
--- Modal is in stable region → survives SSE refreshes
-def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable .nested Unit := do
+-- Render column edit form as modal
+def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM Unit := do
   div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
     div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
@@ -240,9 +223,8 @@ def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM .stable .nested 
                     class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
               (text "Save")
 
--- Render add column form as MODAL (STABLE region, NESTED level)
--- Modal is in stable region → survives SSE refreshes
-def renderAddColumnForm (ctx : Context) : HtmlM .stable .nested Unit := do
+-- Render add column form as modal
+def renderAddColumnForm (ctx : Context) : HtmlM Unit := do
   div [class_ "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
        attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
     div [class_ "bg-white rounded-lg shadow-xl p-4 w-80"] do
@@ -267,8 +249,8 @@ def renderAddColumnForm (ctx : Context) : HtmlM .stable .nested Unit := do
                     class_ "px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"]
               (text "Add Column")
 
--- Render add column button (volatile region, nested level - opens modal)
-def renderAddColumnButton : HtmlM .volatile .nested Unit := do
+-- Render add column button
+def renderAddColumnButton : HtmlM Unit := do
   div [class_ "flex-shrink-0 w-72"] do
     button [class_ "w-full py-8 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 transition-colors",
             hx_get' Route.kanbanAddColumnForm,
@@ -276,8 +258,8 @@ def renderAddColumnButton : HtmlM .volatile .nested Unit := do
             hx_swap "innerHTML"]
       (text "+ Add column")
 
--- Move card dropdown (polymorphic in region and level - no user input)
-def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM r l Unit := do
+-- Move card dropdown
+def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column) (currentColumnId : Nat) : HtmlM Unit := do
   div [class_ "relative group/move"] do
     button [class_ "p-1 text-slate-400 hover:text-green-600"]
       (span [class_ "text-sm"] (text "➡️"))
@@ -291,14 +273,14 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
                   hx_swap "outerHTML swap:1s"]
             (text col.name)
 
--- Main board content (stable region, toplevel - contains scripts)
-def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable .toplevel Unit := do
-  -- HTMX script (toplevel-only)
+-- Main board content
+def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
+  -- HTMX script
   script [src_ "https://unpkg.com/htmx.org@2.0.4"]
-  -- SortableJS for drag and drop (toplevel-only)
+  -- SortableJS for drag and drop
   script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
 
-  -- Kanban board container (SSE handled via native EventSource below)
+  -- Kanban board container
   div [id_ "kanban-board"] do
     div [class_ "h-full flex flex-col"] do
       -- Header
@@ -310,25 +292,23 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM .stable .toplev
           span [class_ "text-sm text-slate-500"]
             (text s!"{columns.length} columns")
 
-      -- Board container with horizontal scroll (VOLATILE - SSE refreshes this)
-      -- Note: volatileRegion transitions to nested level for its children
+      -- Board container with horizontal scroll
       div [class_ "flex-1 overflow-x-auto pb-4"] do
-        volatileRegion "board-columns" [class_ "flex gap-4 h-full items-start"] do
-          -- Render existing columns (nested level - no scripts allowed here)
+        div [id_ "board-columns", class_ "flex gap-4 h-full items-start"] do
+          -- Render existing columns
           for col in columns do
             renderColumn ctx col
           -- Add column button
           renderAddColumnButton
 
-  -- Modal container (STABLE - outside board-columns, survives SSE refreshes)
-  -- All edit forms are rendered here via HTMX
-  stableRegion "modal-container" [] do
+  -- Modal container
+  div [id_ "modal-container"] do
     pure ()
 
-  -- Kanban JavaScript (drag-and-drop + SSE) - toplevel-only
+  -- Kanban JavaScript (drag-and-drop + SSE)
   script [src' (Route.staticJs "kanban.js")]
 
-  -- Custom styles for sortable (toplevel-only)
+  -- Custom styles for sortable
   style [] "
     .sortable-ghost { opacity: 0.5; }
     .sortable-drag { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
@@ -341,42 +321,42 @@ def render (ctx : Context) (columns : List Column) : String :=
 
 -- Partial renders for HTMX responses
 
--- Card partials (volatile - updates card in-place)
+-- Card partials
 def renderCardPartial (ctx : Context) (card : Card) : String :=
   HtmlM.render (renderCard ctx card)
 
--- Card edit form (stable - goes into modal container)
+-- Card edit form
 def renderCardEditFormPartial (ctx : Context) (card : Card) : String :=
-  HtmlM.renderStable (renderCardEditForm ctx card)
+  HtmlM.render (renderCardEditForm ctx card)
 
--- Column partial (volatile - updates column in-place)
+-- Column partial
 def renderColumnPartial (ctx : Context) (col : Column) : String :=
   HtmlM.render (renderColumn ctx col)
 
--- Column edit form (stable - goes into modal container)
+-- Column edit form
 def renderColumnEditFormPartial (ctx : Context) (col : Column) : String :=
-  HtmlM.renderStable (renderColumnEditForm ctx col)
+  HtmlM.render (renderColumnEditForm ctx col)
 
--- Add card form (stable - goes into modal container)
+-- Add card form
 def renderAddCardFormPartial (ctx : Context) (columnId : Nat) : String :=
-  HtmlM.renderStable (renderAddCardForm ctx columnId)
+  HtmlM.render (renderAddCardForm ctx columnId)
 
--- Add card button (volatile - inside columns)
+-- Add card button
 def renderAddCardButtonPartial (columnId : Nat) : String :=
   HtmlM.render (renderAddCardButton columnId)
 
--- Add column form (stable - goes into modal container)
+-- Add column form
 def renderAddColumnFormPartial (ctx : Context) : String :=
-  HtmlM.renderStable (renderAddColumnForm ctx)
+  HtmlM.render (renderAddColumnForm ctx)
 
--- Render all columns (volatile - for SSE refresh)
+-- Render all columns (for SSE refresh)
 def renderColumnsPartial (ctx : Context) (columns : List Column) : String :=
   HtmlM.render do
     for col in columns do
       renderColumn ctx col
     renderAddColumnButton
 
--- Add column button (volatile - inside board)
+-- Add column button
 def renderAddColumnButtonPartial : String :=
   HtmlM.render renderAddColumnButton
 

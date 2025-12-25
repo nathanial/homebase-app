@@ -1,8 +1,5 @@
 /-
   HomebaseApp.Views.Layout - HTML layout wrapper with sidebar navigation (Tailwind CSS)
-
-  All layout components are polymorphic in region and level since they don't contain forms.
-  The layout function itself is toplevel since it's the document root.
 -/
 import Scribe
 import Loom
@@ -12,8 +9,8 @@ namespace HomebaseApp.Views.Layout
 open Scribe
 open Loom
 
-/-- Render flash messages from context (polymorphic in region and level) -/
-def flashMessages (ctx : Context) : HtmlM r l Unit := do
+/-- Render flash messages from context -/
+def flashMessages (ctx : Context) : HtmlM Unit := do
   if let some msg := ctx.flash.get "success" then
     div [class_ "mb-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-200"] (text msg)
   if let some msg := ctx.flash.get "error" then
@@ -21,16 +18,16 @@ def flashMessages (ctx : Context) : HtmlM r l Unit := do
   if let some msg := ctx.flash.get "info" then
     div [class_ "mb-4 p-4 rounded-lg bg-blue-100 text-blue-800 border border-blue-200"] (text msg)
 
-/-- Render a sidebar link with active state and icon (polymorphic) -/
-def sidebarLink (href icon label currentPath : String) : HtmlM r l Unit := do
+/-- Render a sidebar link with active state and icon -/
+def sidebarLink (href icon label currentPath : String) : HtmlM Unit := do
   let baseClass := "flex items-center gap-3 px-6 py-3 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
   let activeClass := if currentPath == href then " bg-blue-600 text-white" else ""
   a [href_ href, class_ s!"{baseClass}{activeClass}"] do
     span [class_ "text-lg"] (text icon)
     span [] (text label)
 
-/-- Sidebar navigation (polymorphic) -/
-def sidebar (currentPath : String) : HtmlM r l Unit :=
+/-- Sidebar navigation -/
+def sidebar (currentPath : String) : HtmlM Unit :=
   aside [class_ "w-56 bg-slate-800 text-white flex-shrink-0"] do
     div [class_ "p-5 text-xl font-bold border-b border-slate-700"] do
       span [class_ "mr-2"] (text "🏠")
@@ -45,8 +42,8 @@ def sidebar (currentPath : String) : HtmlM r l Unit :=
       sidebarLink "/gallery" "🖼️" "Gallery" currentPath
       sidebarLink "/news" "📰" "News" currentPath
 
-/-- Top navigation bar (polymorphic) -/
-def navbar (ctx : Context) : HtmlM r l Unit :=
+/-- Top navigation bar -/
+def navbar (ctx : Context) : HtmlM Unit :=
   nav [class_ "bg-slate-900 text-white px-6 py-4 flex justify-end"] do
     match ctx.session.get "user_name" with
     | some userName =>
@@ -58,8 +55,8 @@ def navbar (ctx : Context) : HtmlM r l Unit :=
         a [href_ "/login", class_ "text-slate-300 hover:text-white transition-colors"] (text "Login")
         a [href_ "/register", class_ "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors"] (text "Register")
 
-/-- Main layout wrapper with sidebar (toplevel - can contain scripts) -/
-def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM r .toplevel Unit) : Html :=
+/-- Main layout wrapper with sidebar -/
+def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM Unit) : Html :=
   HtmlM.build do
     raw "<!DOCTYPE html>"
     html [lang_ "en"] do
@@ -78,11 +75,11 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
               content
 
 /-- Render layout to string -/
-def render (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM r .toplevel Unit) : String :=
+def render (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM Unit) : String :=
   (layout ctx pageTitle currentPath content).render
 
-/-- Render layout without sidebar (for auth pages, toplevel) -/
-def renderSimple (ctx : Context) (pageTitle : String) (content : HtmlM r .toplevel Unit) : String :=
+/-- Render layout without sidebar (for auth pages) -/
+def renderSimple (ctx : Context) (pageTitle : String) (content : HtmlM Unit) : String :=
   let html := HtmlM.build do
     raw "<!DOCTYPE html>"
     html [lang_ "en"] do

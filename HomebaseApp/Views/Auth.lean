@@ -1,7 +1,5 @@
 /-
   HomebaseApp.Views.Auth - Authentication views (login, register)
-
-  These pages contain forms and are therefore stable-only.
 -/
 import Scribe
 import Loom
@@ -13,8 +11,8 @@ open Scribe
 open Loom
 open HomebaseApp.Views.Layout
 
-/-- Login form content (stable - contains form) -/
-def loginContent (ctx : Context) : HtmlM .stable .toplevel Unit := do
+/-- Login form content -/
+def loginContent (ctx : Context) : HtmlM Unit := do
   div [class_ "bg-white rounded-xl shadow-lg p-8"] do
     h1 [class_ "text-2xl font-bold text-slate-800 mb-6"] (text "Login")
     form [method_ "post", action_ "/login"] do
@@ -38,8 +36,8 @@ def loginContent (ctx : Context) : HtmlM .stable .toplevel Unit := do
 def renderLogin (ctx : Context) : String :=
   Layout.renderSimple ctx "Login - Homebase" (loginContent ctx)
 
-/-- Register form content (stable - contains form) -/
-def registerContent (ctx : Context) : HtmlM .stable .toplevel Unit := do
+/-- Register form content -/
+def registerContent (ctx : Context) : HtmlM Unit := do
   div [class_ "bg-white rounded-xl shadow-lg p-8"] do
     h1 [class_ "text-2xl font-bold text-slate-800 mb-6"] (text "Create Account")
     form [method_ "post", action_ "/register"] do

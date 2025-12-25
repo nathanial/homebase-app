@@ -11,8 +11,8 @@ open Scribe
 open Loom
 open HomebaseApp.Views.Layout
 
-/-- Home page content (polymorphic) -/
-def homeContent : HtmlM .stable .toplevel Unit := do
+/-- Home page content -/
+def homeContent : HtmlM Unit := do
   div [class_ "bg-white rounded-xl shadow-sm p-8"] do
     h1 [class_ "text-3xl font-bold text-slate-800 mb-4"] (text "Welcome to Homebase")
     p [class_ "text-slate-600 mb-6"] do
