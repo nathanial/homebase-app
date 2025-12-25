@@ -140,6 +140,8 @@ def createColumn : Action := fun ctx => do
     let tx := DbColumn.createOps eid dbCol
     match ← ctx'.transact tx with
     | .ok ctx'' =>
+      -- Audit log
+      logAudit ctx'' "CREATE" "column" eid.id.toNat [("name", name)]
       -- Return the new column HTML
       let col : Column := { id := eid.id.toNat, name := name, order := order.toNat, cards := [] }
       -- Need to also return the add column button after the new column
@@ -149,7 +151,9 @@ def createColumn : Action := fun ctx => do
       let columnId := eid.id.toNat
       let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { columnId, name })
       Action.html (colHtml ++ btnHtml) ctx''
-    | .error e => Action.badRequest ctx' s!"Failed to create column: {e}"
+    | .error e =>
+      logAuditError ctx "CREATE" "column" [("name", name), ("error", toString e)]
+      Action.badRequest ctx' s!"Failed to create column: {e}"
 
 /-- Get column (HTMX partial for refresh) -/
 def getColumnPartial (columnId : Nat) : Action := fun ctx => do
@@ -182,17 +186,25 @@ def updateColumn (columnId : Nat) : Action := fun ctx => do
   match ctx.database with
   | none => Action.badRequest ctx "Database not available"
   | some db =>
+    -- Capture old name for audit
+    let oldName := match getColumn ctx columnId with
+      | some col => col.name
+      | none => "(unknown)"
     let tx := DbColumn.set_name db ⟨columnId⟩ name
     match ← ctx.transact tx with
     | .ok ctx' =>
       match getColumn ctx' columnId with
       | none => Action.notFound ctx' "Column not found"
       | some col =>
+        -- Audit log with old/new values
+        logAudit ctx' "UPDATE" "column" columnId [("old_name", oldName), ("new_name", name)]
         let html := Views.Kanban.renderColumnPartial ctx' col
         -- Notify SSE clients about the column update
         let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { columnId, name })
         Action.html html ctx'
-    | .error e => Action.badRequest ctx s!"Failed to update column: {e}"
+    | .error e =>
+      logAuditError ctx "UPDATE" "column" [("column_id", toString columnId), ("error", toString e)]
+      Action.badRequest ctx s!"Failed to update column: {e}"
 
 /-- Delete column and all its cards (uses generated retractionOps) -/
 def deleteColumn (columnId : Nat) : Action := fun ctx => do
@@ -202,9 +214,15 @@ def deleteColumn (columnId : Nat) : Action := fun ctx => do
   match ctx.database with
   | none => Action.badRequest ctx "Database not available"
   | some db =>
+    -- Capture column info for audit before deletion
+    let columnName := match getColumn ctx columnId with
+      | some col => col.name
+      | none => "(unknown)"
+
     -- Get the column's cards to delete them
     let colId : EntityId := ⟨columnId⟩
     let cardIds := db.findByAttrValue DbCard.attr_column (.ref colId)
+    let cardCount := cardIds.length
 
     -- Build retraction operations using generated helpers
     let mut txOps : List TxOp := []
@@ -218,11 +236,15 @@ def deleteColumn (columnId : Nat) : Action := fun ctx => do
 
     match ← ctx.transact txOps with
     | .ok ctx' =>
+      -- Audit log with cascade info
+      logAudit ctx' "DELETE" "column" columnId [("name", columnName), ("cascade_cards", toString cardCount)]
       -- Notify SSE clients about the column deletion
       let _ ← SSE.publishEvent "kanban" "column-deleted" (jsonStr! { columnId })
       -- Return empty string to remove from DOM
       Action.html "" ctx'
-    | .error e => Action.badRequest ctx s!"Failed to delete column: {e}"
+    | .error e =>
+      logAuditError ctx "DELETE" "column" [("column_id", toString columnId), ("error", toString e)]
+      Action.badRequest ctx s!"Failed to delete column: {e}"
 
 -- ============================================================================
 -- Card actions
@@ -273,13 +295,17 @@ def createCard : Action := fun ctx => do
       let tx := DbCard.createOps eid dbCard
       match ← ctx'.transact tx with
       | .ok ctx'' =>
+        -- Audit log
+        logAudit ctx'' "CREATE" "card" eid.id.toNat [("title", title), ("column_id", toString columnId)]
         let card := dbCard.toViewCard
         let html := Views.Kanban.renderCardPartial ctx'' card
         -- Notify SSE clients about the new card
         let cardId := eid.id.toNat
         let _ ← SSE.publishEvent "kanban" "card-created" (jsonStr! { cardId, columnId, title })
         Action.html html ctx''
-      | .error e => Action.badRequest ctx' s!"Failed to create card: {e}"
+      | .error e =>
+        logAuditError ctx "CREATE" "card" [("title", title), ("error", toString e)]
+        Action.badRequest ctx' s!"Failed to create card: {e}"
 
 /-- Get card (HTMX partial for refresh) -/
 def getCardPartial (cardId : Nat) : Action := fun ctx => do
@@ -315,6 +341,10 @@ def updateCard (cardId : Nat) : Action := fun ctx => do
   match ctx.database with
   | none => Action.badRequest ctx "Database not available"
   | some db =>
+    -- Capture old values for audit
+    let (oldTitle, oldDesc, oldLabels) := match getCard ctx cardId with
+      | some (card, _) => (card.title, card.description, card.labels)
+      | none => ("", "", "")
     let eid : EntityId := ⟨cardId⟩
     let tx := DbCard.set_title db eid title ++
               DbCard.set_description db eid description ++
@@ -324,11 +354,19 @@ def updateCard (cardId : Nat) : Action := fun ctx => do
       match getCard ctx' cardId with
       | none => Action.notFound ctx' "Card not found"
       | some (card, _) =>
+        -- Audit log with changed fields
+        let mut changes : List (String × String) := []
+        if oldTitle != title then changes := changes ++ [("old_title", oldTitle), ("new_title", title)]
+        if oldDesc != description then changes := changes ++ [("description_changed", "true")]
+        if oldLabels != labels then changes := changes ++ [("old_labels", oldLabels), ("new_labels", labels)]
+        logAudit ctx' "UPDATE" "card" cardId changes
         let html := Views.Kanban.renderCardPartial ctx' card
         -- Notify SSE clients about the card update
         let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { cardId, title })
         Action.html html ctx'
-    | .error e => Action.badRequest ctx s!"Failed to update card: {e}"
+    | .error e =>
+      logAuditError ctx "UPDATE" "card" [("card_id", toString cardId), ("error", toString e)]
+      Action.badRequest ctx s!"Failed to update card: {e}"
 
 /-- Delete card (uses generated DbCard.retractionOps) -/
 def deleteCard (cardId : Nat) : Action := fun ctx => do
@@ -338,17 +376,25 @@ def deleteCard (cardId : Nat) : Action := fun ctx => do
   match ctx.database with
   | none => Action.badRequest ctx "Database not available"
   | some db =>
+    -- Capture card info for audit before deletion
+    let (cardTitle, columnId) := match getCard ctx cardId with
+      | some (card, colId) => (card.title, colId)
+      | none => ("(unknown)", 0)
     let eid : EntityId := ⟨cardId⟩
     -- Use generated retractionOps helper
     let txOps := DbCard.retractionOps db eid
 
     match ← ctx.transact txOps with
     | .ok ctx' =>
+      -- Audit log
+      logAudit ctx' "DELETE" "card" cardId [("title", cardTitle), ("column_id", toString columnId)]
       -- Notify SSE clients about the card deletion
       let _ ← SSE.publishEvent "kanban" "card-deleted" (jsonStr! { cardId })
       -- Return empty string to remove from DOM
       Action.html "" ctx'
-    | .error e => Action.badRequest ctx s!"Failed to delete card: {e}"
+    | .error e =>
+      logAuditError ctx "DELETE" "card" [("card_id", toString cardId), ("error", toString e)]
+      Action.badRequest ctx s!"Failed to delete card: {e}"
 
 /-- Move card to another column (uses generated setters with cardinality-one enforcement) -/
 def moveCard (cardId : Nat) : Action := fun ctx => do
@@ -362,6 +408,10 @@ def moveCard (cardId : Nat) : Action := fun ctx => do
     match ctx.database with
     | none => Action.badRequest ctx "Database not available"
     | some db =>
+      -- Capture old column for audit
+      let oldColumnId := match getCard ctx cardId with
+        | some (_, colId) => colId
+        | none => 0
       let cardEid : EntityId := ⟨cardId⟩
       -- Get next order in the target column
       let order := getNextCardOrder ctx newColumnId
@@ -373,11 +423,15 @@ def moveCard (cardId : Nat) : Action := fun ctx => do
         match getCard ctx' cardId with
         | none => Action.notFound ctx' "Card not found"
         | some (card, _) =>
+          -- Audit log with old/new column
+          logAudit ctx' "MOVE" "card" cardId [("old_column_id", toString oldColumnId), ("new_column_id", toString newColumnId)]
           let html := Views.Kanban.renderCardPartial ctx' card
           -- Notify SSE clients about the card move
           let _ ← SSE.publishEvent "kanban" "card-moved" (jsonStr! { cardId, newColumnId })
           Action.html html ctx'
-      | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
+      | .error e =>
+        logAuditError ctx "MOVE" "card" [("card_id", toString cardId), ("error", toString e)]
+        Action.badRequest ctx s!"Failed to move card: {e}"
 
 /-- Reorder card (drag and drop) - handles both within-column and cross-column moves
     Uses generated setters with cardinality-one enforcement -/
@@ -388,8 +442,6 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
   let columnIdStr := ctx.params.getD "column_id" ""
   let positionStr := ctx.params.getD "position" "0"
 
-  IO.println s!"[reorderCard] cardId={cardId} column_id={columnIdStr} position={positionStr}"
-
   match columnIdStr.toNat?, positionStr.toNat? with
   | none, _ => Action.badRequest ctx "Invalid column ID"
   | _, none => Action.badRequest ctx "Invalid position"
@@ -397,17 +449,18 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
     match ctx.database with
     | none => Action.badRequest ctx "Database not available"
     | some db =>
+      -- Capture old position for audit
+      let (oldColumnId, oldOrder) := match getCard ctx cardId with
+        | some (card, colId) => (colId, card.order)
+        | none => (0, 0)
+
       -- Get the current card info
       let cardEid : EntityId := ⟨cardId⟩
       let colEid : EntityId := ⟨newColumnId⟩
 
-      IO.println s!"[reorderCard] cardEid={cardEid.id} colEid={colEid.id}"
-
       -- Get all cards in the target column (excluding the moved card)
       let targetCards := getCardsForColumn db colEid
       let otherCards := targetCards.filter (·.id != cardId)
-
-      IO.println s!"[reorderCard] targetCards={targetCards.length} otherCards={otherCards.length}"
 
       -- Build transaction operations using generated setters
       let mut txOps : List TxOp := []
@@ -438,17 +491,21 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
       if !insertedCard then
         txOps := txOps ++ DbCard.set_order db cardEid currentOrder
 
-      IO.println s!"[reorderCard] txOps count={txOps.length}"
-
       match ← ctx.transact txOps with
       | .ok ctx' =>
-        IO.println s!"[reorderCard] Transaction succeeded"
+        -- Audit log with position info
+        logAudit ctx' "REORDER" "card" cardId [
+          ("old_column_id", toString oldColumnId),
+          ("new_column_id", toString newColumnId),
+          ("old_position", toString oldOrder),
+          ("new_position", toString position)
+        ]
         -- Notify SSE clients about the card reorder
         let _ ← SSE.publishEvent "kanban" "card-reordered" (jsonStr! { cardId, "columnId" : newColumnId, position })
         -- Return empty response - the DOM is already updated by SortableJS
         Action.html "" ctx'
       | .error e =>
-        IO.println s!"[reorderCard] Transaction failed: {e}"
+        logAuditError ctx "REORDER" "card" [("card_id", toString cardId), ("error", toString e)]
         Action.badRequest ctx s!"Failed to reorder card: {e}"
 
 end HomebaseApp.Actions.Kanban

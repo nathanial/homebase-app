@@ -49,6 +49,8 @@ def withId (f : Nat → Action) : Action := fun ctx => do
 /-- Build the application with all routes using persistent database -/
 def buildApp (logger : Chronicle.MultiLogger) : App :=
   Loom.app config
+    -- Logger for action-level logging
+    |>.withLogger logger
     -- Middleware
     |>.use (Loom.Chronicle.fileLoggingMulti logger)
     |>.use Middleware.securityHeaders
