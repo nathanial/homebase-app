@@ -4,6 +4,7 @@
 
 import Crucible
 import HomebaseApp.Tests.Kanban
+import HomebaseApp.Tests.EntityPull
 
 open Crucible
 

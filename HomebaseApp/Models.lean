@@ -25,4 +25,25 @@ def cardColumn : Attribute := ⟨":card/column"⟩
 def cardOrder : Attribute := ⟨":card/order"⟩
 def cardLabels : Attribute := ⟨":card/labels"⟩
 
+-- ============================================================================
+-- Database Entity Structures (for makeLedgerEntity)
+-- ============================================================================
+
+/-- Database entity for Kanban cards. The id field is the EntityId, not stored as an attribute. -/
+structure DbCard where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  description : String
+  labels : String
+  order : Nat
+  column : EntityId      -- Reference to parent column
+  deriving Inhabited
+
+/-- Database entity for Kanban columns. -/
+structure DbColumn where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  name : String
+  order : Nat
+  deriving Inhabited
+
 end HomebaseApp.Models

@@ -5,6 +5,7 @@ import Loom
 import Ledger
 import HomebaseApp.Helpers
 import HomebaseApp.Models
+import HomebaseApp.Entities
 import HomebaseApp.Views.Kanban
 
 namespace HomebaseApp.Actions.Kanban
@@ -14,6 +15,7 @@ open Loom.Json
 open Ledger
 open HomebaseApp.Helpers
 open HomebaseApp.Models
+open HomebaseApp.Entities
 open HomebaseApp.Views.Kanban
 
 -- Helper to get all columns from database
@@ -28,23 +30,16 @@ def getColumns (ctx : Context) : List (EntityId × String × Int) :=
       | some (.string name), some (.int order) => some (colId, name, order)
       | _, _ => none
 
--- Helper to get cards for a column
+-- Helper to get cards for a column (uses generated DbCard.pull)
 def getCardsForColumn (db : Db) (colId : EntityId) : List Card :=
-  let cardIds := db.findByAttrValue cardColumn (.ref colId)
+  let cardIds := db.findByAttrValue DbCard.attr_column (.ref colId)
   let cards := cardIds.filterMap fun cardId =>
     -- Verify the card's CURRENT column is this column (filter out historical references)
-    match db.getOne cardId cardColumn with
-    | some (.ref currentColId) =>
-      if currentColId != colId then none
-      else
-        match db.getOne cardId cardTitle, db.getOne cardId cardDescription,
-              db.getOne cardId cardOrder, db.getOne cardId cardLabels with
-        | some (.string title), some (.string desc), some (.int order), some (.string labels) =>
-          some { id := cardId.id.toNat, title := title, description := desc, labels := labels, order := order.toNat }
-        | some (.string title), some (.string desc), some (.int order), none =>
-          some { id := cardId.id.toNat, title := title, description := desc, labels := "", order := order.toNat }
-        | _, _, _, _ => none
-    | _ => none
+    match DbCard.pull db cardId with
+    | some dbCard =>
+      if dbCard.column != colId then none
+      else some (dbCard.toViewCard)
+    | none => none
   -- Sort by order
   cards.toArray.qsort (fun a b => a.order < b.order) |>.toList
 
@@ -65,19 +60,15 @@ def getColumn (ctx : Context) (columnId : Nat) : Option Column :=
   let columns := getColumnsWithCards ctx
   columns.find? (·.id == columnId)
 
--- Helper to get a single card by ID
+-- Helper to get a single card by ID (uses generated DbCard.pull)
 def getCard (ctx : Context) (cardId : Nat) : Option (Card × Nat) := -- Returns card and column ID
   match ctx.database with
   | none => none
   | some db =>
     let eid : EntityId := ⟨cardId⟩
-    match db.getOne eid cardTitle, db.getOne eid cardDescription,
-          db.getOne eid cardOrder, db.getOne eid cardColumn, db.getOne eid cardLabels with
-    | some (.string title), some (.string desc), some (.int order), some (.ref colId), some (.string labels) =>
-      some ({ id := cardId, title := title, description := desc, labels := labels, order := order.toNat }, colId.id.toNat)
-    | some (.string title), some (.string desc), some (.int order), some (.ref colId), none =>
-      some ({ id := cardId, title := title, description := desc, labels := "", order := order.toNat }, colId.id.toNat)
-    | _, _, _, _, _ => none
+    match DbCard.pull db eid with
+    | some dbCard => some (dbCard.toViewCard, dbCard.column.id.toNat)
+    | none => none
 
 -- Helper to get next order value for columns
 def getNextColumnOrder (ctx : Context) : Int :=
@@ -204,7 +195,7 @@ def updateColumn (columnId : Nat) : Action := fun ctx => do
       Action.html html ctx'
   | .error e => Action.badRequest ctx s!"Failed to update column: {e}"
 
-/-- Delete column and all its cards -/
+/-- Delete column and all its cards (uses generated retractionOps) -/
 def deleteColumn (columnId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -214,23 +205,17 @@ def deleteColumn (columnId : Nat) : Action := fun ctx => do
   | some db =>
     -- Get the column's cards to delete them
     let colId : EntityId := ⟨columnId⟩
-    let cardIds := db.findByAttrValue cardColumn (.ref colId)
+    let cardIds := db.findByAttrValue DbCard.attr_column (.ref colId)
 
-    -- Build retraction operations for all cards and the column
+    -- Build retraction operations using generated helpers
     let mut txOps : List TxOp := []
 
-    -- Retract each card's attributes
+    -- Retract each card's attributes using generated helper
     for cardId in cardIds do
-      for attr in [cardTitle, cardDescription, cardColumn, cardOrder, cardLabels] do
-        match db.getOne cardId attr with
-        | some v => txOps := TxOp.retract cardId attr v :: txOps
-        | none => pure ()
+      txOps := txOps ++ DbCard.retractionOps db cardId
 
-    -- Retract column attributes
-    for attr in [columnName, columnOrder] do
-      match db.getOne colId attr with
-      | some v => txOps := TxOp.retract colId attr v :: txOps
-      | none => pure ()
+    -- Retract column attributes using generated helper
+    txOps := txOps ++ DbColumn.retractionOps db colId
 
     match ← ctx.transact txOps with
     | .ok ctx' =>
@@ -258,7 +243,7 @@ def addCardButton (columnId : Nat) : Action := fun ctx => do
   let html := Views.Kanban.renderAddCardButtonPartial columnId
   Action.html html ctx
 
-/-- Create a new card -/
+/-- Create a new card (uses generated DbCard.createOps) -/
 def createCard : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -277,16 +262,19 @@ def createCard : Action := fun ctx => do
     | none => Action.badRequest ctx "Database not available"
     | some (eid, ctx') =>
       let order := getNextCardOrder ctx' columnId
-      let tx : Transaction := [
-        TxOp.add eid cardTitle (.string title),
-        TxOp.add eid cardDescription (.string description),
-        TxOp.add eid cardColumn (.ref ⟨columnId⟩),
-        TxOp.add eid cardOrder (.int order),
-        TxOp.add eid cardLabels (.string labels)
-      ]
+      -- Use generated createOps helper
+      let dbCard : DbCard := {
+        id := eid.id.toNat
+        title := title
+        description := description
+        labels := labels
+        order := order.toNat
+        column := ⟨columnId⟩
+      }
+      let tx := DbCard.createOps eid dbCard
       match ← ctx'.transact tx with
       | .ok ctx'' =>
-        let card : Card := { id := eid.id.toNat, title := title, description := description, labels := labels, order := order.toNat }
+        let card := dbCard.toViewCard
         let html := Views.Kanban.renderCardPartial ctx'' card
         -- Notify SSE clients about the new card
         let cardId := eid.id.toNat
@@ -341,7 +329,7 @@ def updateCard (cardId : Nat) : Action := fun ctx => do
       Action.html html ctx'
   | .error e => Action.badRequest ctx s!"Failed to update card: {e}"
 
-/-- Delete card -/
+/-- Delete card (uses generated DbCard.retractionOps) -/
 def deleteCard (cardId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -350,9 +338,8 @@ def deleteCard (cardId : Nat) : Action := fun ctx => do
   | none => Action.badRequest ctx "Database not available"
   | some db =>
     let eid : EntityId := ⟨cardId⟩
-    -- Build retraction for all card attributes
-    let txOps := [cardTitle, cardDescription, cardColumn, cardOrder, cardLabels].filterMap fun attr =>
-      db.getOne eid attr |>.map fun v => TxOp.retract eid attr v
+    -- Use generated retractionOps helper
+    let txOps := DbCard.retractionOps db eid
 
     match ← ctx.transact txOps with
     | .ok ctx' =>
