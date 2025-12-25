@@ -2,6 +2,7 @@
   HomebaseApp.Main - Application setup and entry point
 -/
 import Loom
+import Chronicle
 import HomebaseApp.Helpers
 import HomebaseApp.Actions.Home
 import HomebaseApp.Actions.Auth
@@ -40,10 +41,10 @@ def withId (f : Nat → Action) : Action := fun ctx => do
     | some id => f id ctx
 
 /-- Build the application with all routes using persistent database -/
-def buildApp : App :=
+def buildApp (logger : Chronicle.Logger) : App :=
   Loom.app config
     -- Middleware
-    |>.use Middleware.logging
+    |>.use (Loom.Chronicle.fileLogging logger)
     |>.use Middleware.securityHeaders
     -- SSE endpoints for real-time updates
     |>.sseEndpoint "/events/kanban" "kanban"
@@ -86,12 +87,25 @@ def buildApp : App :=
     -- Persistent database (auto-persists to JSONL)
     |>.withPersistentDatabase journalPath
 
+/-- Path to the log file -/
+def logPath : System.FilePath := "logs/homebase.log"
+
 /-- Main entry point (inside namespace) -/
 def runApp : IO Unit := do
   IO.FS.createDirAll "data"
+  IO.FS.createDirAll "logs"
+
+  -- Create file logger
+  let logConfig := Chronicle.Config.default logPath
+    |>.withLevel .info
+    |>.withFormat .json
+  let logger ← Chronicle.Logger.create logConfig
+
   IO.println "Starting Homebase App..."
   IO.println s!"Database: Persistent (journal at {journalPath})"
-  let app := buildApp
+  IO.println s!"Logging: {logPath}"
+
+  let app := buildApp logger
   app.run "0.0.0.0" 3000
 
 end HomebaseApp
