@@ -31,6 +31,12 @@ def config : AppConfig := {
 /-- Path to the JSONL journal file for persistence -/
 def journalPath : System.FilePath := "data/homebase.jsonl"
 
+/-- Path to the JSON log file (structured logging) -/
+def jsonLogPath : System.FilePath := "logs/homebase.json"
+
+/-- Path to the text log file (human-readable) -/
+def textLogPath : System.FilePath := "logs/homebase.log"
+
 /-- Wrapper to extract :id parameter and pass to action -/
 def withId (f : Nat → Action) : Action := fun ctx => do
   match ctx.params.get "id" with
@@ -41,10 +47,10 @@ def withId (f : Nat → Action) : Action := fun ctx => do
     | some id => f id ctx
 
 /-- Build the application with all routes using persistent database -/
-def buildApp (logger : Chronicle.Logger) : App :=
+def buildApp (logger : Chronicle.MultiLogger) : App :=
   Loom.app config
     -- Middleware
-    |>.use (Loom.Chronicle.fileLogging logger)
+    |>.use (Loom.Chronicle.fileLoggingMulti logger)
     |>.use Middleware.securityHeaders
     -- SSE endpoints for real-time updates
     |>.sseEndpoint "/events/kanban" "kanban"
@@ -87,23 +93,23 @@ def buildApp (logger : Chronicle.Logger) : App :=
     -- Persistent database (auto-persists to JSONL)
     |>.withPersistentDatabase journalPath
 
-/-- Path to the log file -/
-def logPath : System.FilePath := "logs/homebase.log"
-
 /-- Main entry point (inside namespace) -/
 def runApp : IO Unit := do
   IO.FS.createDirAll "data"
   IO.FS.createDirAll "logs"
 
-  -- Create file logger
-  let logConfig := Chronicle.Config.default logPath
+  -- Create multi-logger with both JSON and text formats
+  let jsonConfig := Chronicle.Config.default jsonLogPath
     |>.withLevel .info
     |>.withFormat .json
-  let logger ← Chronicle.Logger.create logConfig
+  let textConfig := Chronicle.Config.default textLogPath
+    |>.withLevel .info
+    |>.withFormat .text
+  let logger ← Chronicle.MultiLogger.create [jsonConfig, textConfig]
 
   IO.println "Starting Homebase App..."
   IO.println s!"Database: Persistent (journal at {journalPath})"
-  IO.println s!"Logging: {logPath}"
+  IO.println s!"Logging: {jsonLogPath} (JSON), {textLogPath} (text)"
 
   let app := buildApp logger
   app.run "0.0.0.0" 3000
