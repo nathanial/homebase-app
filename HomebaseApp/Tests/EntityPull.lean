@@ -18,20 +18,20 @@ test "DbCard.pull with manual TxOps" := do
   let (colId, db) := db.allocEntityId
   let (cardId, db) := db.allocEntityId
 
-  -- Create column using old manual style
+  -- Create column using TxOps
   let colTx : Transaction := [
-    TxOp.add colId columnName (.string "Backlog"),
-    TxOp.add colId columnOrder (.int 0)
+    TxOp.add colId DbColumn.attr_name (.string "Backlog"),
+    TxOp.add colId DbColumn.attr_order (.int 0)
   ]
   let .ok (db, _) := db.transact colTx | throw <| IO.userError "Column tx failed"
 
-  -- Create card using old manual style (like the existing data)
+  -- Create card using TxOps
   let cardTx : Transaction := [
-    TxOp.add cardId cardTitle (.string "Test Card"),
-    TxOp.add cardId cardDescription (.string "Description"),
-    TxOp.add cardId cardColumn (.ref colId),
-    TxOp.add cardId cardOrder (.int 0),
-    TxOp.add cardId cardLabels (.string "")
+    TxOp.add cardId DbCard.attr_title (.string "Test Card"),
+    TxOp.add cardId DbCard.attr_description (.string "Description"),
+    TxOp.add cardId DbCard.attr_column (.ref colId),
+    TxOp.add cardId DbCard.attr_order (.int 0),
+    TxOp.add cardId DbCard.attr_labels (.string "")
   ]
   let .ok (db, _) := db.transact cardTx | throw <| IO.userError "Card tx failed"
 
@@ -47,16 +47,16 @@ test "DbCard.pull with manual TxOps" := do
     throw <| IO.userError "DbCard.pull returned none!"
 
 -- Test attribute name consistency
-test "Attribute names match" := do
-  -- Verify generated attributes match manual definitions
-  DbCard.attr_title.name ≡ cardTitle.name
-  DbCard.attr_description.name ≡ cardDescription.name
-  DbCard.attr_column.name ≡ cardColumn.name
-  DbCard.attr_order.name ≡ cardOrder.name
-  DbCard.attr_labels.name ≡ cardLabels.name
+test "Attribute names match expected format" := do
+  -- Verify generated attributes have the expected names
+  DbCard.attr_title.name ≡ ":card/title"
+  DbCard.attr_description.name ≡ ":card/description"
+  DbCard.attr_column.name ≡ ":card/column"
+  DbCard.attr_order.name ≡ ":card/order"
+  DbCard.attr_labels.name ≡ ":card/labels"
 
-  DbColumn.attr_name.name ≡ columnName.name
-  DbColumn.attr_order.name ≡ columnOrder.name
+  DbColumn.attr_name.name ≡ ":column/name"
+  DbColumn.attr_order.name ≡ ":column/order"
 
 -- Test that DbCard.pull works with createOps (round-trip)
 test "DbCard createOps round-trip" := do
@@ -64,11 +64,9 @@ test "DbCard createOps round-trip" := do
   let (colId, db) := db.allocEntityId
   let (cardId, db) := db.allocEntityId
 
-  -- Create column
-  let colTx : Transaction := [
-    TxOp.add colId columnName (.string "Todo"),
-    TxOp.add colId columnOrder (.int 0)
-  ]
+  -- Create column using generated createOps
+  let dbCol : DbColumn := { id := colId.id.toNat, name := "Todo", order := 0 }
+  let colTx := DbColumn.createOps colId dbCol
   let .ok (db, _) := db.transact colTx | throw <| IO.userError "Column tx failed"
 
   -- Create card using generated createOps
@@ -101,28 +99,15 @@ test "findByAttrValue with DbCard.attr_column" := do
   let (card1Id, db) := db.allocEntityId
   let (card2Id, db) := db.allocEntityId
 
-  -- Create two cards in the column
-  let tx : Transaction := [
-    TxOp.add card1Id cardTitle (.string "Card 1"),
-    TxOp.add card1Id cardDescription (.string ""),
-    TxOp.add card1Id cardColumn (.ref colId),
-    TxOp.add card1Id cardOrder (.int 0),
-    TxOp.add card1Id cardLabels (.string ""),
-    TxOp.add card2Id cardTitle (.string "Card 2"),
-    TxOp.add card2Id cardDescription (.string ""),
-    TxOp.add card2Id cardColumn (.ref colId),
-    TxOp.add card2Id cardOrder (.int 1),
-    TxOp.add card2Id cardLabels (.string "")
-  ]
+  -- Create two cards in the column using generated createOps
+  let card1 : DbCard := { id := card1Id.id.toNat, title := "Card 1", description := "", labels := "", order := 0, column := colId }
+  let card2 : DbCard := { id := card2Id.id.toNat, title := "Card 2", description := "", labels := "", order := 1, column := colId }
+  let tx := DbCard.createOps card1Id card1 ++ DbCard.createOps card2Id card2
   let .ok (db, _) := db.transact tx | throw <| IO.userError "Tx failed"
 
   -- Find cards using generated attribute
-  let foundWithGenerated := db.findByAttrValue DbCard.attr_column (.ref colId)
-  -- Find cards using manual attribute
-  let foundWithManual := db.findByAttrValue cardColumn (.ref colId)
-
-  foundWithGenerated.length ≡ 2
-  foundWithManual.length ≡ 2
+  let foundCards := db.findByAttrValue DbCard.attr_column (.ref colId)
+  foundCards.length ≡ 2
 
 -- Test Pull API directly to see what it returns
 test "Pull API raw result" := do
@@ -131,11 +116,11 @@ test "Pull API raw result" := do
   let (cardId, db) := db.allocEntityId
 
   let tx : Transaction := [
-    TxOp.add cardId cardTitle (.string "Test"),
-    TxOp.add cardId cardDescription (.string "Desc"),
-    TxOp.add cardId cardColumn (.ref colId),
-    TxOp.add cardId cardOrder (.int 5),
-    TxOp.add cardId cardLabels (.string "urgent")
+    TxOp.add cardId DbCard.attr_title (.string "Test"),
+    TxOp.add cardId DbCard.attr_description (.string "Desc"),
+    TxOp.add cardId DbCard.attr_column (.ref colId),
+    TxOp.add cardId DbCard.attr_order (.int 5),
+    TxOp.add cardId DbCard.attr_labels (.string "urgent")
   ]
   let .ok (db, _) := db.transact tx | throw <| IO.userError "Tx failed"
 
@@ -157,6 +142,7 @@ test "Pull API raw result" := do
   | other => throw <| IO.userError s!"Expected ref for column, got {repr other}"
 
 -- Test with multiple values for same attribute (simulating move without retraction bug)
+-- This test verifies that pull still works even if old data has multiple values
 test "DbCard.pull with multiple column values (move bug)" := do
   let db := Db.empty
   let (col1Id, db) := db.allocEntityId
@@ -165,29 +151,29 @@ test "DbCard.pull with multiple column values (move bug)" := do
 
   -- Create card in column 1
   let tx1 : Transaction := [
-    TxOp.add cardId cardTitle (.string "Card"),
-    TxOp.add cardId cardDescription (.string ""),
-    TxOp.add cardId cardColumn (.ref col1Id),
-    TxOp.add cardId cardOrder (.int 0),
-    TxOp.add cardId cardLabels (.string "")
+    TxOp.add cardId DbCard.attr_title (.string "Card"),
+    TxOp.add cardId DbCard.attr_description (.string ""),
+    TxOp.add cardId DbCard.attr_column (.ref col1Id),
+    TxOp.add cardId DbCard.attr_order (.int 0),
+    TxOp.add cardId DbCard.attr_labels (.string "")
   ]
   let .ok (db, _) := db.transact tx1 | throw <| IO.userError "Tx1 failed"
 
   -- Move to column 2 WITHOUT retracting old column (this is the bug pattern in existing data)
   let tx2 : Transaction := [
-    TxOp.add cardId cardColumn (.ref col2Id),
-    TxOp.add cardId cardOrder (.int 0)
+    TxOp.add cardId DbCard.attr_column (.ref col2Id),
+    TxOp.add cardId DbCard.attr_order (.int 0)
   ]
   let .ok (db, _) := db.transact tx2 | throw <| IO.userError "Tx2 failed"
 
   -- Check raw values - should have TWO column refs now
-  let columnValues := db.get cardId cardColumn
+  let columnValues := db.get cardId DbCard.attr_column
   IO.println s!"Column values count: {columnValues.length}"
   for v in columnValues do
     IO.println s!"  Column value: {repr v}"
 
   -- Check what getOne returns (should be most recent)
-  match db.getOne cardId cardColumn with
+  match db.getOne cardId DbCard.attr_column with
   | some v => IO.println s!"getOne column: {repr v}"
   | none => IO.println "getOne column: none"
 

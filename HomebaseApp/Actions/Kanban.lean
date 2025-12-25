@@ -24,9 +24,9 @@ def getColumns (ctx : Context) : List (EntityId × String × Int) :=
   | none => []
   | some db =>
     -- Find all entities with column/name attribute
-    let columnIds := db.entitiesWithAttr columnName
+    let columnIds := db.entitiesWithAttr DbColumn.attr_name
     columnIds.filterMap fun colId =>
-      match db.getOne colId columnName, db.getOne colId columnOrder with
+      match db.getOne colId DbColumn.attr_name, db.getOne colId DbColumn.attr_order with
       | some (.string name), some (.int order) => some (colId, name, order)
       | _, _ => none
 
@@ -123,7 +123,7 @@ def columns : Action := fun ctx => do
   let html := Views.Kanban.renderColumnsPartial ctx columns
   Action.html html ctx
 
-/-- Create a new column -/
+/-- Create a new column (uses generated DbColumn.createOps) -/
 def createColumn : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -136,10 +136,8 @@ def createColumn : Action := fun ctx => do
   | none => Action.badRequest ctx "Database not available"
   | some (eid, ctx') =>
     let order := getNextColumnOrder ctx'
-    let tx : Transaction := [
-      TxOp.add eid columnName (.string name),
-      TxOp.add eid columnOrder (.int order)
-    ]
+    let dbCol : DbColumn := { id := eid.id.toNat, name := name, order := order.toNat }
+    let tx := DbColumn.createOps eid dbCol
     match ← ctx'.transact tx with
     | .ok ctx'' =>
       -- Return the new column HTML
@@ -173,7 +171,7 @@ def editColumnForm (columnId : Nat) : Action := fun ctx => do
     let html := Views.Kanban.renderColumnEditFormPartial ctx col
     Action.html html ctx
 
-/-- Update column -/
+/-- Update column (uses generated set_name with cardinality-one enforcement) -/
 def updateColumn (columnId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -181,19 +179,20 @@ def updateColumn (columnId : Nat) : Action := fun ctx => do
   if name.isEmpty then
     return ← Action.badRequest ctx "Column name is required"
 
-  let tx : Transaction := [
-    TxOp.add ⟨columnId⟩ columnName (.string name)
-  ]
-  match ← ctx.transact tx with
-  | .ok ctx' =>
-    match getColumn ctx' columnId with
-    | none => Action.notFound ctx' "Column not found"
-    | some col =>
-      let html := Views.Kanban.renderColumnPartial ctx' col
-      -- Notify SSE clients about the column update
-      let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { columnId, name })
-      Action.html html ctx'
-  | .error e => Action.badRequest ctx s!"Failed to update column: {e}"
+  match ctx.database with
+  | none => Action.badRequest ctx "Database not available"
+  | some db =>
+    let tx := DbColumn.set_name db ⟨columnId⟩ name
+    match ← ctx.transact tx with
+    | .ok ctx' =>
+      match getColumn ctx' columnId with
+      | none => Action.notFound ctx' "Column not found"
+      | some col =>
+        let html := Views.Kanban.renderColumnPartial ctx' col
+        -- Notify SSE clients about the column update
+        let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { columnId, name })
+        Action.html html ctx'
+    | .error e => Action.badRequest ctx s!"Failed to update column: {e}"
 
 /-- Delete column and all its cards (uses generated retractionOps) -/
 def deleteColumn (columnId : Nat) : Action := fun ctx => do
@@ -302,7 +301,7 @@ def editCardForm (cardId : Nat) : Action := fun ctx => do
     let html := Views.Kanban.renderCardEditFormPartial ctx card
     Action.html html ctx
 
-/-- Update card -/
+/-- Update card (uses generated setters with cardinality-one enforcement) -/
 def updateCard (cardId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -313,21 +312,23 @@ def updateCard (cardId : Nat) : Action := fun ctx => do
   if title.isEmpty then
     return ← Action.badRequest ctx "Card title is required"
 
-  let tx : Transaction := [
-    TxOp.add ⟨cardId⟩ cardTitle (.string title),
-    TxOp.add ⟨cardId⟩ cardDescription (.string description),
-    TxOp.add ⟨cardId⟩ cardLabels (.string labels)
-  ]
-  match ← ctx.transact tx with
-  | .ok ctx' =>
-    match getCard ctx' cardId with
-    | none => Action.notFound ctx' "Card not found"
-    | some (card, _) =>
-      let html := Views.Kanban.renderCardPartial ctx' card
-      -- Notify SSE clients about the card update
-      let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { cardId, title })
-      Action.html html ctx'
-  | .error e => Action.badRequest ctx s!"Failed to update card: {e}"
+  match ctx.database with
+  | none => Action.badRequest ctx "Database not available"
+  | some db =>
+    let eid : EntityId := ⟨cardId⟩
+    let tx := DbCard.set_title db eid title ++
+              DbCard.set_description db eid description ++
+              DbCard.set_labels db eid labels
+    match ← ctx.transact tx with
+    | .ok ctx' =>
+      match getCard ctx' cardId with
+      | none => Action.notFound ctx' "Card not found"
+      | some (card, _) =>
+        let html := Views.Kanban.renderCardPartial ctx' card
+        -- Notify SSE clients about the card update
+        let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { cardId, title })
+        Action.html html ctx'
+    | .error e => Action.badRequest ctx s!"Failed to update card: {e}"
 
 /-- Delete card (uses generated DbCard.retractionOps) -/
 def deleteCard (cardId : Nat) : Action := fun ctx => do
@@ -349,7 +350,7 @@ def deleteCard (cardId : Nat) : Action := fun ctx => do
       Action.html "" ctx'
     | .error e => Action.badRequest ctx s!"Failed to delete card: {e}"
 
-/-- Move card to another column -/
+/-- Move card to another column (uses generated setters with cardinality-one enforcement) -/
 def moveCard (cardId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -362,30 +363,24 @@ def moveCard (cardId : Nat) : Action := fun ctx => do
     | none => Action.badRequest ctx "Database not available"
     | some db =>
       let cardEid : EntityId := ⟨cardId⟩
-      -- Get the card's current column to retract it
-      match db.getOne cardEid cardColumn with
-      | none => Action.notFound ctx "Card not found"
-      | some oldColumnRef =>
-        -- Get next order in the target column
-        let order := getNextCardOrder ctx newColumnId
-        -- Retract old column reference, then add new one
-        let tx : Transaction := [
-          TxOp.retract cardEid cardColumn oldColumnRef,
-          TxOp.add cardEid cardColumn (.ref ⟨newColumnId⟩),
-          TxOp.add cardEid cardOrder (.int order)
-        ]
-        match ← ctx.transact tx with
-        | .ok ctx' =>
-          match getCard ctx' cardId with
-          | none => Action.notFound ctx' "Card not found"
-          | some (card, _) =>
-            let html := Views.Kanban.renderCardPartial ctx' card
-            -- Notify SSE clients about the card move
-            let _ ← SSE.publishEvent "kanban" "card-moved" (jsonStr! { cardId, newColumnId })
-            Action.html html ctx'
-        | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
+      -- Get next order in the target column
+      let order := getNextCardOrder ctx newColumnId
+      -- Use generated setters (handles retraction automatically)
+      let tx := DbCard.set_column db cardEid ⟨newColumnId⟩ ++
+                DbCard.set_order db cardEid order.toNat
+      match ← ctx.transact tx with
+      | .ok ctx' =>
+        match getCard ctx' cardId with
+        | none => Action.notFound ctx' "Card not found"
+        | some (card, _) =>
+          let html := Views.Kanban.renderCardPartial ctx' card
+          -- Notify SSE clients about the card move
+          let _ ← SSE.publishEvent "kanban" "card-moved" (jsonStr! { cardId, newColumnId })
+          Action.html html ctx'
+      | .error e => Action.badRequest ctx s!"Failed to move card: {e}"
 
-/-- Reorder card (drag and drop) - handles both within-column and cross-column moves -/
+/-- Reorder card (drag and drop) - handles both within-column and cross-column moves
+    Uses generated setters with cardinality-one enforcement -/
 def reorderCard (cardId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
@@ -414,17 +409,11 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
 
       IO.println s!"[reorderCard] targetCards={targetCards.length} otherCards={otherCards.length}"
 
-      -- Build transaction operations
+      -- Build transaction operations using generated setters
       let mut txOps : List TxOp := []
 
-      -- Get the card's current column
-      match db.getOne cardEid cardColumn with
-      | none => return ← Action.notFound ctx "Card not found"
-      | some oldColumnRef =>
-        -- Only update column reference if it's actually changing
-        if oldColumnRef != Value.ref colEid then
-          txOps := TxOp.retract cardEid cardColumn oldColumnRef :: txOps
-          txOps := TxOp.add cardEid cardColumn (.ref colEid) :: txOps
+      -- Update column reference using generated setter (handles retraction automatically)
+      txOps := txOps ++ DbCard.set_column db cardEid colEid
 
       -- Calculate new order values
       -- Position the moved card at 'position', shift others accordingly
@@ -435,19 +424,19 @@ def reorderCard (cardId : Nat) : Action := fun ctx => do
       for card in otherCards do
         -- Insert the moved card at the target position
         if idx == position && !insertedCard then
-          txOps := TxOp.add cardEid cardOrder (.int currentOrder) :: txOps
+          txOps := txOps ++ DbCard.set_order db cardEid currentOrder
           currentOrder := currentOrder + 1
           insertedCard := true
 
-        -- Update existing card's order
-        if card.order != currentOrder.toNat then
-          txOps := TxOp.add ⟨card.id⟩ cardOrder (.int currentOrder) :: txOps
+        -- Update existing card's order using generated setter
+        if card.order != currentOrder then
+          txOps := txOps ++ DbCard.set_order db ⟨card.id⟩ currentOrder
         currentOrder := currentOrder + 1
         idx := idx + 1
 
       -- If position is at the end (or beyond), add moved card at end
       if !insertedCard then
-        txOps := TxOp.add cardEid cardOrder (.int currentOrder) :: txOps
+        txOps := txOps ++ DbCard.set_order db cardEid currentOrder
 
       IO.println s!"[reorderCard] txOps count={txOps.length}"
 
