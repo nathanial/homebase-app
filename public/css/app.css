@@ -187,6 +187,51 @@ body {
   padding: 1.5rem;
 }
 
+/* Auth page specific styles */
+.auth-card {
+  background: var(--color-white);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.auth-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-slate-800);
+  margin-bottom: 1.5rem;
+}
+
+.auth-footer {
+  margin-top: 1rem;
+  text-align: center;
+  color: var(--color-slate-500);
+}
+
+.auth-footer a {
+  color: var(--color-blue-600);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
+  color: var(--color-blue-700);
+}
+
+/* Full-width button modifier */
+.btn-block {
+  width: 100%;
+}
+
+/* Form spacing for auth pages */
+.form-group-lg {
+  margin-bottom: 1rem;
+}
+
+.form-group-lg:last-of-type {
+  margin-bottom: 1.5rem;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
