@@ -3,6 +3,7 @@
 -/
 import Loom
 import Ledger
+import Staple
 import HomebaseApp.Helpers
 import HomebaseApp.Models
 import HomebaseApp.Entities
@@ -14,19 +15,12 @@ namespace HomebaseApp.Actions.Chat
 open Loom
 open Loom.Json
 open Ledger
+open Staple (String.containsSubstr)
 open HomebaseApp.Helpers
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Upload
 open HomebaseApp.Views.Chat
-
--- ============================================================================
--- Helper functions
--- ============================================================================
-
-/-- Check if a string contains a substring -/
-private def containsSubstr (haystack needle : String) : Bool :=
-  (haystack.splitOn needle).length > 1
 
 -- ============================================================================
 -- Database helper functions
@@ -371,7 +365,7 @@ def search : Action := fun ctx => do
     let results := allMsgIds.filterMap fun msgId =>
       match DbChatMessage.pull db msgId with
       | some msg =>
-        if containsSubstr msg.content.toLower queryLower then
+        if String.containsSubstr msg.content.toLower queryLower then
           match DbChatThread.pull db msg.thread with
           | some thread =>
             let viewThread := toViewThread db msg.thread thread

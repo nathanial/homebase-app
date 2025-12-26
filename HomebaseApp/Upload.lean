@@ -1,7 +1,11 @@
 /-
   HomebaseApp.Upload - File upload storage utilities
 -/
+import Staple
+
 namespace HomebaseApp.Upload
+
+open Staple (String.containsSubstr)
 
 /-- Base upload directory -/
 def uploadDir : System.FilePath := "data/uploads"
@@ -62,13 +66,9 @@ def getExtension (filename : String) : String :=
 def ensureUploadDir : IO Unit := do
   IO.FS.createDirAll uploadDir
 
-/-- Check if a string contains a substring -/
-private def containsSubstr (s sub : String) : Bool :=
-  (s.splitOn sub).length > 1
-
 /-- Check if a path is safe (no path traversal) -/
 def isSafePath (path : String) : Bool :=
-  !containsSubstr path ".." && !path.startsWith "/" && !containsSubstr path "~"
+  !String.containsSubstr path ".." && !path.startsWith "/" && !String.containsSubstr path "~"
 
 /-- Store an uploaded file, return the stored filename -/
 def storeFile (content : ByteArray) (originalName : String) : IO String := do

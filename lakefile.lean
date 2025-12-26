@@ -7,6 +7,7 @@ package homebaseApp where
 require loom from ".." / "loom"
 require crucible from ".." / "crucible"
 require chronicle from ".." / "chronicle"
+require staple from ".." / "staple"
 
 @[default_target]
 lean_lib HomebaseApp where
