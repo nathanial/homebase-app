@@ -12,15 +12,47 @@ import HomebaseApp.Helpers
 namespace HomebaseApp.Pages
 
 open Scribe
-open Loom
+open Loom hiding Action
 open Loom.Page
 open Loom.ActionM
 open Loom.Json
+open Loom.Action (InteractionFactory Interaction HxConfig Swap Target)
 open Ledger
 open HomebaseApp.Shared hiding isLoggedIn isAdmin  -- Use Helpers versions
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers
+
+/-! ## Trigger-Only Interactions -/
+
+/-- Delete column interaction base (for button generation) -/
+def deleteColumnBase : InteractionFactory Nat :=
+  InteractionFactory.delete "deleteColumn" "/kanban/column/:id"
+    (pathFor := fun id => s!"/kanban/column/{id}")
+    |>.swap .outerHTML
+
+/-- Delete a column attrs - includes dynamic confirm with column name -/
+def deleteColumnAttrs (colId : Nat) (colName : String) : List Attr :=
+  deleteColumnBase.attrsFor colId ++ [
+    ⟨"hx-target", s!"#column-{colId}"⟩,
+    ⟨"hx-confirm", s!"Delete column '{colName}' and all its cards?"⟩
+  ]
+
+interaction createColumn "/kanban/column" post
+  |>.target (.css "#board-columns")
+  |>.swap .beforeend
+
+interaction updateColumn "/kanban/column/:id" put (id : Nat)
+  |>.swap .outerHTML
+
+interaction createCard "/kanban/card" post
+
+interaction updateCard "/kanban/card/:id" put (id : Nat)
+  |>.swap .outerHTML
+
+/-- Attribute to clear modal after form submission -/
+def modalClearAttr : Attr :=
+  ⟨"hx-on::after-request", "document.getElementById('modal-container').innerHTML = ''"⟩
 
 /-! ## Data Structures -/
 
@@ -99,6 +131,178 @@ def getNextCardOrder (ctx : Context) (columnId : Nat) : Int :=
     | orders => (orders.foldl max 0 : Nat) + 1
   | none => 0
 
+/-! ## Interactions with Handlers -/
+
+-- Delete card (unified interaction with handler)
+interaction deleteCard "/kanban/card/:id" delete (id : Nat)
+  |>.swap .outerHTML
+  |>.confirm "Delete this card?"
+handler do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then return ← redirect "/login"
+  match ctx.database with
+  | none => badRequest "Database not available"
+  | some db =>
+    let (cardTitle, columnId) := match getCard ctx id with
+      | some (card, colId) => (card.title, colId)
+      | none => ("(unknown)", 0)
+    let eid : EntityId := ⟨id⟩
+    let txOps := DbCard.retractionOps db eid
+    match ← transact txOps with
+    | .ok () =>
+      let ctx ← getCtx
+      logAudit ctx "DELETE" "card" id [("title", cardTitle), ("column_id", toString columnId)]
+      let _ ← SSE.publishEvent "kanban" "card-deleted" (jsonStr! { "cardId" : id })
+      html ""
+    | .error e =>
+      logAuditError ctx "DELETE" "card" [("card_id", toString id), ("error", toString e)]
+      badRequest s!"Failed to delete card: {e}"
+
+-- Delete column (unified interaction with handler)
+-- Note: Uses deleteColumnAttrs in view for dynamic confirm message
+interaction deleteColumn "/kanban/column/:id" delete (id : Nat)
+  |>.swap .outerHTML
+handler do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then return ← redirect "/login"
+  match ctx.database with
+  | none => badRequest "Database not available"
+  | some db =>
+    let columnName := match getColumn ctx id with
+      | some col => col.name
+      | none => "(unknown)"
+    let colId : EntityId := ⟨id⟩
+    let cardIds := db.findByAttrValue DbCard.attr_column (.ref colId)
+    let cardCount := cardIds.length
+    let mut txOps : List TxOp := []
+    for cardId in cardIds do
+      txOps := txOps ++ DbCard.retractionOps db cardId
+    txOps := txOps ++ DbColumn.retractionOps db colId
+    match ← transact txOps with
+    | .ok () =>
+      let ctx ← getCtx
+      logAudit ctx "DELETE" "column" id [("name", columnName), ("cascade_cards", toString cardCount)]
+      let _ ← SSE.publishEvent "kanban" "column-deleted" (jsonStr! { "columnId" : id })
+      html ""
+    | .error e =>
+      logAuditError ctx "DELETE" "column" [("column_id", toString id), ("error", toString e)]
+      badRequest s!"Failed to delete column: {e}"
+
+-- Add column form (unified)
+interaction addColumnForm "/kanban/add-column-form" get
+  |>.target (.css "#modal-container")
+  |>.swap .innerHTML
+handler do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then return ← redirect "/login"
+  html (HtmlM.render do
+    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+      div [class_ "modal-container modal-sm"] do
+        h3 [class_ "modal-title"] (text "Add Column")
+        form (createColumn.attrs ++ [modalClearAttr]) do
+          csrfField ctx.csrfToken
+          div [class_ "form-stack"] do
+            div [class_ "form-group"] do
+              label [for_ "name", class_ "form-label"] (text "Column Name")
+              input [type_ "text", name_ "name", id_ "name", class_ "form-input",
+                     placeholder_ "Column name", required_, autofocus_]
+            div [class_ "form-actions"] do
+              button [type_ "button", class_ "btn btn-secondary",
+                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+              button [type_ "submit", class_ "btn btn-primary"] (text "Add Column"))
+
+-- Edit column form (unified)
+interaction editColumnForm "/kanban/column/:id/edit" get (id : Nat)
+  |>.target (.css "#modal-container")
+  |>.swap .innerHTML
+handler do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then return ← redirect "/login"
+  match getColumn ctx id with
+  | none => notFound "Column not found"
+  | some col =>
+    html (HtmlM.render do
+      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+        div [class_ "modal-container modal-sm"] do
+          h3 [class_ "modal-title"] (text "Edit Column")
+          form (updateColumn.attrsFor col.id ++ [modalClearAttr]) do
+            csrfField ctx.csrfToken
+            div [class_ "form-stack"] do
+              div [class_ "form-group"] do
+                label [for_ "name", class_ "form-label"] (text "Column Name")
+                input [type_ "text", name_ "name", id_ "name", value_ col.name,
+                       class_ "form-input", placeholder_ "Column name", required_, autofocus_]
+              div [class_ "form-actions"] do
+                button [type_ "button", class_ "btn btn-secondary",
+                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+                button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
+
+-- Add card form (unified)
+interaction addCardForm "/kanban/column/:columnId/add-card-form" get (columnId : Nat)
+  |>.target (.css "#modal-container")
+  |>.swap .innerHTML
+handler do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then return ← redirect "/login"
+  html (HtmlM.render do
+    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+      div [class_ "modal-container modal-md"] do
+        h3 [class_ "modal-title"] (text "Add Card")
+        form (createCard.attrs ++ [hx_target s!"#column-cards-{columnId}", hx_swap "beforeend", modalClearAttr]) do
+          csrfField ctx.csrfToken
+          input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
+          div [class_ "form-stack"] do
+            div [class_ "form-group"] do
+              label [for_ "title", class_ "form-label"] (text "Title")
+              input [type_ "text", name_ "title", id_ "title", class_ "form-input",
+                     placeholder_ "Card title", required_, autofocus_]
+            div [class_ "form-group"] do
+              label [for_ "description", class_ "form-label"] (text "Description")
+              textarea [name_ "description", id_ "description", rows_ 2, class_ "form-textarea",
+                        placeholder_ "Description (optional)"]
+            div [class_ "form-group"] do
+              label [for_ "labels", class_ "form-label"] (text "Labels")
+              input [type_ "text", name_ "labels", id_ "labels", class_ "form-input",
+                     placeholder_ "bug, feature, urgent (comma-separated)"]
+            div [class_ "form-actions"] do
+              button [type_ "button", class_ "btn btn-secondary",
+                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+              button [type_ "submit", class_ "btn btn-primary"] (text "Add Card"))
+
+-- Edit card form (unified)
+interaction editCardForm "/kanban/card/:id/edit" get (id : Nat)
+  |>.target (.css "#modal-container")
+  |>.swap .innerHTML
+handler do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then return ← redirect "/login"
+  match getCard ctx id with
+  | none => notFound "Card not found"
+  | some (card, _) =>
+    html (HtmlM.render do
+      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+        div [class_ "modal-container modal-md"] do
+          h3 [class_ "modal-title"] (text "Edit Card")
+          form (updateCard.attrsFor card.id ++ [hx_target s!"#card-{card.id}", modalClearAttr]) do
+            csrfField ctx.csrfToken
+            div [class_ "form-stack"] do
+              div [class_ "form-group"] do
+                label [for_ "title", class_ "form-label"] (text "Title")
+                input [type_ "text", name_ "title", id_ "title", value_ card.title,
+                       class_ "form-input", placeholder_ "Card title", required_, autofocus_]
+              div [class_ "form-group"] do
+                label [for_ "description", class_ "form-label"] (text "Description")
+                textarea [name_ "description", id_ "description", rows_ 3, class_ "form-textarea",
+                          placeholder_ "Description (optional)"] card.description
+              div [class_ "form-group"] do
+                label [for_ "labels", class_ "form-label"] (text "Labels")
+                input [type_ "text", name_ "labels", id_ "labels", value_ card.labels,
+                       class_ "form-input", placeholder_ "bug, feature, urgent (comma-separated)"]
+              div [class_ "form-actions"] do
+                button [type_ "button", class_ "btn btn-secondary",
+                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+                button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes"))
+
 /-! ## View Helpers -/
 
 def labelClass (label : String) : String :=
@@ -126,29 +330,22 @@ def renderCard (ctx : Context) (card : Card) : HtmlM Unit := do
     div [class_ "kanban-card-header"] do
       h4 [class_ "kanban-card-title"] (text card.title)
       div [class_ "kanban-card-actions"] do
-        button [class_ "btn-icon", hx_get s!"/kanban/card/{card.id}/edit",
-                hx_target "#modal-container", hx_swap "innerHTML"] (text "e")
-        button [class_ "btn-icon btn-icon-danger", hx_delete s!"/kanban/card/{card.id}",
-                hx_target s!"#card-{card.id}", hx_swap "outerHTML",
-                hx_confirm "Delete this card?"] (text "x")
+        editCardForm.button card.id "e" [class_ "btn-icon"]
+        deleteCard.button card.id "x" [class_ "btn-icon btn-icon-danger"]
     if !card.labels.isEmpty then renderLabels card.labels
     if !card.description.isEmpty then
       p [class_ "kanban-card-description"] (text card.description)
 
 def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
-  button [class_ "kanban-add-card", hx_get s!"/kanban/column/{columnId}/add-card-form",
-          hx_target "#modal-container", hx_swap "innerHTML"] (text "+ Add card")
+  addCardForm.button columnId "+ Add card" [class_ "kanban-add-card"]
 
 def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
   div [id_ s!"column-{col.id}", class_ "kanban-column"] do
     div [class_ "kanban-column-header"] do
       h3 [class_ "kanban-column-title"] (text col.name)
       div [class_ "kanban-column-actions"] do
-        button [class_ "btn-icon", hx_get s!"/kanban/column/{col.id}/edit",
-                hx_target "#modal-container", hx_swap "innerHTML"] (text "e")
-        button [class_ "btn-icon btn-icon-danger", hx_delete s!"/kanban/column/{col.id}",
-                hx_target s!"#column-{col.id}", hx_swap "outerHTML",
-                hx_confirm s!"Delete column '{col.name}' and all its cards?"] (text "x")
+        editColumnForm.button col.id "e" [class_ "btn-icon"]
+        button (deleteColumnAttrs col.id col.name ++ [class_ "btn-icon btn-icon-danger"]) (text "x")
     div [id_ s!"column-cards-{col.id}", data_ "column-id" (toString col.id),
          class_ "kanban-column-cards sortable-cards"] do
       for card in col.cards do renderCard ctx card
@@ -156,8 +353,7 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
 
 def renderAddColumnButton : HtmlM Unit := do
   div [class_ "kanban-add-column-wrapper"] do
-    button [class_ "kanban-add-column", hx_get "/kanban/add-column-form",
-            hx_target "#modal-container", hx_swap "innerHTML"] (text "+ Add column")
+    addColumnForm.button "+ Add column" [class_ "kanban-add-column"]
 
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
   div [id_ "kanban-board", class_ "kanban-board"] do
@@ -172,91 +368,6 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
         renderAddColumnButton
   div [id_ "modal-container"] (pure ())
   script [src_ "/js/kanban.js"]
-
-def renderAddColumnForm (ctx : Context) : HtmlM Unit := do
-  div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "modal-container modal-sm"] do
-      h3 [class_ "modal-title"] (text "Add Column")
-      form [hx_post "/kanban/column", hx_target "#board-columns", hx_swap "beforeend",
-            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
-        csrfField ctx.csrfToken
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "name", class_ "form-label"] (text "Column Name")
-            input [type_ "text", name_ "name", id_ "name", class_ "form-input",
-                   placeholder_ "Column name", required_, autofocus_]
-          div [class_ "form-actions"] do
-            button [type_ "button", class_ "btn btn-secondary",
-                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"] (text "Add Column")
-
-def renderColumnEditForm (ctx : Context) (col : Column) : HtmlM Unit := do
-  div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "modal-container modal-sm"] do
-      h3 [class_ "modal-title"] (text "Edit Column")
-      form [hx_put s!"/kanban/column/{col.id}", hx_target s!"#column-{col.id}", hx_swap "outerHTML",
-            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
-        csrfField ctx.csrfToken
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "name", class_ "form-label"] (text "Column Name")
-            input [type_ "text", name_ "name", id_ "name", value_ col.name,
-                   class_ "form-input", placeholder_ "Column name", required_, autofocus_]
-          div [class_ "form-actions"] do
-            button [type_ "button", class_ "btn btn-secondary",
-                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"] (text "Save")
-
-def renderAddCardForm (ctx : Context) (columnId : Nat) : HtmlM Unit := do
-  div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "modal-container modal-md"] do
-      h3 [class_ "modal-title"] (text "Add Card")
-      form [hx_post "/kanban/card", hx_target s!"#column-cards-{columnId}", hx_swap "beforeend",
-            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
-        csrfField ctx.csrfToken
-        input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "title", class_ "form-label"] (text "Title")
-            input [type_ "text", name_ "title", id_ "title", class_ "form-input",
-                   placeholder_ "Card title", required_, autofocus_]
-          div [class_ "form-group"] do
-            label [for_ "description", class_ "form-label"] (text "Description")
-            textarea [name_ "description", id_ "description", rows_ 2, class_ "form-textarea",
-                      placeholder_ "Description (optional)"]
-          div [class_ "form-group"] do
-            label [for_ "labels", class_ "form-label"] (text "Labels")
-            input [type_ "text", name_ "labels", id_ "labels", class_ "form-input",
-                   placeholder_ "bug, feature, urgent (comma-separated)"]
-          div [class_ "form-actions"] do
-            button [type_ "button", class_ "btn btn-secondary",
-                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"] (text "Add Card")
-
-def renderCardEditForm (ctx : Context) (card : Card) : HtmlM Unit := do
-  div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "modal-container modal-md"] do
-      h3 [class_ "modal-title"] (text "Edit Card")
-      form [hx_put s!"/kanban/card/{card.id}", hx_target s!"#card-{card.id}", hx_swap "outerHTML",
-            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
-        csrfField ctx.csrfToken
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "title", class_ "form-label"] (text "Title")
-            input [type_ "text", name_ "title", id_ "title", value_ card.title,
-                   class_ "form-input", placeholder_ "Card title", required_, autofocus_]
-          div [class_ "form-group"] do
-            label [for_ "description", class_ "form-label"] (text "Description")
-            textarea [name_ "description", id_ "description", rows_ 3, class_ "form-textarea",
-                      placeholder_ "Description (optional)"] card.description
-          div [class_ "form-group"] do
-            label [for_ "labels", class_ "form-label"] (text "Labels")
-            input [type_ "text", name_ "labels", id_ "labels", value_ card.labels,
-                   class_ "form-input", placeholder_ "bug, feature, urgent (comma-separated)"]
-          div [class_ "form-actions"] do
-            button [type_ "button", class_ "btn btn-secondary",
-                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes")
 
 /-! ## Pages -/
 
@@ -277,12 +388,6 @@ page kanbanColumns "/kanban/columns" GET do
     renderAddColumnButton)
 
 -- Note: SSE endpoint "/events/kanban" is registered separately in Main.lean
-
--- Add column form
-page kanbanAddColumnForm "/kanban/add-column-form" GET do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
-  html (HtmlM.render (renderAddColumnForm ctx))
 
 -- Create column
 page kanbanCreateColumn "/kanban/column" POST do
@@ -318,14 +423,6 @@ page kanbanGetColumn "/kanban/column/:id" GET (id : Nat) do
   | none => notFound "Column not found"
   | some col => html (HtmlM.render (renderColumn ctx col))
 
--- Edit column form
-page kanbanEditColumnForm "/kanban/column/:id/edit" GET (id : Nat) do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
-  match getColumn ctx id with
-  | none => notFound "Column not found"
-  | some col => html (HtmlM.render (renderColumnEditForm ctx col))
-
 -- Update column
 page kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
   let ctx ← getCtx
@@ -351,39 +448,6 @@ page kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
     | .error e =>
       logAuditError ctx "UPDATE" "column" [("column_id", toString id), ("error", toString e)]
       badRequest s!"Failed to update column: {e}"
-
--- Delete column
-page kanbanDeleteColumn "/kanban/column/:id" DELETE (id : Nat) do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
-  match ctx.database with
-  | none => badRequest "Database not available"
-  | some db =>
-    let columnName := match getColumn ctx id with
-      | some col => col.name
-      | none => "(unknown)"
-    let colId : EntityId := ⟨id⟩
-    let cardIds := db.findByAttrValue DbCard.attr_column (.ref colId)
-    let cardCount := cardIds.length
-    let mut txOps : List TxOp := []
-    for cardId in cardIds do
-      txOps := txOps ++ DbCard.retractionOps db cardId
-    txOps := txOps ++ DbColumn.retractionOps db colId
-    match ← transact txOps with
-    | .ok () =>
-      let ctx ← getCtx
-      logAudit ctx "DELETE" "column" id [("name", columnName), ("cascade_cards", toString cardCount)]
-      let _ ← SSE.publishEvent "kanban" "column-deleted" (jsonStr! { "columnId" : id })
-      html ""
-    | .error e =>
-      logAuditError ctx "DELETE" "column" [("column_id", toString id), ("error", toString e)]
-      badRequest s!"Failed to delete column: {e}"
-
--- Add card form
-page kanbanAddCardForm "/kanban/column/:columnId/add-card-form" GET (columnId : Nat) do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
-  html (HtmlM.render (renderAddCardForm ctx columnId))
 
 -- Add card button
 page kanbanAddCardButton "/kanban/column/:columnId/add-card-button" GET (columnId : Nat) do
@@ -433,14 +497,6 @@ page kanbanGetCard "/kanban/card/:id" GET (id : Nat) do
   | none => notFound "Card not found"
   | some (card, _) => html (HtmlM.render (renderCard ctx card))
 
--- Edit card form
-page kanbanEditCardForm "/kanban/card/:id/edit" GET (id : Nat) do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
-  match getCard ctx id with
-  | none => notFound "Card not found"
-  | some (card, _) => html (HtmlM.render (renderCardEditForm ctx card))
-
 -- Update card
 page kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
   let ctx ← getCtx
@@ -475,28 +531,6 @@ page kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
     | .error e =>
       logAuditError ctx "UPDATE" "card" [("card_id", toString id), ("error", toString e)]
       badRequest s!"Failed to update card: {e}"
-
--- Delete card
-page kanbanDeleteCard "/kanban/card/:id" DELETE (id : Nat) do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
-  match ctx.database with
-  | none => badRequest "Database not available"
-  | some db =>
-    let (cardTitle, columnId) := match getCard ctx id with
-      | some (card, colId) => (card.title, colId)
-      | none => ("(unknown)", 0)
-    let eid : EntityId := ⟨id⟩
-    let txOps := DbCard.retractionOps db eid
-    match ← transact txOps with
-    | .ok () =>
-      let ctx ← getCtx
-      logAudit ctx "DELETE" "card" id [("title", cardTitle), ("column_id", toString columnId)]
-      let _ ← SSE.publishEvent "kanban" "card-deleted" (jsonStr! { "cardId" : id })
-      html ""
-    | .error e =>
-      logAuditError ctx "DELETE" "card" [("card_id", toString id), ("error", toString e)]
-      badRequest s!"Failed to delete card: {e}"
 
 -- Move card
 page kanbanMoveCard "/kanban/card/:id/move" POST (id : Nat) do
