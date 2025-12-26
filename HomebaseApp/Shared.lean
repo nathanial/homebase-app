@@ -1,17 +1,30 @@
 /-
-  HomebaseApp.Views.Layout - HTML layout wrapper with sidebar navigation
+  HomebaseApp.Shared - Shared layout and components for unified pages
+
+  This module provides layout and common components that pages can use.
+  It does not depend on RouteType to avoid circular imports.
 -/
 import Scribe
 import Loom
-import HomebaseApp.Routes
-import HomebaseApp.Helpers
 
-namespace HomebaseApp.Views.Layout
+namespace HomebaseApp.Shared
 
 open Scribe
 open Loom
-open HomebaseApp (Route)
-open HomebaseApp.Helpers (isAdmin)
+
+/-! ## Authentication Helpers -/
+
+/-- Check if user is logged in -/
+def isLoggedIn (ctx : Context) : Bool :=
+  ctx.session.has "user_id"
+
+/-- Check if user is an admin -/
+def isAdmin (ctx : Context) : Bool :=
+  match ctx.session.get "is_admin" with
+  | some val => val == "true"
+  | none => false
+
+/-! ## Flash Messages -/
 
 /-- Render flash messages from context -/
 def flashMessages (ctx : Context) : HtmlM Unit := do
@@ -21,6 +34,8 @@ def flashMessages (ctx : Context) : HtmlM Unit := do
     div [class_ "flash flash-error"] (text msg)
   if let some msg := ctx.flash.get "info" then
     div [class_ "flash flash-info"] (text msg)
+
+/-! ## Sidebar -/
 
 /-- Render a sidebar link with active state and icon -/
 def sidebarLink (href icon label currentPath : String) : HtmlM Unit := do
@@ -49,6 +64,8 @@ def sidebar (ctx : Context) (currentPath : String) : HtmlM Unit :=
         div [class_ "sidebar-divider"] (pure ())
         sidebarLink "/admin" "⚙️" "Admin" currentPath
 
+/-! ## Top Navigation -/
+
 /-- Top navigation bar -/
 def navbar (ctx : Context) : HtmlM Unit :=
   nav [class_ "navbar"] do
@@ -62,6 +79,8 @@ def navbar (ctx : Context) : HtmlM Unit :=
         a [href_ "/login", class_ "navbar-link"] (text "Login")
         a [href_ "/register", class_ "navbar-link navbar-link-primary"] (text "Register")
 
+/-! ## Main Layout -/
+
 /-- Main layout wrapper with sidebar -/
 def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM Unit) : Html :=
   HtmlM.build do
@@ -71,10 +90,10 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         meta_ [charset_ "utf-8"]
         meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         title pageTitle
-        link [rel_ "stylesheet", href' (Route.staticCss "app.css")]
-        link [rel_ "stylesheet", href' (Route.staticCss "chat.css")]
-        link [rel_ "stylesheet", href' (Route.staticCss "kanban.css")]
-        -- SortableJS for drag and drop
+        link [rel_ "stylesheet", href_ "/css/app.css"]
+        link [rel_ "stylesheet", href_ "/css/chat.css"]
+        link [rel_ "stylesheet", href_ "/css/kanban.css"]
+        -- External scripts
         script [src_ "https://unpkg.com/htmx.org@2.0.4"]
         script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
       body [] do
@@ -90,20 +109,23 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
 def render (ctx : Context) (pageTitle : String) (currentPath : String) (content : HtmlM Unit) : String :=
   (layout ctx pageTitle currentPath content).render
 
-/-- Render layout without sidebar (for auth pages) -/
-def renderSimple (ctx : Context) (pageTitle : String) (content : HtmlM Unit) : String :=
-  let html := HtmlM.build do
+/-- Simple layout without sidebar (for auth pages) -/
+def simpleLayout (ctx : Context) (pageTitle : String) (content : HtmlM Unit) : Html :=
+  HtmlM.build do
     raw "<!DOCTYPE html>"
     html [lang_ "en"] do
       head [] do
         meta_ [charset_ "utf-8"]
         meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         title pageTitle
-        link [rel_ "stylesheet", href' (Route.staticCss "app.css")]
+        link [rel_ "stylesheet", href_ "/css/app.css"]
       body [class_ "auth-container"] do
         div [class_ "auth-box"] do
           flashMessages ctx
           content
-  html.render
 
-end HomebaseApp.Views.Layout
+/-- Render simple layout to string -/
+def renderSimple (ctx : Context) (pageTitle : String) (content : HtmlM Unit) : String :=
+  (simpleLayout ctx pageTitle content).render
+
+end HomebaseApp.Shared

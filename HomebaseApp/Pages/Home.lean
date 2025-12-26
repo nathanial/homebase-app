@@ -1,15 +1,19 @@
 /-
-  HomebaseApp.Views.Home - Home page view
+  HomebaseApp.Pages.Home - Home page (unified route + logic + view)
 -/
 import Scribe
 import Loom
-import HomebaseApp.Views.Layout
+import HomebaseApp.Shared
 
-namespace HomebaseApp.Views.Home
+namespace HomebaseApp.Pages
 
 open Scribe
 open Loom
-open HomebaseApp.Views.Layout
+open Loom.Page
+open Loom.ActionM
+open HomebaseApp.Shared
+
+/-! ## Home Page Content -/
 
 /-- Home page content -/
 def homeContent : HtmlM Unit := do
@@ -23,8 +27,12 @@ def homeContent : HtmlM Unit := do
       text "."
     p [class_ "text-slate-600"] (text "Select a section from the sidebar to get started.")
 
-/-- Render home page -/
-def render (ctx : Context) : String :=
-  Layout.render ctx "Homebase" "/" homeContent
+/-! ## Home Page Definition -/
 
-end HomebaseApp.Views.Home
+page home "/" GET do
+  let ctx ← getCtx
+  if !isLoggedIn ctx then
+    return ← redirect "/login"
+  html (Shared.render ctx "Homebase" "/" homeContent)
+
+end HomebaseApp.Pages

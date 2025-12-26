@@ -195,4 +195,15 @@ def logAuditError (ctx : Context) (op : String) (entity : String)
     }
     Chronicle.MultiLogger.logRequest logger entry
 
+/-! ## Route Parameter Helpers -/
+
+/-- Wrapper to extract :id parameter and pass to action -/
+def withId (f : Nat → Action) : Action := fun ctx => do
+  match ctx.params.get "id" with
+  | none => Action.badRequest ctx "Missing ID parameter"
+  | some idStr =>
+    match idStr.toNat? with
+    | none => Action.badRequest ctx "Invalid ID parameter"
+    | some id => f id ctx
+
 end HomebaseApp.Helpers

@@ -1,0 +1,621 @@
+/-
+  HomebaseApp.Pages.Chat - Chat section with threads, messages, and file uploads
+-/
+import Scribe
+import Loom
+import Ledger
+import Staple
+import Citadel
+import HomebaseApp.Shared
+import HomebaseApp.Models
+import HomebaseApp.Entities
+import HomebaseApp.Upload
+
+namespace HomebaseApp.Pages
+
+open Scribe
+open Loom
+open Loom.Page
+open Loom.ActionM
+open Loom.Json
+open Ledger
+open Staple (String.containsSubstr)
+open HomebaseApp.Shared hiding isLoggedIn isAdmin
+open HomebaseApp.Models
+open HomebaseApp.Entities
+open HomebaseApp.Upload
+
+structure Attachment where
+  id : Nat
+  fileName : String
+  mimeType : String
+  fileSize : Nat
+  url : String
+  deriving Inhabited
+
+structure Message where
+  id : Nat
+  content : String
+  timestamp : Nat
+  userName : String
+  attachments : List Attachment := []
+  deriving Inhabited
+
+structure Thread where
+  id : Nat
+  title : String
+  createdAt : Nat
+  messageCount : Nat
+  lastMessage : Option String
+  deriving Inhabited
+
+def getNowMs : IO Nat := do
+  let nanos ← IO.monoNanosNow
+  pure (nanos / 1000000)
+
+def chatIsLoggedIn (ctx : Context) : Bool :=
+  ctx.session.has "user_id"
+
+def chatCurrentUserId (ctx : Context) : Option String :=
+  ctx.session.get "user_id"
+
+def getThreads (ctx : Context) : List (EntityId × DbChatThread) :=
+  match ctx.database with
+  | none => []
+  | some db =>
+    let threadIds := db.entitiesWithAttr DbChatThread.attr_title
+    let threads := threadIds.filterMap fun tid =>
+      match DbChatThread.pull db tid with
+      | some t => some (tid, t)
+      | none => none
+    threads.toArray.qsort (fun a b => a.2.createdAt > b.2.createdAt) |>.toList
+
+def getMessagesForThread (db : Db) (threadId : EntityId) : List (EntityId × DbChatMessage) :=
+  let msgIds := db.findByAttrValue DbChatMessage.attr_thread (.ref threadId)
+  let messages := msgIds.filterMap fun mid =>
+    match DbChatMessage.pull db mid with
+    | some m =>
+      if m.thread == threadId then some (mid, m)
+      else none
+    | none => none
+  messages.toArray.qsort (fun a b => a.2.timestamp < b.2.timestamp) |>.toList
+
+def getChatThread (ctx : Context) (threadId : Nat) : Option DbChatThread :=
+  match ctx.database with
+  | none => none
+  | some db => DbChatThread.pull db ⟨threadId⟩
+
+def getUserName (db : Db) (userId : EntityId) : String :=
+  match db.getOne userId userName with
+  | some (.string name) => name
+  | _ => "Unknown"
+
+def toViewThread (db : Db) (tid : EntityId) (t : DbChatThread) : Thread :=
+  let messages := getMessagesForThread db tid
+  let lastMsg := messages.getLast?.map fun (_, m) => m.content
+  { id := t.id, title := t.title, createdAt := t.createdAt, messageCount := messages.length, lastMessage := lastMsg }
+
+def getAttachmentsForMessage (db : Db) (messageId : EntityId) : List Attachment :=
+  let attIds := db.findByAttrValue DbChatAttachment.attr_message (.ref messageId)
+  attIds.filterMap fun attId =>
+    match DbChatAttachment.pull db attId with
+    | some a => some { id := a.id, fileName := a.fileName, mimeType := a.mimeType, fileSize := a.fileSize, url := s!"/uploads/{a.storedPath}" }
+    | none => none
+
+def toViewMessageWithAttachments (db : Db) (msgId : EntityId) (m : DbChatMessage) : Message :=
+  let attachments := getAttachmentsForMessage db msgId
+  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserName db m.user, attachments := attachments }
+
+def toViewMessage (db : Db) (m : DbChatMessage) : Message :=
+  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserName db m.user, attachments := [] }
+
+def formatRelativeTime (timestamp now : Nat) : String :=
+  if now < timestamp then "just now"
+  else
+    let diffMs := now - timestamp
+    let diffSeconds := diffMs / 1000
+    let diffMinutes := diffSeconds / 60
+    let diffHours := diffMinutes / 60
+    let diffDays := diffHours / 24
+    if diffSeconds < 60 then "just now"
+    else if diffMinutes < 60 then s!"{diffMinutes} minute{if diffMinutes == 1 then "" else "s"} ago"
+    else if diffHours < 24 then s!"{diffHours} hour{if diffHours == 1 then "" else "s"} ago"
+    else if diffDays < 7 then s!"{diffDays} day{if diffDays == 1 then "" else "s"} ago"
+    else s!"{diffDays / 7} week{if diffDays / 7 == 1 then "" else "s"} ago"
+
+def formatFileSize (bytes : Nat) : String :=
+  if bytes < 1024 then s!"{bytes} B"
+  else if bytes < 1024 * 1024 then s!"{bytes / 1024} KB"
+  else s!"{bytes / (1024 * 1024)} MB"
+
+def renderAttachment (att : Attachment) : HtmlM Unit := do
+  if att.mimeType.startsWith "image/" then
+    a [href_ att.url, target_ "_blank", class_ "chat-attachment-image"] do
+      img [src_ att.url, alt_ att.fileName, class_ "chat-attachment-thumbnail"]
+  else
+    a [href_ att.url, download_ att.fileName, class_ "chat-attachment-file"] do
+      span [class_ "chat-attachment-icon"] (text "📎")
+      span [class_ "chat-attachment-name"] (text att.fileName)
+      span [class_ "chat-attachment-size"] (text (formatFileSize att.fileSize))
+
+def renderUploadZone (threadId : Nat) : HtmlM Unit := do
+  div [id_ "upload-zone", class_ "chat-upload-zone",
+       attr_ "ondragover" "event.preventDefault(); this.classList.add('dragover')",
+       attr_ "ondragleave" "this.classList.remove('dragover')",
+       attr_ "ondrop" "handleFileDrop(event, this)"] do
+    input [type_ "file", id_ "file-input",
+           class_ "chat-file-input",
+           attr_ "multiple" "true",
+           attr_ "accept" "image/*,.pdf,.txt",
+           attr_ "onchange" "handleFileSelect(this.files)",
+           attr_ "data-thread-id" (toString threadId)]
+    label [for_ "file-input", class_ "chat-upload-label"] do
+      span [class_ "chat-upload-icon"] (text "📁")
+      text "Drop files here or click to upload"
+  div [id_ "upload-preview", class_ "chat-upload-preview"] (pure ())
+
+def renderThreadItem (thread : Thread) (isActive : Bool) (now : Nat) : HtmlM Unit := do
+  let activeClass := if isActive then " chat-thread-active" else ""
+  div [id_ s!"thread-{thread.id}",
+       class_ s!"chat-thread-item{activeClass}",
+       attr_ "hx-get" s!"/chat/thread/{thread.id}",
+       hx_target "#chat-messages-area",
+       hx_swap "innerHTML",
+       attr_ "hx-push-url" "true"] do
+    div [class_ "chat-thread-header"] do
+      h4 [class_ "chat-thread-title"] (text thread.title)
+      span [class_ "chat-thread-time"] (text (formatRelativeTime thread.createdAt now))
+    match thread.lastMessage with
+    | some preview =>
+      let truncated := if preview.length > 50 then preview.take 50 ++ "..." else preview
+      p [class_ "chat-thread-preview"] (text truncated)
+    | none => pure ()
+    div [class_ "chat-thread-meta"] do
+      span [class_ "chat-thread-count"] (text s!"{thread.messageCount} messages")
+
+def renderMessage (msg : Message) (now : Nat) : HtmlM Unit := do
+  div [id_ s!"message-{msg.id}", class_ "chat-message"] do
+    div [class_ "chat-message-header"] do
+      span [class_ "chat-message-author"] (text msg.userName)
+      span [class_ "chat-message-time"] (text (formatRelativeTime msg.timestamp now))
+    div [class_ "chat-message-content"] do
+      for line in msg.content.splitOn "\n" do
+        p [] (text line)
+    if !msg.attachments.isEmpty then
+      div [class_ "chat-attachments"] do
+        for att in msg.attachments do
+          renderAttachment att
+
+def renderMessageInput (ctx : Context) (threadId : Nat) : HtmlM Unit := do
+  renderUploadZone threadId
+  form [id_ "message-form",
+        attr_ "hx-post" s!"/chat/thread/{threadId}/message",
+        hx_target "#messages-list",
+        hx_swap "beforeend",
+        attr_ "hx-on::after-request" "afterMessageSubmit(this)"] do
+    input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+    input [type_ "hidden", name_ "attachments", id_ "attachments-input", value_ ""]
+    div [class_ "chat-input-container"] do
+      textarea [name_ "content", id_ "message-content",
+                class_ "chat-input",
+                placeholder_ "Type your message...",
+                rows_ 2,
+                attr_ "onkeydown" "if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitMessageWithAttachments(); }"]
+      button [type_ "submit", class_ "chat-send-btn",
+              attr_ "onclick" "event.preventDefault(); submitMessageWithAttachments()"]
+        (text "Send")
+
+def renderThreadList (threads : List Thread) (activeThreadId : Option Nat) (now : Nat) : HtmlM Unit := do
+  div [id_ "chat-threads", class_ "chat-threads"] do
+    div [class_ "chat-threads-header"] do
+      h2 [] (text "Threads")
+      button [class_ "btn btn-primary btn-sm",
+              attr_ "hx-get" "/chat/thread/new",
+              hx_target "#modal-container",
+              hx_swap "innerHTML"]
+        (text "+ New Thread")
+    div [id_ "threads-list", class_ "chat-threads-list"] do
+      for thread in threads do
+        renderThreadItem thread (activeThreadId == some thread.id) now
+
+def renderMessageArea (ctx : Context) (thread : Thread) (messages : List Message) (now : Nat) : HtmlM Unit := do
+  div [class_ "chat-message-area"] do
+    div [class_ "chat-message-header-bar"] do
+      h2 [class_ "chat-current-title"] (text thread.title)
+      div [class_ "chat-message-actions"] do
+        button [class_ "btn-icon",
+                attr_ "hx-get" s!"/chat/thread/{thread.id}/edit",
+                hx_target "#modal-container",
+                hx_swap "innerHTML"]
+          (text "Edit")
+        button [class_ "btn-icon btn-icon-danger",
+                attr_ "hx-delete" s!"/chat/thread/{thread.id}",
+                hx_target "#chat-container",
+                hx_swap "innerHTML",
+                hx_confirm s!"Delete thread '{thread.title}' and all its messages?"]
+          (text "Delete")
+    div [id_ "messages-list", class_ "chat-messages-list"] do
+      for msg in messages do
+        renderMessage msg now
+    renderMessageInput ctx thread.id
+
+def renderEmptyState : HtmlM Unit := do
+  div [class_ "chat-empty-state"] do
+    div [class_ "text-6xl mb-4"] (text "Select a thread")
+    p [] (text "Choose a thread from the sidebar or create a new one.")
+
+def renderNewThreadForm (ctx : Context) : HtmlM Unit := do
+  div [class_ "modal-overlay",
+       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+    div [class_ "modal-container modal-sm"] do
+      h3 [class_ "modal-title"] (text "New Thread")
+      form [attr_ "hx-post" "/chat/thread",
+            hx_target "#threads-list",
+            hx_swap "afterbegin",
+            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
+        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+        div [class_ "form-stack"] do
+          div [class_ "form-group"] do
+            label [for_ "title", class_ "form-label"] (text "Thread Title")
+            input [type_ "text", name_ "title", id_ "title",
+                   class_ "form-input", placeholder_ "Enter thread title", required_, autofocus_]
+          div [class_ "form-actions"] do
+            button [type_ "button", class_ "btn btn-secondary",
+                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
+              (text "Cancel")
+            button [type_ "submit", class_ "btn btn-primary"]
+              (text "Create Thread")
+
+def renderEditThreadForm (ctx : Context) (thread : Thread) : HtmlM Unit := do
+  div [class_ "modal-overlay",
+       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+    div [class_ "modal-container modal-sm"] do
+      h3 [class_ "modal-title"] (text "Edit Thread")
+      form [attr_ "hx-put" s!"/chat/thread/{thread.id}",
+            hx_target s!"#thread-{thread.id}",
+            hx_swap "outerHTML",
+            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
+        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+        div [class_ "form-stack"] do
+          div [class_ "form-group"] do
+            label [for_ "title", class_ "form-label"] (text "Thread Title")
+            input [type_ "text", name_ "title", id_ "title", value_ thread.title,
+                   class_ "form-input", placeholder_ "Enter thread title", required_, autofocus_]
+          div [class_ "form-actions"] do
+            button [type_ "button", class_ "btn btn-secondary",
+                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
+              (text "Cancel")
+            button [type_ "submit", class_ "btn btn-primary"]
+              (text "Save Changes")
+
+def renderSearchResults (query : String) (results : List (Thread × Message)) (now : Nat) : HtmlM Unit := do
+  div [class_ "chat-search-results"] do
+    h3 [] (text s!"Search results for \"{query}\"")
+    if results.isEmpty then
+      p [class_ "text-slate-500"] (text "No messages found.")
+    else
+      for (thread, msg) in results do
+        div [class_ "chat-search-result",
+             attr_ "hx-get" s!"/chat/thread/{thread.id}",
+             hx_target "#chat-messages-area",
+             hx_swap "innerHTML"] do
+          div [class_ "chat-search-thread"] (text s!"in {thread.title}")
+          renderMessage msg now
+
+def chatContent (ctx : Context) (threads : List Thread) (activeThread : Option Thread)
+    (messages : List Message) (now : Nat) : HtmlM Unit := do
+  div [id_ "chat-container", class_ "chat-container"] do
+    div [class_ "chat-sidebar"] do
+      div [class_ "chat-search"] do
+        input [type_ "search",
+               name_ "q",
+               class_ "chat-search-input",
+               placeholder_ "Search messages...",
+               attr_ "hx-get" "/chat/search",
+               attr_ "hx-trigger" "keyup changed delay:300ms",
+               hx_target "#chat-messages-area",
+               hx_swap "innerHTML"]
+      renderThreadList threads (activeThread.map (·.id)) now
+    div [id_ "chat-messages-area", class_ "chat-main"] do
+      div [id_ "chat-main-content"] do
+        match activeThread with
+        | some thread => renderMessageArea ctx thread messages now
+        | none => renderEmptyState
+  div [id_ "modal-container"] do
+    pure ()
+  script [src_ "/js/chat.js"]
+
+page chat "/chat" GET do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  let now ← getNowMs
+  match ctx.database with
+  | none =>
+    if ctx.header "HX-Request" == some "true" then
+      html (HtmlM.render (renderThreadList [] none now))
+    else
+      html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx [] none [] now))
+  | some db =>
+    let threadData := getThreads ctx
+    let threads := threadData.map fun (tid, t) => toViewThread db tid t
+    if ctx.header "HX-Request" == some "true" then
+      html (HtmlM.render (renderThreadList threads none now))
+    else
+      html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx threads none [] now))
+
+page chatThread "/chat/thread/:id" GET (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  let now ← getNowMs
+  match ctx.database with
+  | none => notFound "Database not available"
+  | some db =>
+    match DbChatThread.pull db ⟨id⟩ with
+    | none => notFound "Thread not found"
+    | some dbThread =>
+      let thread := toViewThread db ⟨id⟩ dbThread
+      let messageData := getMessagesForThread db ⟨id⟩
+      let messages := messageData.map fun (mid, m) => toViewMessageWithAttachments db mid m
+      if ctx.header "HX-Request" == some "true" then
+        html (HtmlM.render (renderMessageArea ctx thread messages now))
+      else
+        let threadData := getThreads ctx
+        let threads := threadData.map fun (tid, t) => toViewThread db tid t
+        html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx threads (some thread) messages now))
+
+page chatNewThreadForm "/chat/thread/new" GET do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  html (HtmlM.render (renderNewThreadForm ctx))
+
+page chatCreateThread "/chat/thread" POST do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  let title := ctx.paramD "title" ""
+  if title.isEmpty then
+    return ← badRequest "Thread title is required"
+  match ← allocEntityId with
+  | none => badRequest "Database not available"
+  | some eid =>
+    let now ← getNowMs
+    let dbThread : DbChatThread := { id := eid.id.toNat, title := title, createdAt := now }
+    let tx := DbChatThread.createOps eid dbThread
+    match ← transact tx with
+    | .ok () =>
+      let thread : Thread := { id := eid.id.toNat, title := title, createdAt := now, messageCount := 0, lastMessage := none }
+      let threadId := eid.id.toNat
+      let _ ← SSE.publishEvent "chat" "thread-created" (jsonStr! { threadId, title })
+      html (HtmlM.render (renderThreadItem thread false now))
+    | .error e =>
+      badRequest s!"Failed to create thread: {e}"
+
+page chatEditThreadForm "/chat/thread/:id/edit" GET (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  match ctx.database with
+  | none => badRequest "Database not available"
+  | some db =>
+    match DbChatThread.pull db ⟨id⟩ with
+    | none => notFound "Thread not found"
+    | some dbThread =>
+      let thread := toViewThread db ⟨id⟩ dbThread
+      html (HtmlM.render (renderEditThreadForm ctx thread))
+
+page chatUpdateThread "/chat/thread/:id" PUT (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  let title := ctx.paramD "title" ""
+  if title.isEmpty then
+    return ← badRequest "Thread title is required"
+  match ctx.database with
+  | none => badRequest "Database not available"
+  | some db =>
+    let tx := DbChatThread.set_title db ⟨id⟩ title
+    match ← transact tx with
+    | .ok () =>
+      let now ← getNowMs
+      let ctx ← getCtx
+      match ctx.database with
+      | none => notFound "Thread not found"
+      | some db' =>
+        match DbChatThread.pull db' ⟨id⟩ with
+        | none => notFound "Thread not found"
+        | some dbThread =>
+          let thread := toViewThread db' ⟨id⟩ dbThread
+          let threadId := id
+          let _ ← SSE.publishEvent "chat" "thread-updated" (jsonStr! { threadId, title })
+          html (HtmlM.render (renderThreadItem thread false now))
+    | .error e =>
+      badRequest s!"Failed to update thread: {e}"
+
+page chatDeleteThread "/chat/thread/:id" DELETE (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  match ctx.database with
+  | none => badRequest "Database not available"
+  | some db =>
+    let tid : EntityId := ⟨id⟩
+    let messageIds := db.findByAttrValue DbChatMessage.attr_thread (.ref tid)
+    let mut txOps : List TxOp := []
+    for msgId in messageIds do
+      let attachmentIds := db.findByAttrValue DbChatAttachment.attr_message (.ref msgId)
+      for attId in attachmentIds do
+        match DbChatAttachment.pull db attId with
+        | some att =>
+          let _ ← Upload.deleteFile att.storedPath
+          txOps := txOps ++ DbChatAttachment.retractionOps db attId
+        | none => pure ()
+      txOps := txOps ++ DbChatMessage.retractionOps db msgId
+    txOps := txOps ++ DbChatThread.retractionOps db tid
+    match ← transact txOps with
+    | .ok () =>
+      let threadId := id
+      let _ ← SSE.publishEvent "chat" "thread-deleted" (jsonStr! { threadId })
+      html (HtmlM.render renderEmptyState)
+    | .error e =>
+      badRequest s!"Failed to delete thread: {e}"
+
+page chatAddMessage "/chat/thread/:id/message" POST (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  let content := ctx.paramD "content" ""
+  let attachmentIds : List Int := ctx.paramD "attachments" ""
+    |>.splitOn ","
+    |>.filterMap String.toInt?
+  if content.trim.isEmpty && attachmentIds.isEmpty then
+    return ← badRequest "Message content or attachment is required"
+  match ← allocEntityId with
+  | none => badRequest "Database not available"
+  | some eid =>
+    let ctx ← getCtx
+    let userId := match chatCurrentUserId ctx with
+      | some idStr => match idStr.toNat? with
+        | some n => EntityId.mk n
+        | none => EntityId.null
+      | none => EntityId.null
+    let now ← getNowMs
+    let dbMessage : DbChatMessage := {
+      id := eid.id.toNat
+      content := content.trim
+      timestamp := now
+      thread := ⟨id⟩
+      user := userId
+    }
+    let mut tx := DbChatMessage.createOps eid dbMessage
+    match ctx.database with
+    | none => pure ()
+    | some db =>
+      for attId in attachmentIds do
+        tx := tx ++ DbChatAttachment.set_message db ⟨attId⟩ eid
+    match ← transact tx with
+    | .ok () =>
+      let ctx ← getCtx
+      let (userName, viewAttachments) := match ctx.database with
+        | some db =>
+          let name := getUserName db userId
+          let atts := attachmentIds.filterMap fun attId =>
+            match DbChatAttachment.pull db ⟨attId⟩ with
+            | some a => some { id := a.id, fileName := a.fileName, mimeType := a.mimeType, fileSize := a.fileSize, url := s!"/uploads/{a.storedPath}" }
+            | none => none
+          (name, atts)
+        | none => ("Unknown", [])
+      let msg : Message := {
+        id := eid.id.toNat
+        content := content.trim
+        timestamp := now
+        userName := userName
+        attachments := viewAttachments
+      }
+      let messageId := eid.id.toNat
+      let threadId := id
+      let _ ← SSE.publishEvent "chat" "message-added" (jsonStr! { messageId, threadId })
+      html (HtmlM.render (renderMessage msg now))
+    | .error e =>
+      badRequest s!"Failed to add message: {e}"
+
+page chatSearch "/chat/search" GET do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← redirect "/login"
+  let query := ctx.paramD "q" ""
+  if query.trim.isEmpty then
+    return ← html ""
+  let now ← getNowMs
+  match ctx.database with
+  | none => badRequest "Database not available"
+  | some db =>
+    let allMsgIds := db.entitiesWithAttr DbChatMessage.attr_content
+    let queryLower := query.toLower
+    let results := allMsgIds.filterMap fun msgId =>
+      match DbChatMessage.pull db msgId with
+      | some msg =>
+        if String.containsSubstr msg.content.toLower queryLower then
+          match DbChatThread.pull db msg.thread with
+          | some thread =>
+            let viewThread := toViewThread db msg.thread thread
+            let viewMsg := toViewMessage db msg
+            some (viewThread, viewMsg)
+          | none => none
+        else none
+      | none => none
+    let sortedResults := results.toArray.qsort (fun a b => a.2.timestamp > b.2.timestamp) |>.toList
+    html (HtmlM.render (renderSearchResults query sortedResults now))
+
+page chatUploadAttachment "/chat/thread/:id/upload" POST (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← json "{\"error\": \"Not logged in\"}"
+  match ctx.file "file" with
+  | none => json "{\"error\": \"No file uploaded\"}"
+  | some file =>
+    if file.content.size > maxFileSize then
+      return ← json "{\"error\": \"File too large (max 10MB)\"}"
+    let mimeType := file.contentType.getD "application/octet-stream"
+    if !isAllowedType mimeType then
+      return ← json "{\"error\": \"File type not allowed\"}"
+    let storedPath ← storeFile file.content (file.filename.getD "upload")
+    match ← allocEntityId with
+    | none => json "{\"error\": \"Database not available\"}"
+    | some eid =>
+      let now ← getNowMs
+      let attachment : DbChatAttachment := {
+        id := eid.id.toNat
+        fileName := file.filename.getD "upload"
+        storedPath := storedPath
+        mimeType := mimeType
+        fileSize := file.content.size
+        uploadedAt := now
+        message := EntityId.null
+      }
+      let tx := DbChatAttachment.createOps eid attachment
+      match ← transact tx with
+      | .ok () =>
+        let fileName := file.filename.getD "upload"
+        let aid := eid.id.toNat
+        json (jsonStr! { "id" : aid, "fileName" : fileName, "storedPath" : storedPath })
+      | .error e =>
+        json (jsonStr! { "error" : s!"Failed to save attachment: {e}" })
+
+page chatServeUpload "/uploads/:filename" GET (filename : String) do
+  if filename.isEmpty || !Upload.isSafePath filename then
+    return ← notFound "File not found"
+  match ← Upload.readFile filename with
+  | none => notFound "File not found"
+  | some content =>
+    let mimeType := Upload.mimeTypeForFile filename
+    let resp := Citadel.ResponseBuilder.withStatus Herald.Core.StatusCode.ok
+      |>.withHeader "Content-Type" mimeType
+      |>.withHeader "Content-Length" (toString content.size)
+      |>.withHeader "Cache-Control" "public, max-age=31536000"
+      |>.withBody content
+      |>.build
+    pure resp
+
+page chatDeleteAttachment "/chat/attachment/:id" DELETE (id : Nat) do
+  let ctx ← getCtx
+  if !chatIsLoggedIn ctx then
+    return ← json "{\"error\": \"Not logged in\"}"
+  match ctx.database with
+  | none => json "{\"error\": \"Database not available\"}"
+  | some db =>
+    let attId : EntityId := ⟨id⟩
+    match DbChatAttachment.pull db attId with
+    | none => json "{\"error\": \"Attachment not found\"}"
+    | some attachment =>
+      let _ ← Upload.deleteFile attachment.storedPath
+      let tx := DbChatAttachment.retractionOps db attId
+      match ← transact tx with
+      | .ok () =>
+        json "{\"success\": true}"
+      | .error e =>
+        json (jsonStr! { "error" : s!"Failed to delete attachment: {e}" })
+
+end HomebaseApp.Pages
