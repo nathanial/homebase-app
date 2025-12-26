@@ -255,13 +255,6 @@ def renderMoveCardDropdown (ctx : Context) (card : Card) (columns : List Column)
 
 -- Main board content
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
-  -- Kanban CSS
-  link [rel_ "stylesheet", href' (Route.staticCss "kanban.css")]
-  -- HTMX script
-  script [src_ "https://unpkg.com/htmx.org@2.0.4"]
-  -- SortableJS for drag and drop
-  script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
-
   -- Kanban board container
   div [id_ "kanban-board", class_ "kanban-board"] do
     -- Header

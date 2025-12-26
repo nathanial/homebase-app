@@ -72,6 +72,11 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
         title pageTitle
         link [rel_ "stylesheet", href' (Route.staticCss "app.css")]
+        link [rel_ "stylesheet", href' (Route.staticCss "chat.css")]
+        link [rel_ "stylesheet", href' (Route.staticCss "kanban.css")]
+        -- SortableJS for drag and drop
+        script [src_ "https://unpkg.com/htmx.org@2.0.4"]
+        script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
       body [] do
         div [class_ "app-container"] do
           sidebar ctx currentPath

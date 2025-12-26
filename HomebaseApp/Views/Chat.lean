@@ -188,7 +188,7 @@ def renderMessageArea (ctx : Context) (thread : Thread) (messages : List Message
           (text "Edit")
         button [class_ "btn-icon btn-icon-danger",
                 hx_delete' (Route.chatDeleteThread thread.id),
-                hx_target "#chat-main-content",
+                hx_target "#chat-container",
                 hx_swap "innerHTML",
                 hx_confirm s!"Delete thread '{thread.title}' and all its messages?"]
           (text "Delete")
@@ -273,10 +273,6 @@ def renderSearchResults (query : String) (results : List (Thread × Message)) (n
 /-- Main chat page content -/
 def chatContent (ctx : Context) (threads : List Thread) (activeThread : Option Thread)
     (messages : List Message) (now : Nat) : HtmlM Unit := do
-  -- Chat CSS
-  link [rel_ "stylesheet", href' (Route.staticCss "chat.css")]
-  -- HTMX script
-  script [src_ "https://unpkg.com/htmx.org@2.0.4"]
 
   -- Chat container
   div [id_ "chat-container", class_ "chat-container"] do
@@ -346,10 +342,8 @@ def renderEditThreadFormPartial (ctx : Context) (thread : Thread) : String :=
 def renderSearchResultsPartial (query : String) (results : List (Thread × Message)) (now : Nat) : String :=
   HtmlM.render (renderSearchResults query results now)
 
-/-- Render thread deleted confirmation (shows empty state + refreshes thread list) -/
-def renderThreadDeletedPartial (_ctx : Context) (threads : List Thread) (now : Nat) : String :=
-  HtmlM.render do
-    renderThreadList threads none now
-    renderEmptyState
+/-- Render thread deleted confirmation (shows empty state; thread list is refreshed via SSE) -/
+def renderThreadDeletedPartial (_ctx : Context) (_threads : List Thread) (_now : Nat) : String :=
+  HtmlM.render renderEmptyState
 
 end HomebaseApp.Views.Chat
