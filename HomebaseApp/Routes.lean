@@ -57,6 +57,14 @@ inductive Route where
   | chatNewThreadForm                 -- New thread modal
   | chatEditThreadForm (id : Nat)     -- Edit thread modal
   | chatUpdateThread (id : Nat)       -- Update thread
+  -- Admin routes
+  | admin                             -- User list
+  | adminUser (id : Nat)              -- View user
+  | adminCreateUser                   -- Create user form
+  | adminStoreUser                    -- Create user POST
+  | adminEditUser (id : Nat)          -- Edit user form
+  | adminUpdateUser (id : Nat)        -- Update user PUT
+  | adminDeleteUser (id : Nat)        -- Delete user
   -- Static files
   | staticJs (name : String)
   | staticCss (name : String)
@@ -106,6 +114,14 @@ def path : Route → String
   | .chatNewThreadForm => "/chat/new-thread-form"
   | .chatEditThreadForm id => s!"/chat/thread/{id}/edit"
   | .chatUpdateThread id => s!"/chat/thread/{id}"
+  -- Admin routes
+  | .admin => "/admin"
+  | .adminUser id => s!"/admin/user/{id}"
+  | .adminCreateUser => "/admin/user/new"
+  | .adminStoreUser => "/admin/user"
+  | .adminEditUser id => s!"/admin/user/{id}/edit"
+  | .adminUpdateUser id => s!"/admin/user/{id}"
+  | .adminDeleteUser id => s!"/admin/user/{id}"
   -- Static files
   | .staticJs name => s!"/js/{name}"
   | .staticCss name => s!"/css/{name}"

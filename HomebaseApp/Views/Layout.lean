@@ -4,12 +4,14 @@
 import Scribe
 import Loom
 import HomebaseApp.Routes
+import HomebaseApp.Helpers
 
 namespace HomebaseApp.Views.Layout
 
 open Scribe
 open Loom
 open HomebaseApp (Route)
+open HomebaseApp.Helpers (isAdmin)
 
 /-- Render flash messages from context -/
 def flashMessages (ctx : Context) : HtmlM Unit := do
@@ -28,7 +30,7 @@ def sidebarLink (href icon label currentPath : String) : HtmlM Unit := do
     span [] (text label)
 
 /-- Sidebar navigation -/
-def sidebar (currentPath : String) : HtmlM Unit :=
+def sidebar (ctx : Context) (currentPath : String) : HtmlM Unit :=
   aside [class_ "sidebar"] do
     div [class_ "sidebar-header"] do
       span [class_ "sidebar-header-icon"] (text "🏠")
@@ -42,6 +44,10 @@ def sidebar (currentPath : String) : HtmlM Unit :=
       sidebarLink "/kanban" "📋" "Kanban" currentPath
       sidebarLink "/gallery" "🖼️" "Gallery" currentPath
       sidebarLink "/news" "📰" "News" currentPath
+      -- Admin link (only visible to admins)
+      if isAdmin ctx then
+        div [class_ "sidebar-divider"] (pure ())
+        sidebarLink "/admin" "⚙️" "Admin" currentPath
 
 /-- Top navigation bar -/
 def navbar (ctx : Context) : HtmlM Unit :=
@@ -68,7 +74,7 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         link [rel_ "stylesheet", href' (Route.staticCss "app.css")]
       body [] do
         div [class_ "app-container"] do
-          sidebar currentPath
+          sidebar ctx currentPath
           div [class_ "main-area"] do
             navbar ctx
             div [class_ "main-content"] do

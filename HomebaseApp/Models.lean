@@ -14,6 +14,7 @@ open Ledger
 def userEmail : Attribute := ⟨":user/email"⟩
 def userPasswordHash : Attribute := ⟨":user/password-hash"⟩
 def userName : Attribute := ⟨":user/name"⟩
+def userIsAdmin : Attribute := ⟨":user/is-admin"⟩
 
 -- ============================================================================
 -- Database Entity Structures (for makeLedgerEntity)

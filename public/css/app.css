@@ -361,3 +361,151 @@ body {
 .group:hover .group-hover-visible {
   display: flex;
 }
+
+/* ============================================================================
+   Admin Panel Styles
+   ============================================================================ */
+
+.admin-container {
+  padding: 1.5rem;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.admin-title {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--color-slate-800);
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Table Styles */
+.table-container {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-white);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.table th,
+.table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-slate-200);
+}
+
+.table th {
+  background: var(--color-slate-100);
+  font-weight: 600;
+  color: var(--color-slate-700);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background: var(--color-slate-100);
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Badge Styles */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-success {
+  background: var(--color-green-100);
+  color: var(--color-green-800);
+}
+
+.badge-secondary {
+  background: var(--color-slate-200);
+  color: var(--color-slate-600);
+}
+
+/* Card Styles */
+.card {
+  background: var(--color-white);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+}
+
+/* Detail List */
+.detail-list {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.75rem;
+}
+
+.detail-list dt {
+  font-weight: 600;
+  color: var(--color-slate-500);
+}
+
+.detail-list dd {
+  margin: 0;
+  color: var(--color-slate-800);
+}
+
+/* Form Checkbox */
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+}
+
+.form-checkbox .form-label {
+  margin: 0;
+}
+
+/* Sidebar Divider */
+.sidebar-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.5rem 1rem;
+}
+
+/* Small buttons */
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.btn-danger {
+  background-color: #dc2626;
+  color: var(--color-white);
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+}

@@ -2,10 +2,13 @@
   HomebaseApp.Main - Application setup and entry point
 -/
 import Loom
+import Ledger
 import Chronicle
+import HomebaseApp.Models
 import HomebaseApp.Helpers
 import HomebaseApp.Actions.Home
 import HomebaseApp.Actions.Auth
+import HomebaseApp.Actions.Admin
 import HomebaseApp.Actions.Chat
 import HomebaseApp.Actions.Notebook
 import HomebaseApp.Actions.Time
@@ -18,6 +21,8 @@ import HomebaseApp.Actions.News
 namespace HomebaseApp
 
 open Loom
+open Ledger
+open HomebaseApp.Models
 open HomebaseApp.Helpers
 
 /-- Application configuration -/
@@ -52,6 +57,7 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     -- Logger for action-level logging
     |>.withLogger logger
     -- Middleware
+    |>.use Middleware.methodOverride
     |>.use (Loom.Chronicle.fileLoggingMulti logger)
     |>.use Middleware.securityHeaders
     -- SSE endpoints for real-time updates
@@ -102,13 +108,74 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.delete "/chat/thread/:id" "chat_delete_thread" (withId Actions.Chat.deleteThread)
     |>.post "/chat/thread/:id/message" "chat_add_message" (withId Actions.Chat.addMessage)
     |>.get "/chat/search" "chat_search" Actions.Chat.search
+    -- Admin routes
+    |>.get "/admin" "admin" Actions.Admin.index
+    |>.get "/admin/user/new" "admin_create_user" Actions.Admin.createUserForm
+    |>.post "/admin/user" "admin_store_user" Actions.Admin.storeUser
+    |>.get "/admin/user/:id" "admin_show_user" (withId Actions.Admin.showUser)
+    |>.get "/admin/user/:id/edit" "admin_edit_user" (withId Actions.Admin.editUserForm)
+    |>.put "/admin/user/:id" "admin_update_user" (withId Actions.Admin.updateUser)
+    |>.delete "/admin/user/:id" "admin_delete_user" (withId Actions.Admin.deleteUser)
     -- Persistent database (auto-persists to JSONL)
     |>.withPersistentDatabase journalPath
+
+/-- Check if there are any admin users. If no admins exist but users do,
+    promote all users to admin. This ensures there's always an admin. -/
+def ensureAdminExists : IO Unit := do
+  -- Check if journal file exists
+  if !(← journalPath.pathExists) then
+    IO.println "No database found, skipping admin check."
+    return
+
+  -- Load the database
+  let pc ← Ledger.Persist.PersistentConnection.create journalPath
+
+  -- Get all users (entities with userEmail attribute)
+  let userIds := pc.db.entitiesWithAttr userEmail
+
+  if userIds.isEmpty then
+    IO.println "No users in database, skipping admin check."
+    return
+
+  -- Check if any user has isAdmin = true
+  let hasAdmin := userIds.any fun uid =>
+    match pc.db.getOne uid userIsAdmin with
+    | some (.bool true) => true
+    | _ => false
+
+  if hasAdmin then
+    IO.println s!"Admin check: Found admin user(s) among {userIds.length} users."
+    return
+
+  -- No admins found! Promote all users to admin
+  IO.println s!"WARNING: No admin users found! Promoting all {userIds.length} user(s) to admin..."
+
+  let mut tx : Transaction := []
+  for uid in userIds do
+    -- Retract old isAdmin value if exists
+    match pc.db.getOne uid userIsAdmin with
+    | some oldVal => tx := tx ++ [.retract uid userIsAdmin oldVal]
+    | none => pure ()
+    -- Add isAdmin = true
+    tx := tx ++ [.add uid userIsAdmin (.bool true)]
+
+  -- Apply the transaction (auto-persists to journal)
+  let result ← pc.transact tx
+  match result with
+  | .ok (pc', _report) =>
+    -- Close the connection (flushes the journal)
+    pc'.close
+    IO.println s!"Successfully promoted {userIds.length} user(s) to admin."
+  | .error e =>
+    IO.println s!"ERROR: Failed to promote users to admin: {e}"
 
 /-- Main entry point (inside namespace) -/
 def runApp : IO Unit := do
   IO.FS.createDirAll "data"
   IO.FS.createDirAll "logs"
+
+  -- Ensure there's at least one admin user
+  ensureAdminExists
 
   -- Create multi-logger with both JSON and text formats
   let jsonConfig := Chronicle.Config.default jsonLogPath

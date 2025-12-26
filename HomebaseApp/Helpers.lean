@@ -60,6 +60,67 @@ def currentUserName (ctx : Context) : Option String :=
 def isLoggedIn (ctx : Context) : Bool :=
   ctx.session.has "user_id"
 
+/-- Check if current user is an admin -/
+def isAdmin (ctx : Context) : Bool :=
+  match currentUserId ctx with
+  | none => false
+  | some idStr =>
+    match idStr.toNat? with
+    | none => false
+    | some id =>
+      let eid : EntityId := ⟨id⟩
+      match ctx.database with
+      | none => false
+      | some db =>
+        match db.getOne eid userIsAdmin with
+        | some (.bool true) => true
+        | _ => false
+
+/-- Require admin privileges - redirect to home if not admin -/
+def requireAdmin (action : Action) : Action := fun ctx => do
+  match ctx.session.get "user_id" with
+  | none =>
+    let ctx := ctx.withFlash fun f => f.set "error" "Please log in to continue"
+    Action.redirect "/login" ctx
+  | some idStr =>
+    match idStr.toNat? with
+    | none =>
+      let ctx := ctx.withFlash fun f => f.set "error" "Invalid session"
+      Action.redirect "/login" ctx
+    | some id =>
+      let eid : EntityId := ⟨id⟩
+      match ctx.database with
+      | none =>
+        let ctx := ctx.withFlash fun f => f.set "error" "Database not available"
+        Action.redirect "/" ctx
+      | some db =>
+        match db.getOne eid userIsAdmin with
+        | some (.bool true) => action ctx
+        | _ =>
+          let ctx := ctx.withFlash fun f => f.set "error" "Access denied. Admin privileges required."
+          Action.redirect "/" ctx
+
+/-- Check if any users exist in the database -/
+def hasAnyUsers (ctx : Context) : Bool :=
+  match ctx.database with
+  | none => false
+  | some db => !(db.entitiesWithAttr userEmail).isEmpty
+
+/-- Get all users from the database -/
+def getAllUsers (ctx : Context) : List (EntityId × String × String × Bool) :=
+  match ctx.database with
+  | none => []
+  | some db =>
+    let userIds := db.entitiesWithAttr userEmail
+    userIds.filterMap fun uid =>
+      match db.getOne uid userEmail, db.getOne uid userName with
+      | some (.string email), some (.string name) =>
+        let isAdminVal := match db.getOne uid userIsAdmin with
+          | some (.bool b) => b
+          | _ => false
+        some (uid, email, name, isAdminVal)
+      | _, _ => none
+
 /-! ## Database Helpers -/
 
 /-- Find user by email -/

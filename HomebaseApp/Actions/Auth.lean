@@ -77,6 +77,9 @@ def register : Action := fun ctx => do
     let ctx := ctx.withFlash fun f => f.set "error" "Email already registered"
     Action.redirect "/register" ctx
   | none =>
+    -- Check if this is the first user (they become admin)
+    let isFirstUser := !hasAnyUsers ctx
+
     match ctx.allocEntityId with
     | none =>
       let ctx := ctx.withFlash fun f => f.set "error" "Database not available"
@@ -86,14 +89,16 @@ def register : Action := fun ctx => do
       let tx : Transaction := [
         .add userId userName (.string name),
         .add userId userEmail (.string email),
-        .add userId userPasswordHash (.string passwordHash)
+        .add userId userPasswordHash (.string passwordHash),
+        .add userId userIsAdmin (.bool isFirstUser)
       ]
       match ← ctx.transact tx with
       | Except.ok ctx =>
         let ctx := ctx.withSession fun s =>
           s.set "user_id" (toString userId.id)
            |>.set "user_name" name
-        let ctx := ctx.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created."
+        let adminNote := if isFirstUser then " You have been granted admin privileges." else ""
+        let ctx := ctx.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created.{adminNote}"
         Action.redirect "/" ctx
       | Except.error e =>
         let ctx := ctx.withFlash fun f => f.set "error" s!"Failed to create account: {e}"
