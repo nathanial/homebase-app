@@ -130,14 +130,13 @@ def renderCard (_ctx : Context) (card : Card) : HtmlM Unit := do
     div [class_ "kanban-card-header"] do
       h4 [class_ "kanban-card-title"] (text card.title)
       div [class_ "kanban-card-actions"] do
-        -- Edit card button
+        -- Edit card button (opens modal)
         button [hx_get s!"/kanban/card/{card.id}/edit",
                 hx_target "#modal-container", hx_swap "innerHTML",
                 class_ "btn-icon"] (text "e")
-        -- Delete card button
+        -- Delete card button (SSE refreshes board)
         button [hx_delete s!"/kanban/card/{card.id}",
-                hx_target s!"#card-{card.id}", hx_swap "outerHTML",
-                hx_confirm "Delete this card?",
+                hx_swap "none", hx_confirm "Delete this card?",
                 class_ "btn-icon btn-icon-danger"] (text "x")
     if !card.labels.isEmpty then renderLabels card.labels
     if !card.description.isEmpty then
@@ -153,14 +152,13 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
     div [class_ "kanban-column-header"] do
       h3 [class_ "kanban-column-title"] (text col.name)
       div [class_ "kanban-column-actions"] do
-        -- Edit column button
+        -- Edit column button (opens modal)
         button [hx_get s!"/kanban/column/{col.id}/edit",
                 hx_target "#modal-container", hx_swap "innerHTML",
                 class_ "btn-icon"] (text "e")
-        -- Delete column button (dynamic confirm)
+        -- Delete column button (SSE refreshes board)
         button [hx_delete s!"/kanban/column/{col.id}",
-                hx_target s!"#column-{col.id}", hx_swap "outerHTML",
-                hx_confirm s!"Delete column '{col.name}' and all its cards?",
+                hx_swap "none", hx_confirm s!"Delete column '{col.name}' and all its cards?",
                 class_ "btn-icon btn-icon-danger"] (text "x")
     div [id_ s!"column-cards-{col.id}", data_ "column-id" (toString col.id),
          class_ "kanban-column-cards sortable-cards"] do
@@ -215,7 +213,7 @@ page kanbanAddColumnForm "/kanban/add-column-form" GET do
     div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
       div [class_ "modal-container modal-sm"] do
         h3 [class_ "modal-title"] (text "Add Column")
-        form [hx_post "/kanban/column", hx_target "#board-columns", hx_swap "beforeend", modalClearAttr] do
+        form [hx_post "/kanban/column", hx_swap "none", modalClearAttr] do
           csrfField ctx.csrfToken
           div [class_ "form-stack"] do
             div [class_ "form-group"] do
@@ -244,11 +242,8 @@ page kanbanCreateColumn "/kanban/column" POST do
     | .ok () =>
       let ctx ← getCtx
       logAudit ctx "CREATE" "column" eid.id.toNat [("name", name)]
-      let col : Column := { id := eid.id.toNat, name := name, order := order.toNat, cards := [] }
-      let colHtml := HtmlM.render (renderColumn ctx col)
-      let btnHtml := HtmlM.render renderAddColumnButton
       let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { "columnId" : eid.id.toNat, name })
-      html (colHtml ++ btnHtml)
+      html ""
     | .error e =>
       logAuditError ctx "CREATE" "column" [("name", name), ("error", toString e)]
       badRequest s!"Failed to create column: {e}"
@@ -272,7 +267,7 @@ page kanbanEditColumnForm "/kanban/column/:id/edit" GET (id : Nat) do
       div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
         div [class_ "modal-container modal-sm"] do
           h3 [class_ "modal-title"] (text "Edit Column")
-          form [hx_put s!"/kanban/column/{col.id}", hx_target s!"#column-{col.id}", hx_swap "outerHTML", modalClearAttr] do
+          form [hx_put s!"/kanban/column/{col.id}", hx_swap "none", modalClearAttr] do
             csrfField ctx.csrfToken
             div [class_ "form-stack"] do
               div [class_ "form-group"] do
@@ -300,12 +295,9 @@ page kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
     match ← transact tx with
     | .ok () =>
       let ctx ← getCtx
-      match getColumn ctx id with
-      | none => notFound "Column not found"
-      | some col =>
-        logAudit ctx "UPDATE" "column" id [("old_name", oldName), ("new_name", name)]
-        let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { "columnId" : id, name })
-        html (HtmlM.render (renderColumn ctx col))
+      logAudit ctx "UPDATE" "column" id [("old_name", oldName), ("new_name", name)]
+      let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { "columnId" : id, name })
+      html ""
     | .error e =>
       logAuditError ctx "UPDATE" "column" [("column_id", toString id), ("error", toString e)]
       badRequest s!"Failed to update column: {e}"
@@ -345,7 +337,7 @@ page kanbanAddCardForm "/kanban/column/:columnId/add-card-form" GET (columnId : 
     div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
       div [class_ "modal-container modal-md"] do
         h3 [class_ "modal-title"] (text "Add Card")
-        form [hx_post "/kanban/card", hx_target s!"#column-cards-{columnId}", hx_swap "beforeend", modalClearAttr] do
+        form [hx_post "/kanban/card", hx_swap "none", modalClearAttr] do
           csrfField ctx.csrfToken
           input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
           div [class_ "form-stack"] do
@@ -398,10 +390,8 @@ page kanbanCreateCard "/kanban/card" POST do
       | .ok () =>
         let ctx ← getCtx
         logAudit ctx "CREATE" "card" eid.id.toNat [("title", title), ("column_id", toString columnId)]
-        let card : Card := { id := eid.id.toNat, title := title, description := description,
-                             labels := labels, order := order.toNat }
         let _ ← SSE.publishEvent "kanban" "card-created" (jsonStr! { "cardId" : eid.id.toNat, columnId, title })
-        html (HtmlM.render (renderCard ctx card))
+        html ""
       | .error e =>
         logAuditError ctx "CREATE" "card" [("title", title), ("error", toString e)]
         badRequest s!"Failed to create card: {e}"
@@ -425,7 +415,7 @@ page kanbanEditCardForm "/kanban/card/:id/edit" GET (id : Nat) do
       div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
         div [class_ "modal-container modal-md"] do
           h3 [class_ "modal-title"] (text "Edit Card")
-          form [hx_put s!"/kanban/card/{card.id}", hx_target s!"#card-{card.id}", hx_swap "outerHTML", modalClearAttr] do
+          form [hx_put s!"/kanban/card/{card.id}", hx_swap "none", modalClearAttr] do
             csrfField ctx.csrfToken
             div [class_ "form-stack"] do
               div [class_ "form-group"] do
@@ -466,16 +456,13 @@ page kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
     match ← transact tx with
     | .ok () =>
       let ctx ← getCtx
-      match getCard ctx id with
-      | none => notFound "Card not found"
-      | some (card, _) =>
-        let mut changes : List (String × String) := []
-        if oldTitle != title then changes := changes ++ [("old_title", oldTitle), ("new_title", title)]
-        if oldDesc != description then changes := changes ++ [("description_changed", "true")]
-        if oldLabels != labels then changes := changes ++ [("old_labels", oldLabels), ("new_labels", labels)]
-        logAudit ctx "UPDATE" "card" id changes
-        let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { "cardId" : id, title })
-        html (HtmlM.render (renderCard ctx card))
+      let mut changes : List (String × String) := []
+      if oldTitle != title then changes := changes ++ [("old_title", oldTitle), ("new_title", title)]
+      if oldDesc != description then changes := changes ++ [("description_changed", "true")]
+      if oldLabels != labels then changes := changes ++ [("old_labels", oldLabels), ("new_labels", labels)]
+      logAudit ctx "UPDATE" "card" id changes
+      let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { "cardId" : id, title })
+      html ""
     | .error e =>
       logAuditError ctx "UPDATE" "card" [("card_id", toString id), ("error", toString e)]
       badRequest s!"Failed to update card: {e}"
