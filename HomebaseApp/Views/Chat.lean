@@ -17,11 +17,21 @@ open HomebaseApp (Route)
 -- Data structures for view rendering
 -- ============================================================================
 
+/-- Attachment display info for view rendering -/
+structure Attachment where
+  id : Nat
+  fileName : String
+  mimeType : String
+  fileSize : Nat
+  url : String           -- /uploads/{storedPath}
+  deriving Inhabited
+
 structure Message where
   id : Nat
   content : String
   timestamp : Nat        -- milliseconds since epoch
   userName : String
+  attachments : List Attachment := []
   deriving Inhabited
 
 structure Thread where
@@ -51,9 +61,45 @@ def formatRelativeTime (timestamp now : Nat) : String :=
     else if diffDays < 7 then s!"{diffDays} day{if diffDays == 1 then "" else "s"} ago"
     else s!"{diffDays / 7} week{if diffDays / 7 == 1 then "" else "s"} ago"
 
+/-- Format file size in human readable format -/
+def formatFileSize (bytes : Nat) : String :=
+  if bytes < 1024 then s!"{bytes} B"
+  else if bytes < 1024 * 1024 then s!"{bytes / 1024} KB"
+  else s!"{bytes / (1024 * 1024)} MB"
+
 -- ============================================================================
 -- Component rendering functions
 -- ============================================================================
+
+/-- Render a single attachment (image thumbnail or file link) -/
+def renderAttachment (att : Attachment) : HtmlM Unit := do
+  if att.mimeType.startsWith "image/" then
+    -- Render as clickable image thumbnail
+    a [href_ att.url, target_ "_blank", class_ "chat-attachment-image"] do
+      img [src_ att.url, alt_ att.fileName, class_ "chat-attachment-thumbnail"]
+  else
+    -- Render as download link
+    a [href_ att.url, download_ att.fileName, class_ "chat-attachment-file"] do
+      span [class_ "chat-attachment-icon"] (text "📎")
+      span [class_ "chat-attachment-name"] (text att.fileName)
+      span [class_ "chat-attachment-size"] (text (formatFileSize att.fileSize))
+
+/-- Render the file upload drop zone -/
+def renderUploadZone (threadId : Nat) : HtmlM Unit := do
+  div [id_ "upload-zone", class_ "chat-upload-zone",
+       attr_ "ondragover" "event.preventDefault(); this.classList.add('dragover')",
+       attr_ "ondragleave" "this.classList.remove('dragover')",
+       attr_ "ondrop" "handleFileDrop(event, this)"] do
+    input [type_ "file", id_ "file-input",
+           class_ "chat-file-input",
+           attr_ "multiple" "true",
+           attr_ "accept" "image/*,.pdf,.txt",
+           attr_ "onchange" "handleFileSelect(this.files)",
+           attr_ "data-thread-id" (toString threadId)]
+    label [for_ "file-input", class_ "chat-upload-label"] do
+      span [class_ "chat-upload-icon"] (text "📁")
+      text "Drop files here or click to upload"
+  div [id_ "upload-preview", class_ "chat-upload-preview"] (pure ())
 
 /-- Render a single thread in the sidebar list -/
 def renderThreadItem (thread : Thread) (isActive : Bool) (now : Nat) : HtmlM Unit := do
@@ -85,23 +131,34 @@ def renderMessage (msg : Message) (now : Nat) : HtmlM Unit := do
       -- Preserve line breaks in message content
       for line in msg.content.splitOn "\n" do
         p [] (text line)
+    -- Render attachments if any
+    if !msg.attachments.isEmpty then
+      div [class_ "chat-attachments"] do
+        for att in msg.attachments do
+          renderAttachment att
 
 /-- Render the message input form -/
 def renderMessageInput (ctx : Context) (threadId : Nat) : HtmlM Unit := do
+  -- Upload zone (above the input form)
+  renderUploadZone threadId
+
+  -- Message form
   form [id_ "message-form",
         hx_post' (Route.chatAddMessage threadId),
         hx_target "#messages-list",
         hx_swap "beforeend",
-        attr_ "hx-on::after-request" "this.reset(); document.getElementById('messages-list').scrollTop = document.getElementById('messages-list').scrollHeight"] do
+        attr_ "hx-on::after-request" "afterMessageSubmit(this)"] do
     input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
+    input [type_ "hidden", name_ "attachments", id_ "attachments-input", value_ ""]
     div [class_ "chat-input-container"] do
       textarea [name_ "content", id_ "message-content",
                 class_ "chat-input",
                 placeholder_ "Type your message...",
                 rows_ 2,
-                required_,
-                attr_ "onkeydown" "if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); this.form.requestSubmit(); }"]
-      button [type_ "submit", class_ "chat-send-btn"] (text "Send")
+                attr_ "onkeydown" "if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitMessageWithAttachments(); }"]
+      button [type_ "submit", class_ "chat-send-btn",
+              attr_ "onclick" "event.preventDefault(); submitMessageWithAttachments()"]
+        (text "Send")
 
 /-- Render the thread list sidebar -/
 def renderThreadList (threads : List Thread) (activeThreadId : Option Nat) (now : Nat) : HtmlM Unit := do

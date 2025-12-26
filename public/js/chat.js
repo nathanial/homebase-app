@@ -1,7 +1,180 @@
 /**
  * Chat JavaScript
- * Handles real-time updates via SSE and scroll behavior
+ * Handles real-time updates via SSE, scroll behavior, and file uploads
  */
+
+// =============================================================================
+// File Upload Handling
+// =============================================================================
+
+// Pending files to upload with the message
+var pendingFiles = [];
+
+// Handle file drop on the upload zone
+function handleFileDrop(event, zone) {
+  event.preventDefault();
+  zone.classList.remove('dragover');
+  var files = event.dataTransfer.files;
+  handleFileSelect(files);
+}
+
+// Handle file selection from input
+function handleFileSelect(files) {
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File "' + file.name + '" is too large. Maximum size is 10MB.');
+      continue;
+    }
+    // Validate file type
+    var allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+    if (!allowedTypes.some(function(t) { return file.type.startsWith(t.split('/')[0]) || file.type === t; })) {
+      alert('File type "' + file.type + '" is not allowed.');
+      continue;
+    }
+    pendingFiles.push(file);
+  }
+  updateUploadPreview();
+}
+
+// Update the preview area showing pending files
+function updateUploadPreview() {
+  var preview = document.getElementById('upload-preview');
+  if (!preview) return;
+
+  preview.innerHTML = '';
+  pendingFiles.forEach(function(file, index) {
+    var item = document.createElement('div');
+    item.className = 'upload-preview-item';
+
+    // Show thumbnail for images
+    if (file.type.startsWith('image/')) {
+      var img = document.createElement('img');
+      img.className = 'upload-preview-thumb';
+      var reader = new FileReader();
+      reader.onload = function(e) { img.src = e.target.result; };
+      reader.readAsDataURL(file);
+      item.appendChild(img);
+    } else {
+      var icon = document.createElement('span');
+      icon.className = 'upload-preview-icon';
+      icon.textContent = '📄';
+      item.appendChild(icon);
+    }
+
+    var name = document.createElement('span');
+    name.className = 'upload-preview-name';
+    name.textContent = file.name;
+    item.appendChild(name);
+
+    var size = document.createElement('span');
+    size.className = 'upload-preview-size';
+    size.textContent = formatFileSize(file.size);
+    item.appendChild(size);
+
+    var removeBtn = document.createElement('button');
+    removeBtn.className = 'upload-preview-remove';
+    removeBtn.textContent = '×';
+    removeBtn.onclick = function() { removeFile(index); };
+    item.appendChild(removeBtn);
+
+    preview.appendChild(item);
+  });
+}
+
+// Remove a file from pending list
+function removeFile(index) {
+  pendingFiles.splice(index, 1);
+  updateUploadPreview();
+}
+
+// Format file size for display
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return Math.round(bytes / (1024 * 1024)) + ' MB';
+}
+
+// Upload pending files and return array of attachment IDs
+async function uploadPendingFiles(threadId) {
+  var attachmentIds = [];
+
+  for (var i = 0; i < pendingFiles.length; i++) {
+    var file = pendingFiles[i];
+    var formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      var response = await fetch('/chat/thread/' + threadId + '/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        var result = await response.json();
+        if (result.id) {
+          attachmentIds.push(result.id);
+        }
+      } else {
+        console.error('Failed to upload file:', file.name);
+      }
+    } catch (err) {
+      console.error('Error uploading file:', file.name, err);
+    }
+  }
+
+  return attachmentIds;
+}
+
+// Submit message with attachments
+async function submitMessageWithAttachments() {
+  var form = document.getElementById('message-form');
+  var contentField = document.getElementById('message-content');
+  var attachmentsField = document.getElementById('attachments-input');
+  var fileInput = document.getElementById('file-input');
+
+  if (!form || !contentField) return;
+
+  // Get thread ID from file input data attribute
+  var threadId = fileInput ? fileInput.getAttribute('data-thread-id') : null;
+
+  // Upload any pending files first
+  var attachmentIds = [];
+  if (pendingFiles.length > 0 && threadId) {
+    attachmentIds = await uploadPendingFiles(threadId);
+  }
+
+  // Set attachment IDs in hidden field
+  if (attachmentsField) {
+    attachmentsField.value = attachmentIds.join(',');
+  }
+
+  // Clear pending files and preview
+  pendingFiles = [];
+  updateUploadPreview();
+
+  // Submit the form via HTMX
+  htmx.trigger(form, 'submit');
+}
+
+// Clear message form after successful submit
+function afterMessageSubmit(form) {
+  var contentField = form.querySelector('#message-content');
+  if (contentField) {
+    contentField.value = '';
+  }
+  var attachmentsField = form.querySelector('#attachments-input');
+  if (attachmentsField) {
+    attachmentsField.value = '';
+  }
+  var fileInput = form.querySelector('#file-input');
+  if (fileInput) {
+    fileInput.value = '';
+  }
+  pendingFiles = [];
+  updateUploadPreview();
+}
 
 // =============================================================================
 // Server-Sent Events (SSE) for Real-time Updates

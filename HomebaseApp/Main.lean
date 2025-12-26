@@ -108,6 +108,10 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.delete "/chat/thread/:id" "chat_delete_thread" (withId Actions.Chat.deleteThread)
     |>.post "/chat/thread/:id/message" "chat_add_message" (withId Actions.Chat.addMessage)
     |>.get "/chat/search" "chat_search" Actions.Chat.search
+    -- Chat file upload routes
+    |>.post "/chat/thread/:id/upload" "chat_upload" (withId Actions.Chat.uploadAttachment)
+    |>.get "/uploads/:filename" "serve_upload" Actions.Chat.serveAttachment
+    |>.delete "/chat/attachment/:id" "delete_attachment" (withId Actions.Chat.deleteAttachment)
     -- Admin routes
     |>.get "/admin" "admin" Actions.Admin.index
     |>.get "/admin/user/new" "admin_create_user" Actions.Admin.createUserForm

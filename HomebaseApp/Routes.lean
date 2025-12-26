@@ -57,6 +57,10 @@ inductive Route where
   | chatNewThreadForm                 -- New thread modal
   | chatEditThreadForm (id : Nat)     -- Edit thread modal
   | chatUpdateThread (id : Nat)       -- Update thread
+  -- Chat file upload routes
+  | chatUploadAttachment (threadId : Nat)  -- Upload file to thread
+  | chatServeAttachment (filename : String) -- Serve uploaded file
+  | chatDeleteAttachment (id : Nat)        -- Delete attachment
   -- Admin routes
   | admin                             -- User list
   | adminUser (id : Nat)              -- View user
@@ -114,6 +118,10 @@ def path : Route → String
   | .chatNewThreadForm => "/chat/new-thread-form"
   | .chatEditThreadForm id => s!"/chat/thread/{id}/edit"
   | .chatUpdateThread id => s!"/chat/thread/{id}"
+  -- Chat file upload routes
+  | .chatUploadAttachment threadId => s!"/chat/thread/{threadId}/upload"
+  | .chatServeAttachment filename => s!"/uploads/{filename}"
+  | .chatDeleteAttachment id => s!"/chat/attachment/{id}"
   -- Admin routes
   | .admin => "/admin"
   | .adminUser id => s!"/admin/user/{id}"

@@ -6,6 +6,7 @@ import Ledger
 import HomebaseApp.Helpers
 import HomebaseApp.Models
 import HomebaseApp.Entities
+import HomebaseApp.Upload
 import HomebaseApp.Views.Chat
 
 namespace HomebaseApp.Actions.Chat
@@ -16,6 +17,7 @@ open Ledger
 open HomebaseApp.Helpers
 open HomebaseApp.Models
 open HomebaseApp.Entities
+open HomebaseApp.Upload
 open HomebaseApp.Views.Chat
 
 -- ============================================================================
@@ -232,9 +234,20 @@ def deleteThread (threadId : Nat) : Action := fun ctx => do
     let messageIds := db.findByAttrValue DbChatMessage.attr_thread (.ref tid)
     let msgCount := messageIds.length
 
-    -- Build retraction operations for all messages first, then the thread
+    -- Build retraction operations for all messages, attachments, then the thread
     let mut txOps : List TxOp := []
+    let mut attachmentCount : Nat := 0
     for msgId in messageIds do
+      -- Delete attachments for this message first
+      let attachmentIds := db.findByAttrValue DbChatAttachment.attr_message (.ref msgId)
+      for attId in attachmentIds do
+        match DbChatAttachment.pull db attId with
+        | some att =>
+          -- Delete file from disk
+          let _ ← Upload.deleteFile att.storedPath
+          txOps := txOps ++ DbChatAttachment.retractionOps db attId
+          attachmentCount := attachmentCount + 1
+        | none => pure ()
       txOps := txOps ++ DbChatMessage.retractionOps db msgId
     txOps := txOps ++ DbChatThread.retractionOps db tid
 
@@ -262,8 +275,13 @@ def addMessage (threadId : Nat) : Action := fun ctx => do
   if !isLoggedIn ctx then
     return ← Action.redirect "/login" ctx
   let content := ctx.params.getD "content" ""
-  if content.trim.isEmpty then
-    return ← Action.badRequest ctx "Message content is required"
+  let attachmentIds : List Int := ctx.params.getD "attachments" ""
+    |>.splitOn ","
+    |>.filterMap String.toInt?
+
+  -- Either content or attachments must be present
+  if content.trim.isEmpty && attachmentIds.isEmpty then
+    return ← Action.badRequest ctx "Message content or attachment is required"
 
   match ctx.allocEntityId with
   | none => Action.badRequest ctx "Database not available"
@@ -283,18 +301,34 @@ def addMessage (threadId : Nat) : Action := fun ctx => do
       thread := ⟨threadId⟩
       user := userId
     }
-    let tx := DbChatMessage.createOps eid dbMessage
+
+    -- Create message and link attachments in one transaction
+    let mut tx := DbChatMessage.createOps eid dbMessage
+    match ctx'.database with
+    | none => pure ()
+    | some db =>
+      for attId in attachmentIds do
+        -- Update attachment to point to this message
+        tx := tx ++ DbChatAttachment.set_message db ⟨attId⟩ eid
+
     match ← ctx'.transact tx with
     | .ok ctx'' =>
-      let userName := match ctx''.database with
-        | some db => getUserName db userId
-        | none => "Unknown"
-      logAudit ctx'' "CREATE" "chat-message" eid.id.toNat [("thread_id", toString threadId)]
+      let (userName, viewAttachments) := match ctx''.database with
+        | some db =>
+          let name := getUserName db userId
+          let atts := attachmentIds.filterMap fun attId =>
+            match DbChatAttachment.pull db ⟨attId⟩ with
+            | some a => some a.toViewAttachment
+            | none => none
+          (name, atts)
+        | none => ("Unknown", [])
+      logAudit ctx'' "CREATE" "chat-message" eid.id.toNat [("thread_id", toString threadId), ("attachments", toString attachmentIds.length)]
       let msg : Message := {
         id := eid.id.toNat
         content := content.trim
         timestamp := now
         userName := userName
+        attachments := viewAttachments
       }
       -- Notify SSE clients
       let messageId := eid.id.toNat
@@ -339,5 +373,119 @@ def search : Action := fun ctx => do
 
     let html := Views.Chat.renderSearchResultsPartial query sortedResults now
     Action.html html ctx
+
+-- ============================================================================
+-- Attachment helpers
+-- ============================================================================
+
+/-- Get attachments for a message -/
+def getAttachmentsForMessage (db : Db) (msgId : EntityId) : List (EntityId × DbChatAttachment) :=
+  let attIds := db.findByAttrValue DbChatAttachment.attr_message (.ref msgId)
+  attIds.filterMap fun attId =>
+    match DbChatAttachment.pull db attId with
+    | some a => some (attId, a)
+    | none => none
+
+/-- Convert DbChatMessage to view Message with attachments -/
+def toViewMessageWithAttachments (db : Db) (msgId : EntityId) (m : DbChatMessage) : Message :=
+  let userName := getUserName db m.user
+  let attachments := getAttachmentsForMessage db msgId
+  let viewAttachments := attachments.map fun (_, a) => a.toViewAttachment
+  m.toViewMessage userName viewAttachments
+
+-- ============================================================================
+-- File upload actions
+-- ============================================================================
+
+/-- Upload an attachment to a thread -/
+def uploadAttachment (threadId : Nat) : Action := fun ctx => do
+  if !isLoggedIn ctx then
+    return ← Action.json "{\"error\": \"Not logged in\"}" ctx
+
+  -- Get uploaded file
+  match ctx.file "file" with
+  | none => Action.json "{\"error\": \"No file uploaded\"}" ctx
+  | some file =>
+    -- Validate file size
+    if file.content.size > maxFileSize then
+      return ← Action.json "{\"error\": \"File too large (max 10MB)\"}" ctx
+
+    -- Validate MIME type
+    let mimeType := file.contentType.getD "application/octet-stream"
+    if !isAllowedType mimeType then
+      return ← Action.json "{\"error\": \"File type not allowed\"}" ctx
+
+    -- Store file on disk
+    let storedPath ← storeFile file.content (file.filename.getD "upload")
+
+    -- Create attachment entity
+    match ctx.allocEntityId with
+    | none => Action.json "{\"error\": \"Database not available\"}" ctx
+    | some (eid, ctx') =>
+      let now ← getNowMs
+      let attachment : DbChatAttachment := {
+        id := eid.id.toNat
+        fileName := file.filename.getD "upload"
+        storedPath := storedPath
+        mimeType := mimeType
+        fileSize := file.content.size
+        uploadedAt := now
+        message := EntityId.null  -- Will be linked when message is created
+      }
+      let tx := DbChatAttachment.createOps eid attachment
+      match ← ctx'.transact tx with
+      | .ok ctx'' =>
+        logAudit ctx'' "CREATE" "chat-attachment" eid.id.toNat [("thread_id", toString threadId), ("filename", file.filename.getD "upload")]
+        -- Return JSON with attachment ID
+        let fileName := file.filename.getD "upload"
+        Action.json s!"\{\"id\": {eid.id.toNat}, \"fileName\": \"{fileName}\", \"storedPath\": \"{storedPath}\"}" ctx''
+      | .error e =>
+        logAuditError ctx "CREATE" "chat-attachment" [("error", toString e)]
+        Action.json s!"\{\"error\": \"Failed to save attachment: {e}\"}" ctx'
+
+/-- Serve an uploaded file -/
+def serveAttachment : Action := fun ctx => do
+  -- Extract filename from path params
+  let filename := ctx.params.getD "filename" ""
+  if filename.isEmpty || !Upload.isSafePath filename then
+    return ← Action.notFound ctx "File not found"
+
+  -- Read file from disk
+  match ← Upload.readFile filename with
+  | none => Action.notFound ctx "File not found"
+  | some content =>
+    let mimeType := Upload.mimeTypeForFile filename
+    -- Build response with file content
+    let resp := Citadel.ResponseBuilder.withStatus Herald.Core.StatusCode.ok
+      |>.withHeader "Content-Type" mimeType
+      |>.withHeader "Content-Length" (toString content.size)
+      |>.withHeader "Cache-Control" "public, max-age=31536000"
+      |>.withBody content
+      |>.build
+    pure (resp, ctx)
+
+/-- Delete an attachment -/
+def deleteAttachment (attachmentId : Nat) : Action := fun ctx => do
+  if !isLoggedIn ctx then
+    return ← Action.json "{\"error\": \"Not logged in\"}" ctx
+
+  match ctx.database with
+  | none => Action.json "{\"error\": \"Database not available\"}" ctx
+  | some db =>
+    let attId : EntityId := ⟨attachmentId⟩
+    match DbChatAttachment.pull db attId with
+    | none => Action.json "{\"error\": \"Attachment not found\"}" ctx
+    | some attachment =>
+      -- Delete file from disk
+      let _ ← Upload.deleteFile attachment.storedPath
+      -- Delete from database
+      let tx := DbChatAttachment.retractionOps db attId
+      match ← ctx.transact tx with
+      | .ok ctx' =>
+        logAudit ctx' "DELETE" "chat-attachment" attachmentId [("filename", attachment.fileName)]
+        Action.json "{\"success\": true}" ctx'
+      | .error e =>
+        logAuditError ctx "DELETE" "chat-attachment" [("attachment_id", toString attachmentId), ("error", toString e)]
+        Action.json s!"\{\"error\": \"Failed to delete attachment: {e}\"}" ctx
 
 end HomebaseApp.Actions.Chat

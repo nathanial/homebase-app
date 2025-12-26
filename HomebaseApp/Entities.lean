@@ -18,6 +18,7 @@ makeLedgerEntity DbCard (attrPrefix := "card")
 makeLedgerEntity DbColumn (attrPrefix := "column")
 makeLedgerEntity DbChatThread (attrPrefix := "chat-thread")
 makeLedgerEntity DbChatMessage (attrPrefix := "chat-message")
+makeLedgerEntity DbChatAttachment (attrPrefix := "chat-attachment")
 
 -- ============================================================================
 -- Conversion helpers (in struct namespace for dot notation)
@@ -69,13 +70,28 @@ namespace HomebaseApp.Models.DbChatMessage
 open HomebaseApp.Views.Chat
 
 /-- Convert a DbChatMessage to a view Message -/
-def toViewMessage (m : DbChatMessage) (userName : String) : Message :=
+def toViewMessage (m : DbChatMessage) (userName : String) (attachments : List Attachment := []) : Message :=
   { id := m.id
   , content := m.content
   , timestamp := m.timestamp
-  , userName := userName }
+  , userName := userName
+  , attachments := attachments }
 
 end HomebaseApp.Models.DbChatMessage
+
+namespace HomebaseApp.Models.DbChatAttachment
+
+open HomebaseApp.Views.Chat
+
+/-- Convert a DbChatAttachment to a view Attachment -/
+def toViewAttachment (a : DbChatAttachment) : Attachment :=
+  { id := a.id
+  , fileName := a.fileName
+  , mimeType := a.mimeType
+  , fileSize := a.fileSize
+  , url := s!"/uploads/{a.storedPath}" }
+
+end HomebaseApp.Models.DbChatAttachment
 
 namespace HomebaseApp.Entities
 -- Re-export for convenience

@@ -57,4 +57,15 @@ structure DbChatMessage where
   user : EntityId        -- Reference to user who sent message
   deriving Inhabited
 
+/-- Database entity for Chat message attachments (files). -/
+structure DbChatAttachment where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  fileName : String      -- Original filename
+  storedPath : String    -- Path in data/uploads/
+  mimeType : String      -- MIME type (image/jpeg, etc.)
+  fileSize : Nat         -- Size in bytes
+  uploadedAt : Nat       -- milliseconds since epoch
+  message : EntityId     -- Reference to parent message
+  deriving Inhabited
+
 end HomebaseApp.Models
