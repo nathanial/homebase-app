@@ -51,6 +51,14 @@ def getAttrString (ctx : Context) (eid : EntityId) (attr : Attribute) : Option S
     | some (.string s) => some s
     | _ => none
 
+def getAttrBool (ctx : Context) (eid : EntityId) (attr : Attribute) : Bool :=
+  match ctx.database with
+  | none => false
+  | some db =>
+    match db.getOne eid attr with
+    | some (.bool b) => b
+    | _ => false
+
 def hasAnyUsers (ctx : Context) : Bool :=
   match ctx.database with
   | none => false
@@ -133,8 +141,11 @@ page loginSubmit "/login" POST do
     | some hash =>
       if hash == inputHash then
         let userName := (getAttrString ctx userId userName).getD "User"
+        let isAdminUser := getAttrBool ctx userId userIsAdmin
         modifyCtx fun c => c.withSession fun s =>
-          s.set "user_id" (toString userId.id) |>.set "user_name" userName
+          s.set "user_id" (toString userId.id)
+           |>.set "user_name" userName
+           |>.set "is_admin" (if isAdminUser then "true" else "false")
         modifyCtx fun c => c.withFlash fun f => f.set "success" s!"Welcome back, {userName}!"
         redirect "/"
       else
@@ -182,7 +193,9 @@ page registerSubmit "/register" POST do
       match ← transact tx with
       | .ok () =>
         modifyCtx fun c => c.withSession fun s =>
-          s.set "user_id" (toString userId.id) |>.set "user_name" name
+          s.set "user_id" (toString userId.id)
+           |>.set "user_name" name
+           |>.set "is_admin" (if isFirstUser then "true" else "false")
         let adminNote := if isFirstUser then " You have been granted admin privileges." else ""
         modifyCtx fun c => c.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created.{adminNote}"
         redirect "/"
