@@ -56,6 +56,7 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.use Middleware.securityHeaders
     -- SSE endpoints for real-time updates
     |>.sseEndpoint "/events/kanban" "kanban"
+    |>.sseEndpoint "/events/chat" "chat"
     -- Public routes
     |>.get "/" "home" Actions.Home.index
     |>.get "/login" "login_form" Actions.Auth.loginForm
@@ -64,7 +65,6 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.post "/register" "register" Actions.Auth.register
     |>.get "/logout" "logout" Actions.Auth.logout
     -- Section routes
-    |>.get "/chat" "chat" Actions.Chat.index
     |>.get "/notebook" "notebook" Actions.Notebook.index
     |>.get "/time" "time" Actions.Time.index
     |>.get "/health" "health" Actions.Health.index
@@ -92,6 +92,16 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.delete "/kanban/card/:id" "kanban_delete_card" (withId Actions.Kanban.deleteCard)
     |>.post "/kanban/card/:id/move" "kanban_move_card" (withId Actions.Kanban.moveCard)
     |>.post "/kanban/card/:id/reorder" "kanban_reorder_card" (withId Actions.Kanban.reorderCard)
+    -- Chat routes
+    |>.get "/chat" "chat" Actions.Chat.index
+    |>.get "/chat/new-thread-form" "chat_new_thread_form" Actions.Chat.newThreadForm
+    |>.post "/chat/thread" "chat_create_thread" Actions.Chat.createThread
+    |>.get "/chat/thread/:id" "chat_show_thread" (withId Actions.Chat.showThread)
+    |>.get "/chat/thread/:id/edit" "chat_edit_thread_form" (withId Actions.Chat.editThreadForm)
+    |>.put "/chat/thread/:id" "chat_update_thread" (withId Actions.Chat.updateThread)
+    |>.delete "/chat/thread/:id" "chat_delete_thread" (withId Actions.Chat.deleteThread)
+    |>.post "/chat/thread/:id/message" "chat_add_message" (withId Actions.Chat.addMessage)
+    |>.get "/chat/search" "chat_search" Actions.Chat.search
     -- Persistent database (auto-persists to JSONL)
     |>.withPersistentDatabase journalPath
 

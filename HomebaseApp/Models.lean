@@ -36,4 +36,24 @@ structure DbColumn where
   order : Nat
   deriving Inhabited
 
+-- ============================================================================
+-- Chat Entity Structures
+-- ============================================================================
+
+/-- Database entity for Chat threads. -/
+structure DbChatThread where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  createdAt : Nat        -- milliseconds since epoch
+  deriving Inhabited
+
+/-- Database entity for Chat messages. -/
+structure DbChatMessage where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  content : String
+  timestamp : Nat        -- milliseconds since epoch
+  thread : EntityId      -- Reference to parent thread
+  user : EntityId        -- Reference to user who sent message
+  deriving Inhabited
+
 end HomebaseApp.Models

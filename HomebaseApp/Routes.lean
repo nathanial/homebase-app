@@ -18,7 +18,6 @@ inductive Route where
   | register
   | logout
   -- Section pages
-  | chat
   | notebook
   | time
   | health
@@ -47,6 +46,17 @@ inductive Route where
   | kanbanDeleteCard (id : Nat)
   | kanbanMoveCard (id : Nat)
   | kanbanReorderCard (id : Nat)
+  -- Chat pages
+  | chat
+  | chatEvents                        -- SSE endpoint
+  | chatThread (id : Nat)             -- View thread
+  | chatCreateThread                  -- Create thread
+  | chatDeleteThread (id : Nat)       -- Delete thread
+  | chatAddMessage (threadId : Nat)   -- Add message
+  | chatSearch                        -- Search
+  | chatNewThreadForm                 -- New thread modal
+  | chatEditThreadForm (id : Nat)     -- Edit thread modal
+  | chatUpdateThread (id : Nat)       -- Update thread
   -- Static files
   | staticJs (name : String)
   | staticCss (name : String)
@@ -60,7 +70,6 @@ def path : Route → String
   | .login => "/login"
   | .register => "/register"
   | .logout => "/logout"
-  | .chat => "/chat"
   | .notebook => "/notebook"
   | .time => "/time"
   | .health => "/health"
@@ -86,6 +95,18 @@ def path : Route → String
   | .kanbanDeleteCard id => s!"/kanban/card/{id}"
   | .kanbanMoveCard id => s!"/kanban/card/{id}/move"
   | .kanbanReorderCard id => s!"/kanban/card/{id}/reorder"
+  -- Chat routes
+  | .chat => "/chat"
+  | .chatEvents => "/events/chat"
+  | .chatThread id => s!"/chat/thread/{id}"
+  | .chatCreateThread => "/chat/thread"
+  | .chatDeleteThread id => s!"/chat/thread/{id}"
+  | .chatAddMessage threadId => s!"/chat/thread/{threadId}/message"
+  | .chatSearch => "/chat/search"
+  | .chatNewThreadForm => "/chat/new-thread-form"
+  | .chatEditThreadForm id => s!"/chat/thread/{id}/edit"
+  | .chatUpdateThread id => s!"/chat/thread/{id}"
+  -- Static files
   | .staticJs name => s!"/js/{name}"
   | .staticCss name => s!"/css/{name}"
 
