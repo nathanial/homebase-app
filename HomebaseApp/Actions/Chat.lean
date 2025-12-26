@@ -426,10 +426,11 @@ def uploadAttachment (threadId : Nat) : Action := fun ctx => do
         logAudit ctx'' "CREATE" "chat-attachment" eid.id.toNat [("thread_id", toString threadId), ("filename", file.filename.getD "upload")]
         -- Return JSON with attachment ID
         let fileName := file.filename.getD "upload"
-        Action.json s!"\{\"id\": {eid.id.toNat}, \"fileName\": \"{fileName}\", \"storedPath\": \"{storedPath}\"}" ctx''
+        let id := eid.id.toNat
+        Action.json (jsonStr! { id, fileName, storedPath }) ctx''
       | .error e =>
         logAuditError ctx "CREATE" "chat-attachment" [("error", toString e)]
-        Action.json s!"\{\"error\": \"Failed to save attachment: {e}\"}" ctx'
+        Action.json (jsonStr! { "error" : s!"Failed to save attachment: {e}" }) ctx'
 
 /-- Serve an uploaded file -/
 def serveAttachment : Action := fun ctx => do
@@ -474,6 +475,6 @@ def deleteAttachment (attachmentId : Nat) : Action := fun ctx => do
         Action.json "{\"success\": true}" ctx'
       | .error e =>
         logAuditError ctx "DELETE" "chat-attachment" [("attachment_id", toString attachmentId), ("error", toString e)]
-        Action.json s!"\{\"error\": \"Failed to delete attachment: {e}\"}" ctx
+        Action.json (jsonStr! { "error" : s!"Failed to delete attachment: {e}" }) ctx
 
 end HomebaseApp.Actions.Chat
