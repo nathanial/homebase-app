@@ -20,12 +20,28 @@ def isAllowedType (mimeType : String) : Bool :=
   allowedMimeTypes.any fun allowed =>
     mimeType.startsWith allowed
 
+/-- Convert a Nat to a hex string (up to 16 hex digits) -/
+private def natToHex (n : Nat) : String :=
+  let hexDigits := "0123456789abcdef"
+  if n == 0 then "0"
+  else
+    -- Use fuel to limit recursion depth (16 hex digits = 64 bits)
+    let rec loop (n : Nat) (fuel : Nat) (acc : List Char) : List Char :=
+      if h : fuel == 0 || n == 0 then acc
+      else
+        let digit := n % 16
+        let char := hexDigits.get! ⟨digit⟩
+        loop (n / 16) (fuel - 1) (char :: acc)
+    termination_by fuel
+    decreasing_by simp_wf; simp_all; omega
+    String.mk (loop n 16 [])
+
 /-- Generate a unique ID using nanoseconds + random component -/
 def generateUniqueId : IO String := do
   let nanos ← IO.monoNanosNow
   -- Simple pseudo-random using time
   let rand := (nanos % 1000000).toUInt64
-  pure s!"{nanos.toUInt64.toNat.toDigits 16 |> String.ofList}-{rand.toNat.toDigits 16 |> String.ofList}"
+  pure s!"{natToHex nanos.toUInt64.toNat}-{natToHex rand.toNat}"
 
 /-- Sanitize filename - remove path separators and suspicious characters -/
 def sanitizeFilename (name : String) : String :=

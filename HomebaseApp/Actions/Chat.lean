@@ -80,7 +80,20 @@ def toViewThread (db : Db) (tid : EntityId) (t : DbChatThread) : Thread :=
   let lastMsg := messages.getLast?.map fun (_, m) => m.content
   t.toViewThread messages.length lastMsg
 
-/-- Convert DbChatMessage to view Message -/
+/-- Get attachments for a message -/
+def getAttachmentsForMessage (db : Db) (messageId : EntityId) : List Attachment :=
+  let attIds := db.findByAttrValue DbChatAttachment.attr_message (.ref messageId)
+  attIds.filterMap fun attId =>
+    match DbChatAttachment.pull db attId with
+    | some a => some a.toViewAttachment
+    | none => none
+
+/-- Convert DbChatMessage to view Message with attachments -/
+def toViewMessageWithAttachments (db : Db) (msgId : EntityId) (m : DbChatMessage) : Message :=
+  let attachments := getAttachmentsForMessage db msgId
+  m.toViewMessage (getUserName db m.user) attachments
+
+/-- Convert DbChatMessage to view Message (no attachments) -/
 def toViewMessage (db : Db) (m : DbChatMessage) : Message :=
   m.toViewMessage (getUserName db m.user)
 
@@ -126,7 +139,7 @@ def showThread (threadId : Nat) : Action := fun ctx => do
     | some dbThread =>
       let thread := toViewThread db ⟨threadId⟩ dbThread
       let messageData := getMessagesForThread db ⟨threadId⟩
-      let messages := messageData.map fun (_, m) => toViewMessage db m
+      let messages := messageData.map fun (mid, m) => toViewMessageWithAttachments db mid m
       -- Check if this is an HTMX request (partial) or full page
       if ctx.header "HX-Request" == some "true" then
         let html := Views.Chat.renderMessageAreaPartial ctx thread messages now
@@ -373,25 +386,6 @@ def search : Action := fun ctx => do
 
     let html := Views.Chat.renderSearchResultsPartial query sortedResults now
     Action.html html ctx
-
--- ============================================================================
--- Attachment helpers
--- ============================================================================
-
-/-- Get attachments for a message -/
-def getAttachmentsForMessage (db : Db) (msgId : EntityId) : List (EntityId × DbChatAttachment) :=
-  let attIds := db.findByAttrValue DbChatAttachment.attr_message (.ref msgId)
-  attIds.filterMap fun attId =>
-    match DbChatAttachment.pull db attId with
-    | some a => some (attId, a)
-    | none => none
-
-/-- Convert DbChatMessage to view Message with attachments -/
-def toViewMessageWithAttachments (db : Db) (msgId : EntityId) (m : DbChatMessage) : Message :=
-  let userName := getUserName db m.user
-  let attachments := getAttachmentsForMessage db msgId
-  let viewAttachments := attachments.map fun (_, a) => a.toViewAttachment
-  m.toViewMessage userName viewAttachments
 
 -- ============================================================================
 -- File upload actions
