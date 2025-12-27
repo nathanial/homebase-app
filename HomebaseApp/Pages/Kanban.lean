@@ -8,6 +8,7 @@ import HomebaseApp.Shared
 import HomebaseApp.Models
 import HomebaseApp.Entities
 import HomebaseApp.Helpers
+import HomebaseApp.Middleware
 
 namespace HomebaseApp.Pages
 
@@ -21,6 +22,8 @@ open HomebaseApp.Shared hiding isLoggedIn isAdmin  -- Use Helpers versions
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers
+-- Note: Use fully qualified middleware names in page/view/action macros
+-- because #generate_pages creates code in a separate elaboration context
 
 /-! ## Data Structures -/
 
@@ -188,16 +191,14 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
 /-! ## Pages -/
 
 -- Main kanban board
-view kanban "/kanban" do
+view kanban "/kanban" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let columns := getColumnsWithCards ctx
   html (Shared.render ctx "Kanban - Homebase" "/kanban" (boardContent ctx columns))
 
 -- Get all columns (for SSE refresh)
-view kanbanColumns "/kanban/columns" do
+view kanbanColumns "/kanban/columns" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let columns := getColumnsWithCards ctx
   html (HtmlM.render do
     for col in columns do renderColumn ctx col
@@ -206,9 +207,8 @@ view kanbanColumns "/kanban/columns" do
 -- Note: SSE endpoint "/events/kanban" is registered separately in Main.lean
 
 -- Add column form
-view kanbanAddColumnForm "/kanban/add-column-form" do
+view kanbanAddColumnForm "/kanban/add-column-form" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   html (HtmlM.render do
     div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
       div [class_ "modal-container modal-sm"] do
@@ -226,9 +226,8 @@ view kanbanAddColumnForm "/kanban/add-column-form" do
               button [type_ "submit", class_ "btn btn-primary"] (text "Add Column"))
 
 -- Create column
-action kanbanCreateColumn "/kanban/column" POST do
+action kanbanCreateColumn "/kanban/column" POST [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let name := ctx.paramD "name" ""
   if name.isEmpty then return ← badRequest "Column name is required"
   let ctx ← getCtx
@@ -242,17 +241,15 @@ action kanbanCreateColumn "/kanban/column" POST do
   html ""
 
 -- Get column
-view kanbanGetColumn "/kanban/column/:id" (id : Nat) do
+view kanbanGetColumn "/kanban/column/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   match getColumn ctx id with
   | none => notFound "Column not found"
   | some col => html (HtmlM.render (renderColumn ctx col))
 
 -- Edit column form
-view kanbanEditColumnForm "/kanban/column/:id/edit" (id : Nat) do
+view kanbanEditColumnForm "/kanban/column/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   match getColumn ctx id with
   | none => notFound "Column not found"
   | some col =>
@@ -273,9 +270,8 @@ view kanbanEditColumnForm "/kanban/column/:id/edit" (id : Nat) do
                 button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
 
 -- Update column
-action kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
+action kanbanUpdateColumn "/kanban/column/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let name := ctx.paramD "name" ""
   if name.isEmpty then return ← badRequest "Column name is required"
   let oldName := match getColumn ctx id with
@@ -289,9 +285,8 @@ action kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
   html ""
 
 -- Delete column
-action kanbanDeleteColumn "/kanban/column/:id" DELETE (id : Nat) do
+action kanbanDeleteColumn "/kanban/column/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let some db := ctx.database | return ← badRequest "Database not available"
   let columnName := match getColumn ctx id with
     | some col => col.name
@@ -309,9 +304,8 @@ action kanbanDeleteColumn "/kanban/column/:id" DELETE (id : Nat) do
   html ""
 
 -- Add card form
-view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" (columnId : Nat) do
+view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" [HomebaseApp.Middleware.authRequired] (columnId : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   html (HtmlM.render do
     div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
       div [class_ "modal-container modal-md"] do
@@ -338,15 +332,13 @@ view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" (columnId : Nat)
               button [type_ "submit", class_ "btn btn-primary"] (text "Add Card"))
 
 -- Add card button
-view kanbanAddCardButton "/kanban/column/:columnId/add-card-button" (columnId : Nat) do
+view kanbanAddCardButton "/kanban/column/:columnId/add-card-button" [HomebaseApp.Middleware.authRequired] (columnId : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   html (HtmlM.render (renderAddCardButton columnId))
 
 -- Create card
-action kanbanCreateCard "/kanban/card" POST do
+action kanbanCreateCard "/kanban/card" POST [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let title := ctx.paramD "title" ""
   let description := ctx.paramD "description" ""
   let labels := ctx.paramD "labels" ""
@@ -367,17 +359,15 @@ action kanbanCreateCard "/kanban/card" POST do
   html ""
 
 -- Get card
-view kanbanGetCard "/kanban/card/:id" (id : Nat) do
+view kanbanGetCard "/kanban/card/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   match getCard ctx id with
   | none => notFound "Card not found"
   | some (card, _) => html (HtmlM.render (renderCard ctx card))
 
 -- Edit card form
-view kanbanEditCardForm "/kanban/card/:id/edit" (id : Nat) do
+view kanbanEditCardForm "/kanban/card/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   match getCard ctx id with
   | none => notFound "Card not found"
   | some (card, _) =>
@@ -406,9 +396,8 @@ view kanbanEditCardForm "/kanban/card/:id/edit" (id : Nat) do
                 button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes"))
 
 -- Update card
-action kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
+action kanbanUpdateCard "/kanban/card/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let title := ctx.paramD "title" ""
   let description := ctx.paramD "description" ""
   let labels := ctx.paramD "labels" ""
@@ -431,9 +420,8 @@ action kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
   html ""
 
 -- Delete card
-action kanbanDeleteCard "/kanban/card/:id" DELETE (id : Nat) do
+action kanbanDeleteCard "/kanban/card/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let (cardTitle, columnId) := match getCard ctx id with
     | some (card, colId) => (card.title, colId)
     | none => ("(unknown)", 0)
@@ -446,9 +434,8 @@ action kanbanDeleteCard "/kanban/card/:id" DELETE (id : Nat) do
   html ""
 
 -- Move card
-action kanbanMoveCard "/kanban/card/:id/move" POST (id : Nat) do
+action kanbanMoveCard "/kanban/card/:id/move" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let columnIdStr := ctx.paramD "column_id" ""
   let some newColumnId := columnIdStr.toNat? | return ← badRequest "Invalid column ID"
   let oldColumnId := match getCard ctx id with
@@ -469,9 +456,8 @@ action kanbanMoveCard "/kanban/card/:id/move" POST (id : Nat) do
     html (HtmlM.render (renderCard ctx card))
 
 -- Reorder card (drag and drop)
-action kanbanReorderCard "/kanban/card/:id/reorder" POST (id : Nat) do
+action kanbanReorderCard "/kanban/card/:id/reorder" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !isLoggedIn ctx then return ← redirect "/login"
   let columnIdStr := ctx.paramD "column_id" ""
   let positionStr := ctx.paramD "position" "0"
   let some newColumnId := columnIdStr.toNat? | return ← badRequest "Invalid column ID"
