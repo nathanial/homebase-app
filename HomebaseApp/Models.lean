@@ -10,11 +10,20 @@ namespace HomebaseApp.Models
 
 open Ledger
 
--- User attributes (no DbUser structure yet, so defined manually)
+-- Legacy user attributes (kept for backward compatibility, DbUser uses these via attrPrefix)
 def userEmail : Attribute := ⟨":user/email"⟩
 def userPasswordHash : Attribute := ⟨":user/password-hash"⟩
 def userName : Attribute := ⟨":user/name"⟩
 def userIsAdmin : Attribute := ⟨":user/is-admin"⟩
+
+/-- Database entity for users. -/
+structure DbUser where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  email : String
+  passwordHash : String  -- Maps to :user/password-hash
+  name : String
+  isAdmin : Bool         -- Maps to :user/is-admin
+  deriving Inhabited
 
 -- ============================================================================
 -- Database Entity Structures (for makeLedgerEntity)

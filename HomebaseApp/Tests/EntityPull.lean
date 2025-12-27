@@ -61,11 +61,12 @@ test "Attribute names match expected format" := do
 -- Test that DbCard.pull works with createOps (round-trip)
 test "DbCard createOps round-trip" := do
   let db := Db.empty
+  let (boardId, db) := db.allocEntityId
   let (colId, db) := db.allocEntityId
   let (cardId, db) := db.allocEntityId
 
   -- Create column using generated createOps
-  let dbCol : DbColumn := { id := colId.id.toNat, name := "Todo", order := 0 }
+  let dbCol : DbColumn := { id := colId.id.toNat, name := "Todo", order := 0, board := boardId }
   let colTx := DbColumn.createOps colId dbCol
   let .ok (db, _) := db.transact colTx | throw <| IO.userError "Column tx failed"
 

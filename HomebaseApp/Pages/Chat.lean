@@ -9,21 +9,27 @@ import Citadel
 import HomebaseApp.Shared
 import HomebaseApp.Models
 import HomebaseApp.Entities
+import HomebaseApp.Helpers
+import HomebaseApp.Middleware
 import HomebaseApp.Upload
 
 namespace HomebaseApp.Pages
 
 open Scribe
-open Loom
+open Loom hiding Action
 open Loom.Page
 open Loom.ActionM
+open Loom.AuditTxM (audit)
 open Loom.Json
 open Ledger
 open Staple (String.containsSubstr)
 open HomebaseApp.Shared hiding isLoggedIn isAdmin
 open HomebaseApp.Models
 open HomebaseApp.Entities
+open HomebaseApp.Helpers hiding isLoggedIn isAdmin
 open HomebaseApp.Upload
+
+/-! ## View Data Structures -/
 
 structure Attachment where
   id : Nat
@@ -49,15 +55,13 @@ structure Thread where
   lastMessage : Option String
   deriving Inhabited
 
+/-! ## Helpers -/
+
 def getNowMs : IO Nat := do
   let nanos ← IO.monoNanosNow
   pure (nanos / 1000000)
 
-def chatIsLoggedIn (ctx : Context) : Bool :=
-  ctx.session.has "user_id"
-
-def chatCurrentUserId (ctx : Context) : Option String :=
-  ctx.session.get "user_id"
+/-! ## Database Helpers -/
 
 def getThreads (ctx : Context) : List (EntityId × DbChatThread) :=
   match ctx.database with
@@ -81,11 +85,9 @@ def getMessagesForThread (db : Db) (threadId : EntityId) : List (EntityId × DbC
   messages.toArray.qsort (fun a b => a.2.timestamp < b.2.timestamp) |>.toList
 
 def getChatThread (ctx : Context) (threadId : Nat) : Option DbChatThread :=
-  match ctx.database with
-  | none => none
-  | some db => DbChatThread.pull db ⟨threadId⟩
+  ctx.database.bind fun db => DbChatThread.pull db ⟨threadId⟩
 
-def getUserName (db : Db) (userId : EntityId) : String :=
+def getUserNameFromDb (db : Db) (userId : EntityId) : String :=
   match db.getOne userId userName with
   | some (.string name) => name
   | _ => "Unknown"
@@ -104,10 +106,10 @@ def getAttachmentsForMessage (db : Db) (messageId : EntityId) : List Attachment 
 
 def toViewMessageWithAttachments (db : Db) (msgId : EntityId) (m : DbChatMessage) : Message :=
   let attachments := getAttachmentsForMessage db msgId
-  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserName db m.user, attachments := attachments }
+  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserNameFromDb db m.user, attachments := attachments }
 
 def toViewMessage (db : Db) (m : DbChatMessage) : Message :=
-  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserName db m.user, attachments := [] }
+  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserNameFromDb db m.user, attachments := [] }
 
 def formatRelativeTime (timestamp now : Nat) : String :=
   if now < timestamp then "just now"
@@ -127,6 +129,8 @@ def formatFileSize (bytes : Nat) : String :=
   if bytes < 1024 then s!"{bytes} B"
   else if bytes < 1024 * 1024 then s!"{bytes / 1024} KB"
   else s!"{bytes / (1024 * 1024)} MB"
+
+/-! ## View Helpers -/
 
 def renderAttachment (att : Attachment) : HtmlM Unit := do
   if att.mimeType.startsWith "image/" then
@@ -325,10 +329,11 @@ def chatContent (ctx : Context) (threads : List Thread) (activeThread : Option T
     pure ()
   script [src_ "/js/chat.js"]
 
-page chat "/chat" GET do
+/-! ## Pages -/
+
+-- Chat index
+view chat "/chat" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   let now ← getNowMs
   match ctx.database with
   | none =>
@@ -344,10 +349,9 @@ page chat "/chat" GET do
     else
       html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx threads none [] now))
 
-page chatThread "/chat/thread/:id" GET (id : Nat) do
+-- View thread
+view chatThread "/chat/thread/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   let now ← getNowMs
   match ctx.database with
   | none => notFound "Database not available"
@@ -365,38 +369,30 @@ page chatThread "/chat/thread/:id" GET (id : Nat) do
         let threads := threadData.map fun (tid, t) => toViewThread db tid t
         html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx threads (some thread) messages now))
 
-page chatNewThreadForm "/chat/thread/new" GET do
+-- New thread form
+view chatNewThreadForm "/chat/thread/new" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   html (HtmlM.render (renderNewThreadForm ctx))
 
-page chatCreateThread "/chat/thread" POST do
+-- Create thread
+action chatCreateThread "/chat/thread" POST [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   let title := ctx.paramD "title" ""
   if title.isEmpty then
     return ← badRequest "Thread title is required"
-  match ← allocEntityId with
-  | none => badRequest "Database not available"
-  | some eid =>
-    let now ← getNowMs
+  let now ← getNowMs
+  let (eid, _) ← withNewEntityAudit! fun eid => do
     let dbThread : DbChatThread := { id := eid.id.toNat, title := title, createdAt := now }
-    let tx := DbChatThread.createOps eid dbThread
-    match ← transact tx with
-    | .ok () =>
-      let thread : Thread := { id := eid.id.toNat, title := title, createdAt := now, messageCount := 0, lastMessage := none }
-      let threadId := eid.id.toNat
-      let _ ← SSE.publishEvent "chat" "thread-created" (jsonStr! { threadId, title })
-      html (HtmlM.render (renderThreadItem thread false now))
-    | .error e =>
-      badRequest s!"Failed to create thread: {e}"
+    DbChatThread.TxM.create eid dbThread
+    audit "CREATE" "chat-thread" eid.id.toNat [("title", title)]
+  let thread : Thread := { id := eid.id.toNat, title := title, createdAt := now, messageCount := 0, lastMessage := none }
+  let threadId := eid.id.toNat
+  let _ ← SSE.publishEvent "chat" "thread-created" (jsonStr! { threadId, title })
+  html (HtmlM.render (renderThreadItem thread false now))
 
-page chatEditThreadForm "/chat/thread/:id/edit" GET (id : Nat) do
+-- Edit thread form
+view chatEditThreadForm "/chat/thread/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   match ctx.database with
   | none => badRequest "Database not available"
   | some db =>
@@ -406,82 +402,79 @@ page chatEditThreadForm "/chat/thread/:id/edit" GET (id : Nat) do
       let thread := toViewThread db ⟨id⟩ dbThread
       html (HtmlM.render (renderEditThreadForm ctx thread))
 
-page chatUpdateThread "/chat/thread/:id" PUT (id : Nat) do
+-- Update thread
+action chatUpdateThread "/chat/thread/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   let title := ctx.paramD "title" ""
   if title.isEmpty then
     return ← badRequest "Thread title is required"
-  match ctx.database with
-  | none => badRequest "Database not available"
-  | some db =>
-    let tx := DbChatThread.set_title db ⟨id⟩ title
-    match ← transact tx with
-    | .ok () =>
-      let now ← getNowMs
-      let ctx ← getCtx
-      match ctx.database with
-      | none => notFound "Thread not found"
-      | some db' =>
-        match DbChatThread.pull db' ⟨id⟩ with
-        | none => notFound "Thread not found"
-        | some dbThread =>
-          let thread := toViewThread db' ⟨id⟩ dbThread
-          let threadId := id
-          let _ ← SSE.publishEvent "chat" "thread-updated" (jsonStr! { threadId, title })
-          html (HtmlM.render (renderThreadItem thread false now))
-    | .error e =>
-      badRequest s!"Failed to update thread: {e}"
-
-page chatDeleteThread "/chat/thread/:id" DELETE (id : Nat) do
+  let eid : EntityId := ⟨id⟩
+  runAuditTx! do
+    let db ← AuditTxM.getDb
+    let oldTitle := match DbChatThread.pull db eid with
+      | some t => t.title
+      | none => "(unknown)"
+    DbChatThread.TxM.setTitle eid title
+    audit "UPDATE" "chat-thread" id [("old_title", oldTitle), ("new_title", title)]
+  let now ← getNowMs
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   match ctx.database with
-  | none => badRequest "Database not available"
+  | none => notFound "Thread not found"
   | some db =>
-    let tid : EntityId := ⟨id⟩
-    let messageIds := db.findByAttrValue DbChatMessage.attr_thread (.ref tid)
-    let mut txOps : List TxOp := []
+    match DbChatThread.pull db eid with
+    | none => notFound "Thread not found"
+    | some dbThread =>
+      let thread := toViewThread db eid dbThread
+      let threadId := id
+      let _ ← SSE.publishEvent "chat" "thread-updated" (jsonStr! { threadId, title })
+      html (HtmlM.render (renderThreadItem thread false now))
+
+-- Delete thread
+action chatDeleteThread "/chat/thread/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
+  let ctx ← getCtx
+  let some db := ctx.database | return ← badRequest "Database not available"
+  let tid : EntityId := ⟨id⟩
+  let threadTitle := match DbChatThread.pull db tid with
+    | some t => t.title
+    | none => "(unknown)"
+  let messageIds := db.findByAttrValue DbChatMessage.attr_thread (.ref tid)
+  -- Delete attachment files from disk
+  for msgId in messageIds do
+    let attachmentIds := db.findByAttrValue DbChatAttachment.attr_message (.ref msgId)
+    for attId in attachmentIds do
+      match DbChatAttachment.pull db attId with
+      | some att => let _ ← Upload.deleteFile att.storedPath
+      | none => pure ()
+  -- Delete all entities in a transaction
+  let msgCount := messageIds.length
+  runAuditTx! do
     for msgId in messageIds do
       let attachmentIds := db.findByAttrValue DbChatAttachment.attr_message (.ref msgId)
       for attId in attachmentIds do
-        match DbChatAttachment.pull db attId with
-        | some att =>
-          let _ ← Upload.deleteFile att.storedPath
-          txOps := txOps ++ DbChatAttachment.retractionOps db attId
-        | none => pure ()
-      txOps := txOps ++ DbChatMessage.retractionOps db msgId
-    txOps := txOps ++ DbChatThread.retractionOps db tid
-    match ← transact txOps with
-    | .ok () =>
-      let threadId := id
-      let _ ← SSE.publishEvent "chat" "thread-deleted" (jsonStr! { threadId })
-      html (HtmlM.render renderEmptyState)
-    | .error e =>
-      badRequest s!"Failed to delete thread: {e}"
+        DbChatAttachment.TxM.delete attId
+      DbChatMessage.TxM.delete msgId
+    DbChatThread.TxM.delete tid
+    audit "DELETE" "chat-thread" id [("title", threadTitle), ("message_count", toString msgCount)]
+  let threadId := id
+  let _ ← SSE.publishEvent "chat" "thread-deleted" (jsonStr! { threadId })
+  html (HtmlM.render renderEmptyState)
 
-page chatAddMessage "/chat/thread/:id/message" POST (id : Nat) do
+-- Add message
+action chatAddMessage "/chat/thread/:id/message" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
   let content := ctx.paramD "content" ""
   let attachmentIds : List Int := ctx.paramD "attachments" ""
     |>.splitOn ","
     |>.filterMap String.toInt?
   if content.trim.isEmpty && attachmentIds.isEmpty then
     return ← badRequest "Message content or attachment is required"
-  match ← allocEntityId with
-  | none => badRequest "Database not available"
-  | some eid =>
-    let ctx ← getCtx
-    let userId := match chatCurrentUserId ctx with
-      | some idStr => match idStr.toNat? with
-        | some n => EntityId.mk n
-        | none => EntityId.null
+  let userId := match currentUserId ctx with
+    | some idStr => match idStr.toNat? with
+      | some n => EntityId.mk n
       | none => EntityId.null
-    let now ← getNowMs
+    | none => EntityId.null
+  let now ← getNowMs
+  let (eid, _) ← withNewEntityAudit! fun eid => do
     let dbMessage : DbChatMessage := {
       id := eid.id.toNat
       content := content.trim
@@ -489,42 +482,36 @@ page chatAddMessage "/chat/thread/:id/message" POST (id : Nat) do
       thread := ⟨id⟩
       user := userId
     }
-    let mut tx := DbChatMessage.createOps eid dbMessage
-    match ctx.database with
-    | none => pure ()
-    | some db =>
-      for attId in attachmentIds do
-        tx := tx ++ DbChatAttachment.set_message db ⟨attId⟩ eid
-    match ← transact tx with
-    | .ok () =>
-      let ctx ← getCtx
-      let (userName, viewAttachments) := match ctx.database with
-        | some db =>
-          let name := getUserName db userId
-          let atts := attachmentIds.filterMap fun attId =>
-            match DbChatAttachment.pull db ⟨attId⟩ with
-            | some a => some { id := a.id, fileName := a.fileName, mimeType := a.mimeType, fileSize := a.fileSize, url := s!"/uploads/{a.storedPath}" }
-            | none => none
-          (name, atts)
-        | none => ("Unknown", [])
-      let msg : Message := {
-        id := eid.id.toNat
-        content := content.trim
-        timestamp := now
-        userName := userName
-        attachments := viewAttachments
-      }
-      let messageId := eid.id.toNat
-      let threadId := id
-      let _ ← SSE.publishEvent "chat" "message-added" (jsonStr! { messageId, threadId })
-      html (HtmlM.render (renderMessage msg now))
-    | .error e =>
-      badRequest s!"Failed to add message: {e}"
-
-page chatSearch "/chat/search" GET do
+    DbChatMessage.TxM.create eid dbMessage
+    -- Link attachments to this message
+    for attId in attachmentIds do
+      DbChatAttachment.TxM.setMessage ⟨attId⟩ eid
+    audit "CREATE" "chat-message" eid.id.toNat [("thread_id", toString id), ("attachment_count", toString attachmentIds.length)]
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← redirect "/login"
+  let (viewUserName, viewAttachments) := match ctx.database with
+    | some db =>
+      let name := getUserNameFromDb db userId
+      let atts := attachmentIds.filterMap fun attId =>
+        match DbChatAttachment.pull db ⟨attId⟩ with
+        | some a => some { id := a.id, fileName := a.fileName, mimeType := a.mimeType, fileSize := a.fileSize, url := s!"/uploads/{a.storedPath}" }
+        | none => none
+      (name, atts)
+    | none => ("Unknown", [])
+  let msg : Message := {
+    id := eid.id.toNat
+    content := content.trim
+    timestamp := now
+    userName := viewUserName
+    attachments := viewAttachments
+  }
+  let messageId := eid.id.toNat
+  let threadId := id
+  let _ ← SSE.publishEvent "chat" "message-added" (jsonStr! { messageId, threadId })
+  html (HtmlM.render (renderMessage msg now))
+
+-- Search
+view chatSearch "/chat/search" [HomebaseApp.Middleware.authRequired] do
+  let ctx ← getCtx
   let query := ctx.paramD "q" ""
   if query.trim.isEmpty then
     return ← html ""
@@ -549,10 +536,9 @@ page chatSearch "/chat/search" GET do
     let sortedResults := results.toArray.qsort (fun a b => a.2.timestamp > b.2.timestamp) |>.toList
     html (HtmlM.render (renderSearchResults query sortedResults now))
 
-page chatUploadAttachment "/chat/thread/:id/upload" POST (id : Nat) do
+-- Upload attachment
+action chatUploadAttachment "/chat/thread/:id/upload" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← json "{\"error\": \"Not logged in\"}"
   match ctx.file "file" with
   | none => json "{\"error\": \"No file uploaded\"}"
   | some file =>
@@ -562,10 +548,8 @@ page chatUploadAttachment "/chat/thread/:id/upload" POST (id : Nat) do
     if !isAllowedType mimeType then
       return ← json "{\"error\": \"File type not allowed\"}"
     let storedPath ← storeFile file.content (file.filename.getD "upload")
-    match ← allocEntityId with
-    | none => json "{\"error\": \"Database not available\"}"
-    | some eid =>
-      let now ← getNowMs
+    let now ← getNowMs
+    let (eid, _) ← withNewEntityAudit! fun eid => do
       let attachment : DbChatAttachment := {
         id := eid.id.toNat
         fileName := file.filename.getD "upload"
@@ -575,16 +559,14 @@ page chatUploadAttachment "/chat/thread/:id/upload" POST (id : Nat) do
         uploadedAt := now
         message := EntityId.null
       }
-      let tx := DbChatAttachment.createOps eid attachment
-      match ← transact tx with
-      | .ok () =>
-        let fileName := file.filename.getD "upload"
-        let aid := eid.id.toNat
-        json (jsonStr! { "id" : aid, "fileName" : fileName, "storedPath" : storedPath })
-      | .error e =>
-        json (jsonStr! { "error" : s!"Failed to save attachment: {e}" })
+      DbChatAttachment.TxM.create eid attachment
+      audit "CREATE" "chat-attachment" eid.id.toNat [("thread_id", toString id), ("file_name", file.filename.getD "upload")]
+    let fileName := file.filename.getD "upload"
+    let aid := eid.id.toNat
+    json (jsonStr! { "id" : aid, "fileName" : fileName, "storedPath" : storedPath })
 
-page chatServeUpload "/uploads/:filename" GET (filename : String) do
+-- Serve upload
+view chatServeUpload "/uploads/:filename" [] (filename : String) do
   if filename.isEmpty || !Upload.isSafePath filename then
     return ← notFound "File not found"
   match ← Upload.readFile filename with
@@ -599,10 +581,9 @@ page chatServeUpload "/uploads/:filename" GET (filename : String) do
       |>.build
     pure resp
 
-page chatDeleteAttachment "/chat/attachment/:id" DELETE (id : Nat) do
+-- Delete attachment
+action chatDeleteAttachment "/chat/attachment/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  if !chatIsLoggedIn ctx then
-    return ← json "{\"error\": \"Not logged in\"}"
   match ctx.database with
   | none => json "{\"error\": \"Database not available\"}"
   | some db =>
@@ -611,11 +592,9 @@ page chatDeleteAttachment "/chat/attachment/:id" DELETE (id : Nat) do
     | none => json "{\"error\": \"Attachment not found\"}"
     | some attachment =>
       let _ ← Upload.deleteFile attachment.storedPath
-      let tx := DbChatAttachment.retractionOps db attId
-      match ← transact tx with
-      | .ok () =>
-        json "{\"success\": true}"
-      | .error e =>
-        json (jsonStr! { "error" : s!"Failed to delete attachment: {e}" })
+      runAuditTx! do
+        DbChatAttachment.TxM.delete attId
+        audit "DELETE" "chat-attachment" id [("file_name", attachment.fileName)]
+      json "{\"success\": true}"
 
 end HomebaseApp.Pages
