@@ -4,6 +4,7 @@
 import Scribe
 import Loom
 import Loom.SSE
+import Loom.Htmx
 import Ledger
 import HomebaseApp.Shared
 import HomebaseApp.Models
@@ -237,7 +238,26 @@ view notebookPage "/notebook" [HomebaseApp.Middleware.authRequired] do
   html (Shared.render ctx "Notebook - Homebase" "/notebook"
     (notebookPageContent ctx notebooks none [] none now))
 
--- View specific notebook
+-- New notebook form (modal) - MUST come before /notebook/:id
+view newNotebookForm "/notebook/new" [HomebaseApp.Middleware.authRequired] do
+  let ctx ← getCtx
+  html (HtmlM.render do
+    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+      div [class_ "modal-container modal-sm"] do
+        h3 [class_ "modal-title"] (text "New Notebook")
+        form [hx_post "/notebook/create", hx_swap "none", notebookModalClearAttr] do
+          csrfField ctx.csrfToken
+          div [class_ "form-stack"] do
+            div [class_ "form-group"] do
+              label [for_ "title", class_ "form-label"] (text "Title")
+              input [type_ "text", name_ "title", id_ "title",
+                     class_ "form-input", required_, autofocus_]
+            div [class_ "form-actions"] do
+              button [type_ "button", class_ "btn btn-secondary",
+                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+              button [type_ "submit", class_ "btn btn-primary"] (text "Create"))
+
+-- View specific notebook - MUST come after /notebook/new
 view notebookView "/notebook/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   let notebooks := getNotebooks ctx
@@ -261,25 +281,6 @@ view noteView "/notebook/note/:id" [HomebaseApp.Middleware.authRequired] (id : N
     let notes := getNotesInNotebook ctx note.notebookId
     html (Shared.render ctx s!"{note.title} - Notebook" "/notebook"
       (notebookPageContent ctx notebooks nb notes (some note) now))
-
--- New notebook form (modal)
-view newNotebookForm "/notebook/new" [HomebaseApp.Middleware.authRequired] do
-  let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-sm"] do
-        h3 [class_ "modal-title"] (text "New Notebook")
-        form [hx_post "/notebook/create", hx_swap "none", notebookModalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "title", class_ "form-label"] (text "Title")
-              input [type_ "text", name_ "title", id_ "title",
-                     class_ "form-input", required_, autofocus_]
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Create"))
 
 -- Edit notebook form (modal)
 view editNotebookForm "/notebook/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -334,7 +335,7 @@ action createNotebook "/notebook/create" POST [HomebaseApp.Middleware.authRequir
   let title := ctx.paramD "title" ""
   if title.isEmpty then return ← badRequest "Title is required"
   match notebookGetCurrentUserEid ctx with
-  | none => redirect "/login"
+  | none => seeOther "/login"
   | some userEid =>
     let now ← notebookGetNowMs
     let (eid, _) ← withNewEntityAudit! fun eid => do
@@ -342,7 +343,7 @@ action createNotebook "/notebook/create" POST [HomebaseApp.Middleware.authRequir
       DbNotebook.TxM.create eid nb
       audit "CREATE" "notebook" eid.id.toNat [("title", title)]
     let _ ← SSE.publishEvent "notebook" "notebook-created" (jsonStr! { title })
-    redirect s!"/notebook/{eid.id.toNat}"
+    seeOther s!"/notebook/{eid.id.toNat}"
 
 -- Update notebook
 action updateNotebook "/notebook/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -355,7 +356,7 @@ action updateNotebook "/notebook/:id" PUT [HomebaseApp.Middleware.authRequired] 
     audit "UPDATE" "notebook" id [("title", title)]
   let notebookId := id
   let _ ← SSE.publishEvent "notebook" "notebook-updated" (jsonStr! { notebookId, title })
-  redirect s!"/notebook/{id}"
+  seeOther s!"/notebook/{id}"
 
 -- Delete notebook
 action deleteNotebook "/notebook/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -374,7 +375,7 @@ action deleteNotebook "/notebook/:id" DELETE [HomebaseApp.Middleware.authRequire
     audit "DELETE" "notebook" id []
   let notebookId := id
   let _ ← SSE.publishEvent "notebook" "notebook-deleted" (jsonStr! { notebookId })
-  redirect "/notebook"
+  htmxRedirect "/notebook"
 
 -- Create note
 action createNote "/notebook/:id/note/create" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -383,7 +384,7 @@ action createNote "/notebook/:id/note/create" POST [HomebaseApp.Middleware.authR
   let content := ctx.paramD "content" ""
   if title.isEmpty then return ← badRequest "Title is required"
   match notebookGetCurrentUserEid ctx with
-  | none => redirect "/login"
+  | none => seeOther "/login"
   | some userEid =>
     let now ← notebookGetNowMs
     let nbEid : EntityId := ⟨id⟩
@@ -394,7 +395,7 @@ action createNote "/notebook/:id/note/create" POST [HomebaseApp.Middleware.authR
       audit "CREATE" "note" eid.id.toNat [("title", title), ("notebook_id", toString id)]
     let notebookId := id
     let _ ← SSE.publishEvent "notebook" "note-created" (jsonStr! { notebookId, title })
-    redirect s!"/notebook/note/{noteEid.id.toNat}"
+    seeOther s!"/notebook/note/{noteEid.id.toNat}"
 
 -- Update note
 action updateNote "/notebook/note/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -411,21 +412,21 @@ action updateNote "/notebook/note/:id" PUT [HomebaseApp.Middleware.authRequired]
     audit "UPDATE" "note" id [("title", title)]
   let noteId := id
   let _ ← SSE.publishEvent "notebook" "note-updated" (jsonStr! { noteId, title })
-  redirect s!"/notebook/note/{id}"
+  seeOther s!"/notebook/note/{id}"
 
 -- Delete note
 action deleteNote "/notebook/note/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   match getNote ctx id with
-  | none => redirect "/notebook"
+  | none => htmxRedirect "/notebook"
   | some note =>
-    let eid : EntityId := ⟨id⟩
+    let noteEid : EntityId := ⟨id⟩
     runAuditTx! do
-      DbNote.TxM.delete eid
+      DbNote.TxM.delete noteEid
       audit "DELETE" "note" id []
     let noteId := id
     let notebookId := note.notebookId
     let _ ← SSE.publishEvent "notebook" "note-deleted" (jsonStr! { noteId, notebookId })
-    redirect s!"/notebook/{note.notebookId}"
+    htmxRedirect s!"/notebook/{note.notebookId}"
 
 end HomebaseApp.Pages
