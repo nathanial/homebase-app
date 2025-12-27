@@ -7,12 +7,15 @@
 -/
 import HomebaseApp.Pages.Home
 import HomebaseApp.Pages.Auth
-import HomebaseApp.Pages.Sections
 import HomebaseApp.Pages.Kanban
 import HomebaseApp.Pages.Chat
 import HomebaseApp.Pages.Admin
 import HomebaseApp.Pages.Time
 import HomebaseApp.Pages.Gallery
+import HomebaseApp.Pages.Notebook
+import HomebaseApp.Pages.Health
+import HomebaseApp.Pages.Recipes
+import HomebaseApp.Pages.News
 import HomebaseApp.Middleware
 
 namespace HomebaseApp.Pages

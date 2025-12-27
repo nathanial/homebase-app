@@ -126,4 +126,81 @@ structure DbGalleryItem where
   user : EntityId        -- Reference to uploader
   deriving Inhabited
 
+-- ============================================================================
+-- Notebook Entity Structures
+-- ============================================================================
+
+/-- Notebook (folder for organizing notes). -/
+structure DbNotebook where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  createdAt : Nat        -- milliseconds since epoch
+  user : EntityId        -- Reference to owner
+  deriving Inhabited
+
+/-- Note (markdown content within a notebook). -/
+structure DbNote where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  content : String       -- Markdown content
+  notebook : EntityId    -- Reference to parent notebook
+  createdAt : Nat
+  updatedAt : Nat
+  user : EntityId        -- Reference to owner
+  deriving Inhabited
+
+-- ============================================================================
+-- Health Entity Structures
+-- ============================================================================
+
+/-- Health entry (weight, exercise, medication, or general note). -/
+structure DbHealthEntry where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  entryType : String     -- "weight", "exercise", "medication", "note"
+  value : String         -- Numeric or text depending on type
+  unit : String          -- "kg", "lbs", "minutes", etc.
+  notes : String         -- Additional notes
+  recordedAt : Nat       -- Date of measurement (milliseconds since epoch)
+  createdAt : Nat
+  user : EntityId        -- Reference to owner
+  deriving Inhabited
+
+-- ============================================================================
+-- Recipe Entity Structures
+-- ============================================================================
+
+/-- Recipe with ingredients and instructions. -/
+structure DbRecipe where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  description : String   -- Short description
+  ingredients : String   -- Newline-separated list
+  instructions : String  -- Markdown or plain text steps
+  prepTime : Nat         -- Minutes
+  cookTime : Nat         -- Minutes
+  servings : Nat
+  category : String      -- "Breakfast", "Lunch", "Dinner", "Dessert", "Snack"
+  createdAt : Nat
+  updatedAt : Nat
+  user : EntityId        -- Reference to owner
+  deriving Inhabited
+
+-- ============================================================================
+-- News Entity Structures
+-- ============================================================================
+
+/-- News item (link with metadata). -/
+structure DbNewsItem where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  url : String
+  description : String   -- Optional summary
+  source : String        -- Domain or feed name
+  category : String      -- User-defined category
+  isRead : Bool
+  isSaved : Bool         -- Bookmark status
+  addedAt : Nat          -- milliseconds since epoch
+  user : EntityId        -- Reference to owner
+  deriving Inhabited
+
 end HomebaseApp.Models

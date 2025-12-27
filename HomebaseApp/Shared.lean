@@ -95,6 +95,10 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         link [rel_ "stylesheet", href_ "/css/kanban.css"]
         link [rel_ "stylesheet", href_ "/css/time.css"]
         link [rel_ "stylesheet", href_ "/css/gallery.css"]
+        link [rel_ "stylesheet", href_ "/css/notebook.css"]
+        link [rel_ "stylesheet", href_ "/css/health.css"]
+        link [rel_ "stylesheet", href_ "/css/recipes.css"]
+        link [rel_ "stylesheet", href_ "/css/news.css"]
         -- External scripts
         script [src_ "https://unpkg.com/htmx.org@2.0.4"]
         script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]

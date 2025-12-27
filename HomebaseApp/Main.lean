@@ -42,6 +42,10 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.sseEndpoint "/events/chat" "chat"
     |>.sseEndpoint "/events/time" "time"
     |>.sseEndpoint "/events/gallery" "gallery"
+    |>.sseEndpoint "/events/notebook" "notebook"
+    |>.sseEndpoint "/events/health" "health"
+    |>.sseEndpoint "/events/recipes" "recipes"
+    |>.sseEndpoint "/events/news" "news"
     |> registerPages
     |>.withPersistentDatabase journalPath
 

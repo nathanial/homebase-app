@@ -1,0 +1,240 @@
+/* Health Tracking Styles */
+
+.health-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.health-header h1 {
+  margin: 0;
+  font-size: 28px;
+  color: #1e293b;
+}
+
+/* Stats Cards */
+.health-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.health-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.health-stat-icon {
+  font-size: 32px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+
+.health-stat-content {
+  flex: 1;
+}
+
+.health-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.health-stat-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Filter Tabs */
+.health-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.health-filter-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  color: #64748b;
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.health-filter-tab:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.health-filter-tab.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+/* Entry List */
+.health-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.health-entry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: box-shadow 0.15s;
+}
+
+.health-entry-row:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.health-entry-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* Entry type colors */
+.health-entry-weight .health-entry-icon { background: #dbeafe; }
+.health-entry-exercise .health-entry-icon { background: #dcfce7; }
+.health-entry-medication .health-entry-icon { background: #fce7f3; }
+.health-entry-note .health-entry-icon { background: #fef3c7; }
+
+.health-entry-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.health-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.health-entry-type {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.health-entry-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.health-entry-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.health-entry-unit {
+  font-size: 14px;
+  font-weight: 400;
+  color: #64748b;
+}
+
+.health-entry-notes {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.health-entry-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Empty State */
+.health-empty {
+  text-align: center;
+  padding: 48px 24px;
+  background: white;
+  border-radius: 12px;
+}
+
+.health-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.health-empty p {
+  margin: 0 0 8px;
+  color: #64748b;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .health-container {
+    padding: 16px;
+  }
+
+  .health-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .health-filters {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 8px;
+  }
+
+  .health-filter-tab {
+    flex-shrink: 0;
+  }
+
+  .health-entry-row {
+    flex-direction: column;
+  }
+
+  .health-entry-icon {
+    margin-bottom: 8px;
+  }
+
+  .health-entry-actions {
+    margin-top: 12px;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
