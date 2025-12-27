@@ -2,7 +2,8 @@
 
 /* CSS Custom Properties for Kanban theming */
 :root {
-  --kanban-column-width: 18rem;
+  --kanban-column-min-width: 200px;
+  --kanban-column-max-width: 400px;
   --kanban-column-bg: #f1f5f9;
   --kanban-card-bg: #ffffff;
   --kanban-card-border: #e2e8f0;
@@ -12,16 +13,17 @@
 
 /* Kanban Board */
 .kanban-board {
-  height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0; /* Allow shrinking below content size */
 }
 
 .kanban-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .kanban-title {
@@ -31,6 +33,7 @@
 }
 
 .kanban-meta {
+  margin-left: auto;
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -44,49 +47,63 @@
 /* Board columns container */
 .kanban-scroll {
   flex: 1;
-  overflow-x: auto;
-  padding-bottom: 1rem;
+  overflow: hidden;
+  min-height: 0; /* Allow shrinking */
 }
 
 .kanban-columns {
   display: flex;
   gap: 1rem;
   height: 100%;
-  align-items: flex-start;
+  padding-bottom: 0.5rem;
 }
 
 /* Column */
 .kanban-column {
-  flex-shrink: 0;
-  width: var(--kanban-column-width);
+  flex: 1;
+  min-width: var(--kanban-column-min-width);
+  max-width: var(--kanban-column-max-width);
   background-color: var(--kanban-column-bg);
+  border: 1px solid var(--color-slate-200);
   border-radius: 0.75rem;
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  min-height: 0; /* Allow shrinking */
 }
 
 .kanban-column-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-slate-200);
 }
 
 .kanban-column-title {
   font-weight: 600;
+  font-size: 0.9375rem;
   color: var(--color-slate-700);
 }
 
 .kanban-column-actions {
   display: flex;
-  gap: 0.25rem;
-  opacity: 0;
+  gap: 0.125rem;
+}
+
+.kanban-column-actions .btn-icon {
+  opacity: 0.4;
+  font-size: 0.875rem;
   transition: opacity 0.15s;
 }
 
-.kanban-column-header:hover .kanban-column-actions {
+.kanban-column-header:hover .kanban-column-actions .btn-icon {
+  opacity: 0.7;
+}
+
+.kanban-column-actions .btn-icon:hover {
   opacity: 1;
 }
 
@@ -96,7 +113,8 @@
   flex-direction: column;
   gap: 0.5rem;
   overflow-y: auto;
-  min-height: 100px;
+  min-height: 0; /* Allow shrinking */
+  padding-right: 0.25rem; /* Space for scrollbar */
 }
 
 /* Card */
@@ -198,47 +216,6 @@
 .label-default {
   background-color: #f1f5f9;
   color: #334155;
-}
-
-/* Add card button */
-.kanban-add-card {
-  width: 100%;
-  padding: 0.5rem;
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
-  color: var(--color-slate-500);
-  background: transparent;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.kanban-add-card:hover {
-  background-color: var(--color-slate-200);
-  color: var(--color-slate-700);
-}
-
-/* Add column button */
-.kanban-add-column-wrapper {
-  flex-shrink: 0;
-  width: var(--kanban-column-width);
-}
-
-.kanban-add-column {
-  width: 100%;
-  padding: 2rem;
-  color: var(--color-slate-500);
-  background: transparent;
-  border: 2px dashed var(--color-slate-300);
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.kanban-add-column:hover {
-  background-color: var(--color-slate-100);
-  color: var(--color-slate-700);
 }
 
 /* Sortable drag states */

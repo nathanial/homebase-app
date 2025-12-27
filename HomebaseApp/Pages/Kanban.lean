@@ -146,46 +146,40 @@ def renderCard (_ctx : Context) (card : Card) : HtmlM Unit := do
     if !card.description.isEmpty then
       p [class_ "kanban-card-description"] (text card.description)
 
-def renderAddCardButton (columnId : Nat) : HtmlM Unit := do
-  button [hx_get s!"/kanban/column/{columnId}/add-card-form",
-          hx_target "#modal-container", hx_swap "innerHTML",
-          class_ "kanban-add-card"] (text "+ Add card")
-
 def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
   div [id_ s!"column-{col.id}", class_ "kanban-column"] do
     div [class_ "kanban-column-header"] do
       h3 [class_ "kanban-column-title"] (text col.name)
       div [class_ "kanban-column-actions"] do
+        -- Add card button (opens modal)
+        button [hx_get s!"/kanban/column/{col.id}/add-card-form",
+                hx_target "#modal-container", hx_swap "innerHTML",
+                class_ "btn-icon", title_ "Add card"] (text "+")
         -- Edit column button (opens modal)
         button [hx_get s!"/kanban/column/{col.id}/edit",
                 hx_target "#modal-container", hx_swap "innerHTML",
-                class_ "btn-icon"] (text "e")
+                class_ "btn-icon", title_ "Edit column"] (text "e")
         -- Delete column button (SSE refreshes board)
         button [hx_delete s!"/kanban/column/{col.id}",
                 hx_swap "none", hx_confirm s!"Delete column '{col.name}' and all its cards?",
-                class_ "btn-icon btn-icon-danger"] (text "x")
+                class_ "btn-icon btn-icon-danger", title_ "Delete column"] (text "x")
     div [id_ s!"column-cards-{col.id}", data_ "column-id" (toString col.id),
          class_ "kanban-column-cards sortable-cards"] do
       for card in col.cards do renderCard ctx card
-    renderAddCardButton col.id
-
-def renderAddColumnButton : HtmlM Unit := do
-  div [class_ "kanban-add-column-wrapper"] do
-    button [hx_get "/kanban/add-column-form",
-            hx_target "#modal-container", hx_swap "innerHTML",
-            class_ "kanban-add-column"] (text "+ Add column")
 
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
   div [id_ "kanban-board", class_ "kanban-board"] do
     div [class_ "kanban-header"] do
       h1 [class_ "kanban-title"] (text "Kanban Board")
+      button [hx_get "/kanban/add-column-form",
+              hx_target "#modal-container", hx_swap "innerHTML",
+              class_ "btn-icon text-muted", title_ "Add column"] (text "+")
       div [class_ "kanban-meta"] do
         span [id_ "sse-status", class_ "status-indicator"] (text "* Live")
         span [class_ "kanban-count"] (text s!"{columns.length} columns")
     div [class_ "kanban-scroll"] do
       div [id_ "board-columns", class_ "kanban-columns"] do
         for col in columns do renderColumn ctx col
-        renderAddColumnButton
   div [id_ "modal-container"] (pure ())
   script [src_ "/js/kanban.js"]
 
@@ -202,8 +196,7 @@ view kanbanColumns "/kanban/columns" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
   let columns := getColumnsWithCards ctx
   html (HtmlM.render do
-    for col in columns do renderColumn ctx col
-    renderAddColumnButton)
+    for col in columns do renderColumn ctx col)
 
 -- Note: SSE endpoint "/events/kanban" is registered separately in Main.lean
 
@@ -329,10 +322,6 @@ view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" [HomebaseApp.Mid
                       attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
               button [type_ "submit", class_ "btn btn-primary"] (text "Add Card"))
 
--- Add card button
-view kanbanAddCardButton "/kanban/column/:columnId/add-card-button" [HomebaseApp.Middleware.authRequired] (columnId : Nat) do
-  html (HtmlM.render (renderAddCardButton columnId))
-
 -- Create card
 action kanbanCreateCard "/kanban/card" POST [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
@@ -398,19 +387,19 @@ action kanbanUpdateCard "/kanban/card/:id" PUT [HomebaseApp.Middleware.authRequi
   let description := ctx.paramD "description" ""
   let labels := ctx.paramD "labels" ""
   if title.isEmpty then return ← badRequest "Card title is required"
-  let (oldTitle, oldDesc, oldLabels) := match getCard ctx id with
-    | some (card, _) => (card.title, card.description, card.labels)
-    | none => ("", "", "")
-  -- Build changes list before transaction
-  let mut changes : List (String × String) := []
-  if oldTitle != title then changes := changes ++ [("old_title", oldTitle), ("new_title", title)]
-  if oldDesc != description then changes := changes ++ [("description_changed", "true")]
-  if oldLabels != labels then changes := changes ++ [("old_labels", oldLabels), ("new_labels", labels)]
   let eid : EntityId := ⟨id⟩
   runAuditTx! do
+    let db ← AuditTxM.getDb
+    let (oldTitle, oldDesc, oldLabels) := match DbCard.pull db eid with
+      | some c => (c.title, c.description, c.labels)
+      | none => ("", "", "")
     DbCard.TxM.setTitle eid title
     DbCard.TxM.setDescription eid description
     DbCard.TxM.setLabels eid labels
+    let changes :=
+      (if oldTitle != title then [("old_title", oldTitle), ("new_title", title)] else []) ++
+      (if oldDesc != description then [("description_changed", "true")] else []) ++
+      (if oldLabels != labels then [("old_labels", oldLabels), ("new_labels", labels)] else [])
     audit "UPDATE" "card" id changes
   let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { "cardId" : id, title })
   html ""
@@ -433,15 +422,19 @@ action kanbanMoveCard "/kanban/card/:id/move" POST [HomebaseApp.Middleware.authR
   let ctx ← getCtx
   let columnIdStr := ctx.paramD "column_id" ""
   let some newColumnId := columnIdStr.toNat? | return ← badRequest "Invalid column ID"
-  let oldColumnId := match getCard ctx id with
-    | some (_, colId) => colId
-    | none => 0
   let cardEid : EntityId := ⟨id⟩
-  let ctx ← getCtx
-  let order := getNextCardOrder ctx newColumnId
+  let colEid : EntityId := ⟨newColumnId⟩
   runAuditTx! do
-    DbCard.TxM.setColumn cardEid ⟨newColumnId⟩
-    DbCard.TxM.setOrder cardEid order.toNat
+    let db ← AuditTxM.getDb
+    let oldColumnId := match DbCard.pull db cardEid with
+      | some c => c.column.id.toNat
+      | none => 0
+    let cards := getCardsForColumn db colEid
+    let order := match cards.map (·.order) with
+      | [] => 0
+      | orders => (orders.foldl max 0) + 1
+    DbCard.TxM.setColumn cardEid colEid
+    DbCard.TxM.setOrder cardEid order
     audit "MOVE" "card" id [("old_column_id", toString oldColumnId), ("new_column_id", toString newColumnId)]
   let ctx ← getCtx
   match getCard ctx id with
