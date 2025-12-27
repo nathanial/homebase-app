@@ -188,14 +188,14 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
 /-! ## Pages -/
 
 -- Main kanban board
-page kanban "/kanban" GET do
+view kanban "/kanban" do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let columns := getColumnsWithCards ctx
   html (Shared.render ctx "Kanban - Homebase" "/kanban" (boardContent ctx columns))
 
 -- Get all columns (for SSE refresh)
-page kanbanColumns "/kanban/columns" GET do
+view kanbanColumns "/kanban/columns" do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let columns := getColumnsWithCards ctx
@@ -206,7 +206,7 @@ page kanbanColumns "/kanban/columns" GET do
 -- Note: SSE endpoint "/events/kanban" is registered separately in Main.lean
 
 -- Add column form
-page kanbanAddColumnForm "/kanban/add-column-form" GET do
+view kanbanAddColumnForm "/kanban/add-column-form" do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   html (HtmlM.render do
@@ -226,7 +226,7 @@ page kanbanAddColumnForm "/kanban/add-column-form" GET do
               button [type_ "submit", class_ "btn btn-primary"] (text "Add Column"))
 
 -- Create column
-page kanbanCreateColumn "/kanban/column" POST do
+action kanbanCreateColumn "/kanban/column" POST do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let name := ctx.paramD "name" ""
@@ -249,7 +249,7 @@ page kanbanCreateColumn "/kanban/column" POST do
       badRequest s!"Failed to create column: {e}"
 
 -- Get column
-page kanbanGetColumn "/kanban/column/:id" GET (id : Nat) do
+view kanbanGetColumn "/kanban/column/:id" (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   match getColumn ctx id with
@@ -257,7 +257,7 @@ page kanbanGetColumn "/kanban/column/:id" GET (id : Nat) do
   | some col => html (HtmlM.render (renderColumn ctx col))
 
 -- Edit column form
-page kanbanEditColumnForm "/kanban/column/:id/edit" GET (id : Nat) do
+view kanbanEditColumnForm "/kanban/column/:id/edit" (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   match getColumn ctx id with
@@ -280,7 +280,7 @@ page kanbanEditColumnForm "/kanban/column/:id/edit" GET (id : Nat) do
                 button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
 
 -- Update column
-page kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
+action kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let name := ctx.paramD "name" ""
@@ -303,7 +303,7 @@ page kanbanUpdateColumn "/kanban/column/:id" PUT (id : Nat) do
       badRequest s!"Failed to update column: {e}"
 
 -- Delete column
-page kanbanDeleteColumn "/kanban/column/:id" DELETE (id : Nat) do
+action kanbanDeleteColumn "/kanban/column/:id" DELETE (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   match ctx.database with
@@ -330,7 +330,7 @@ page kanbanDeleteColumn "/kanban/column/:id" DELETE (id : Nat) do
       badRequest s!"Failed to delete column: {e}"
 
 -- Add card form
-page kanbanAddCardForm "/kanban/column/:columnId/add-card-form" GET (columnId : Nat) do
+view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" (columnId : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   html (HtmlM.render do
@@ -359,13 +359,13 @@ page kanbanAddCardForm "/kanban/column/:columnId/add-card-form" GET (columnId : 
               button [type_ "submit", class_ "btn btn-primary"] (text "Add Card"))
 
 -- Add card button
-page kanbanAddCardButton "/kanban/column/:columnId/add-card-button" GET (columnId : Nat) do
+view kanbanAddCardButton "/kanban/column/:columnId/add-card-button" (columnId : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   html (HtmlM.render (renderAddCardButton columnId))
 
 -- Create card
-page kanbanCreateCard "/kanban/card" POST do
+action kanbanCreateCard "/kanban/card" POST do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let title := ctx.paramD "title" ""
@@ -397,7 +397,7 @@ page kanbanCreateCard "/kanban/card" POST do
         badRequest s!"Failed to create card: {e}"
 
 -- Get card
-page kanbanGetCard "/kanban/card/:id" GET (id : Nat) do
+view kanbanGetCard "/kanban/card/:id" (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   match getCard ctx id with
@@ -405,7 +405,7 @@ page kanbanGetCard "/kanban/card/:id" GET (id : Nat) do
   | some (card, _) => html (HtmlM.render (renderCard ctx card))
 
 -- Edit card form
-page kanbanEditCardForm "/kanban/card/:id/edit" GET (id : Nat) do
+view kanbanEditCardForm "/kanban/card/:id/edit" (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   match getCard ctx id with
@@ -436,7 +436,7 @@ page kanbanEditCardForm "/kanban/card/:id/edit" GET (id : Nat) do
                 button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes"))
 
 -- Update card
-page kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
+action kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let title := ctx.paramD "title" ""
@@ -468,7 +468,7 @@ page kanbanUpdateCard "/kanban/card/:id" PUT (id : Nat) do
       badRequest s!"Failed to update card: {e}"
 
 -- Delete card
-page kanbanDeleteCard "/kanban/card/:id" DELETE (id : Nat) do
+action kanbanDeleteCard "/kanban/card/:id" DELETE (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   match ctx.database with
@@ -490,7 +490,7 @@ page kanbanDeleteCard "/kanban/card/:id" DELETE (id : Nat) do
       badRequest s!"Failed to delete card: {e}"
 
 -- Move card
-page kanbanMoveCard "/kanban/card/:id/move" POST (id : Nat) do
+action kanbanMoveCard "/kanban/card/:id/move" POST (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let columnIdStr := ctx.paramD "column_id" ""
@@ -521,7 +521,7 @@ page kanbanMoveCard "/kanban/card/:id/move" POST (id : Nat) do
         badRequest s!"Failed to move card: {e}"
 
 -- Reorder card (drag and drop)
-page kanbanReorderCard "/kanban/card/:id/reorder" POST (id : Nat) do
+action kanbanReorderCard "/kanban/card/:id/reorder" POST (id : Nat) do
   let ctx ← getCtx
   if !isLoggedIn ctx then return ← redirect "/login"
   let columnIdStr := ctx.paramD "column_id" ""

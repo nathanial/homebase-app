@@ -41,12 +41,12 @@ def verifyPassword (password hash : String) (secret : ByteArray) : Bool :=
 /-! ## Auth Guards -/
 
 /-- Require authentication - redirect to login if not authenticated -/
-def requireAuth (action : Action) : Action := fun ctx => do
+def requireAuth (handler : Action) : Action := fun ctx => do
   match ctx.session.get "user_id" with
   | none =>
     let ctx := ctx.withFlash fun f => f.set "error" "Please log in to continue"
     Action.redirect "/login" ctx
-  | some _ => action ctx
+  | some _ => handler ctx
 
 /-- Get current user ID from session -/
 def currentUserId (ctx : Context) : Option String :=
@@ -77,7 +77,7 @@ def isAdmin (ctx : Context) : Bool :=
         | _ => false
 
 /-- Require admin privileges - redirect to home if not admin -/
-def requireAdmin (action : Action) : Action := fun ctx => do
+def requireAdmin (handler : Action) : Action := fun ctx => do
   match ctx.session.get "user_id" with
   | none =>
     let ctx := ctx.withFlash fun f => f.set "error" "Please log in to continue"
@@ -95,7 +95,7 @@ def requireAdmin (action : Action) : Action := fun ctx => do
         Action.redirect "/" ctx
       | some db =>
         match db.getOne eid userIsAdmin with
-        | some (.bool true) => action ctx
+        | some (.bool true) => handler ctx
         | _ =>
           let ctx := ctx.withFlash fun f => f.set "error" "Access denied. Admin privileges required."
           Action.redirect "/" ctx
