@@ -3,7 +3,6 @@
 -/
 import Loom
 import Ledger
-import Chronicle
 import HomebaseApp.Models
 
 namespace HomebaseApp.Helpers
@@ -148,52 +147,7 @@ def getAttrBool (ctx : Context) (entityId : EntityId) (attr : Attribute) : Optio
     | some (.bool b) => some b
     | _ => none
 
-/-! ## Audit Logging -/
-
-/-- Log an audit event with full context (user, entity, operation) -/
-def logAudit (ctx : Context) (op : String) (entity : String) (entityId : Nat)
-    (details : List (String × String) := []) : IO Unit := do
-  match ctx.logger with
-  | none => pure ()
-  | some logger =>
-    let userId := currentUserId ctx |>.getD "anonymous"
-    let entry : Chronicle.LogEntry := {
-      timestamp := ← IO.monoNanosNow
-      level := .info
-      message := s!"[AUDIT] {op} {entity}"
-      context := [("user_id", userId), ("entity_id", toString entityId)] ++ details
-    }
-    Chronicle.MultiLogger.logRequest logger entry
-
-/-- Log a warning audit event -/
-def logAuditWarn (ctx : Context) (op : String) (entity : String) (entityId : Nat)
-    (details : List (String × String) := []) : IO Unit := do
-  match ctx.logger with
-  | none => pure ()
-  | some logger =>
-    let userId := currentUserId ctx |>.getD "anonymous"
-    let entry : Chronicle.LogEntry := {
-      timestamp := ← IO.monoNanosNow
-      level := .warn
-      message := s!"[AUDIT] {op} {entity}"
-      context := [("user_id", userId), ("entity_id", toString entityId)] ++ details
-    }
-    Chronicle.MultiLogger.logRequest logger entry
-
-/-- Log an error audit event -/
-def logAuditError (ctx : Context) (op : String) (entity : String)
-    (details : List (String × String) := []) : IO Unit := do
-  match ctx.logger with
-  | none => pure ()
-  | some logger =>
-    let userId := currentUserId ctx |>.getD "anonymous"
-    let entry : Chronicle.LogEntry := {
-      timestamp := ← IO.monoNanosNow
-      level := .error
-      message := s!"[AUDIT] {op} {entity} FAILED"
-      context := [("user_id", userId)] ++ details
-    }
-    Chronicle.MultiLogger.logRequest logger entry
+-- Note: logAudit, logAuditWarn, and logAuditError are now provided by Loom.Audit
 
 /-! ## Route Parameter Helpers -/
 

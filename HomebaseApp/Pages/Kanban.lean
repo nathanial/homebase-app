@@ -16,6 +16,7 @@ open Scribe
 open Loom hiding Action
 open Loom.Page
 open Loom.ActionM
+open Loom.AuditTxM (audit)
 open Loom.Json
 open Ledger
 open HomebaseApp.Shared hiding isLoggedIn isAdmin  -- Use Helpers versions
@@ -232,11 +233,10 @@ action kanbanCreateColumn "/kanban/column" POST [HomebaseApp.Middleware.authRequ
   if name.isEmpty then return ← badRequest "Column name is required"
   let ctx ← getCtx
   let order := getNextColumnOrder ctx
-  let (eid, _) ← withNewEntity! fun eid => do
+  let (eid, _) ← withNewEntityAudit! fun eid => do
     let dbCol : DbColumn := { id := eid.id.toNat, name := name, order := order.toNat }
     DbColumn.TxM.create eid dbCol
-  let ctx ← getCtx
-  logAudit ctx "CREATE" "column" eid.id.toNat [("name", name)]
+    audit "CREATE" "column" eid.id.toNat [("name", name)]
   let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { "columnId" : eid.id.toNat, name })
   html ""
 
@@ -277,10 +277,9 @@ action kanbanUpdateColumn "/kanban/column/:id" PUT [HomebaseApp.Middleware.authR
   let oldName := match getColumn ctx id with
     | some col => col.name
     | none => "(unknown)"
-  runTx! do
+  runAuditTx! do
     DbColumn.TxM.setName ⟨id⟩ name
-  let ctx ← getCtx
-  logAudit ctx "UPDATE" "column" id [("old_name", oldName), ("new_name", name)]
+    audit "UPDATE" "column" id [("old_name", oldName), ("new_name", name)]
   let _ ← SSE.publishEvent "kanban" "column-updated" (jsonStr! { "columnId" : id, name })
   html ""
 
@@ -294,12 +293,11 @@ action kanbanDeleteColumn "/kanban/column/:id" DELETE [HomebaseApp.Middleware.au
   let colId : EntityId := ⟨id⟩
   let cardIds := db.findByAttrValue DbCard.attr_column (.ref colId)
   let cardCount := cardIds.length
-  runTx! do
+  runAuditTx! do
     for cardId in cardIds do
       DbCard.TxM.delete cardId
     DbColumn.TxM.delete colId
-  let ctx ← getCtx
-  logAudit ctx "DELETE" "column" id [("name", columnName), ("cascade_cards", toString cardCount)]
+    audit "DELETE" "column" id [("name", columnName), ("cascade_cards", toString cardCount)]
   let _ ← SSE.publishEvent "kanban" "column-deleted" (jsonStr! { "columnId" : id })
   html ""
 
@@ -333,7 +331,6 @@ view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" [HomebaseApp.Mid
 
 -- Add card button
 view kanbanAddCardButton "/kanban/column/:columnId/add-card-button" [HomebaseApp.Middleware.authRequired] (columnId : Nat) do
-  let ctx ← getCtx
   html (HtmlM.render (renderAddCardButton columnId))
 
 -- Create card
@@ -347,14 +344,13 @@ action kanbanCreateCard "/kanban/card" POST [HomebaseApp.Middleware.authRequired
   let some columnId := columnIdStr.toNat? | return ← badRequest "Invalid column ID"
   let ctx ← getCtx
   let order := getNextCardOrder ctx columnId
-  let (eid, _) ← withNewEntity! fun eid => do
+  let (eid, _) ← withNewEntityAudit! fun eid => do
     let dbCard : DbCard := {
       id := eid.id.toNat, title := title, description := description,
       labels := labels, order := order.toNat, column := ⟨columnId⟩
     }
     DbCard.TxM.create eid dbCard
-  let ctx ← getCtx
-  logAudit ctx "CREATE" "card" eid.id.toNat [("title", title), ("column_id", toString columnId)]
+    audit "CREATE" "card" eid.id.toNat [("title", title), ("column_id", toString columnId)]
   let _ ← SSE.publishEvent "kanban" "card-created" (jsonStr! { "cardId" : eid.id.toNat, columnId, title })
   html ""
 
@@ -405,17 +401,17 @@ action kanbanUpdateCard "/kanban/card/:id" PUT [HomebaseApp.Middleware.authRequi
   let (oldTitle, oldDesc, oldLabels) := match getCard ctx id with
     | some (card, _) => (card.title, card.description, card.labels)
     | none => ("", "", "")
-  let eid : EntityId := ⟨id⟩
-  runTx! do
-    DbCard.TxM.setTitle eid title
-    DbCard.TxM.setDescription eid description
-    DbCard.TxM.setLabels eid labels
-  let ctx ← getCtx
+  -- Build changes list before transaction
   let mut changes : List (String × String) := []
   if oldTitle != title then changes := changes ++ [("old_title", oldTitle), ("new_title", title)]
   if oldDesc != description then changes := changes ++ [("description_changed", "true")]
   if oldLabels != labels then changes := changes ++ [("old_labels", oldLabels), ("new_labels", labels)]
-  logAudit ctx "UPDATE" "card" id changes
+  let eid : EntityId := ⟨id⟩
+  runAuditTx! do
+    DbCard.TxM.setTitle eid title
+    DbCard.TxM.setDescription eid description
+    DbCard.TxM.setLabels eid labels
+    audit "UPDATE" "card" id changes
   let _ ← SSE.publishEvent "kanban" "card-updated" (jsonStr! { "cardId" : id, title })
   html ""
 
@@ -426,10 +422,9 @@ action kanbanDeleteCard "/kanban/card/:id" DELETE [HomebaseApp.Middleware.authRe
     | some (card, colId) => (card.title, colId)
     | none => ("(unknown)", 0)
   let eid : EntityId := ⟨id⟩
-  runTx! do
+  runAuditTx! do
     DbCard.TxM.delete eid
-  let ctx ← getCtx
-  logAudit ctx "DELETE" "card" id [("title", cardTitle), ("column_id", toString columnId)]
+    audit "DELETE" "card" id [("title", cardTitle), ("column_id", toString columnId)]
   let _ ← SSE.publishEvent "kanban" "card-deleted" (jsonStr! { "cardId" : id })
   html ""
 
@@ -444,14 +439,14 @@ action kanbanMoveCard "/kanban/card/:id/move" POST [HomebaseApp.Middleware.authR
   let cardEid : EntityId := ⟨id⟩
   let ctx ← getCtx
   let order := getNextCardOrder ctx newColumnId
-  runTx! do
+  runAuditTx! do
     DbCard.TxM.setColumn cardEid ⟨newColumnId⟩
     DbCard.TxM.setOrder cardEid order.toNat
+    audit "MOVE" "card" id [("old_column_id", toString oldColumnId), ("new_column_id", toString newColumnId)]
   let ctx ← getCtx
   match getCard ctx id with
   | none => notFound "Card not found"
   | some (card, _) =>
-    logAudit ctx "MOVE" "card" id [("old_column_id", toString oldColumnId), ("new_column_id", toString newColumnId)]
     let _ ← SSE.publishEvent "kanban" "card-moved" (jsonStr! { "cardId" : id, newColumnId })
     html (HtmlM.render (renderCard ctx card))
 
@@ -470,7 +465,7 @@ action kanbanReorderCard "/kanban/card/:id/reorder" POST [HomebaseApp.Middleware
   let colEid : EntityId := ⟨newColumnId⟩
   let targetCards := getCardsForColumn db colEid
   let otherCards := targetCards.filter (·.id != id)
-  runTx! do
+  runAuditTx! do
     DbCard.TxM.setColumn cardEid colEid
     let mut currentOrder := 0
     let mut insertedCard := false
@@ -486,11 +481,10 @@ action kanbanReorderCard "/kanban/card/:id/reorder" POST [HomebaseApp.Middleware
       idx := idx + 1
     if !insertedCard then
       DbCard.TxM.setOrder cardEid currentOrder
-  let ctx ← getCtx
-  logAudit ctx "REORDER" "card" id [
-    ("old_column_id", toString oldColumnId), ("new_column_id", toString newColumnId),
-    ("old_position", toString oldOrder), ("new_position", toString position)
-  ]
+    audit "REORDER" "card" id [
+      ("old_column_id", toString oldColumnId), ("new_column_id", toString newColumnId),
+      ("old_position", toString oldOrder), ("new_position", toString position)
+    ]
   let _ ← SSE.publishEvent "kanban" "card-reordered" (jsonStr! { "cardId" : id, "columnId" : newColumnId, position })
   html ""
 
