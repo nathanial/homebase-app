@@ -177,31 +177,20 @@ page registerSubmit "/register" POST do
     redirect "/register"
   | none =>
     let isFirstUser := !hasAnyUsers ctx
-    match ← allocEntityId with
-    | none =>
-      modifyCtx fun c => c.withFlash fun f => f.set "error" "Database not available"
-      redirect "/register"
-    | some userId =>
-      let ctx ← getCtx  -- Get updated context after allocEntityId
-      let passwordHash := hashPassword password ctx.config.secretKey
-      let tx : Transaction := [
-        .add userId userName (.string name),
-        .add userId userEmail (.string email),
-        .add userId userPasswordHash (.string passwordHash),
-        .add userId userIsAdmin (.bool isFirstUser)
-      ]
-      match ← transact tx with
-      | .ok () =>
-        modifyCtx fun c => c.withSession fun s =>
-          s.set "user_id" (toString userId.id)
-           |>.set "user_name" name
-           |>.set "is_admin" (if isFirstUser then "true" else "false")
-        let adminNote := if isFirstUser then " You have been granted admin privileges." else ""
-        modifyCtx fun c => c.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created.{adminNote}"
-        redirect "/"
-      | .error e =>
-        modifyCtx fun c => c.withFlash fun f => f.set "error" s!"Failed to create account: {e}"
-        redirect "/register"
+    let ctx ← getCtx
+    let passwordHash := hashPassword password ctx.config.secretKey
+    let (userId, _) ← withNewEntity! fun userId => do
+      Ledger.TxM.addStr userId userName name
+      Ledger.TxM.addStr userId userEmail email
+      Ledger.TxM.addStr userId userPasswordHash passwordHash
+      Ledger.TxM.addBool userId userIsAdmin isFirstUser
+    modifyCtx fun c => c.withSession fun s =>
+      s.set "user_id" (toString userId.id)
+       |>.set "user_name" name
+       |>.set "is_admin" (if isFirstUser then "true" else "false")
+    let adminNote := if isFirstUser then " You have been granted admin privileges." else ""
+    modifyCtx fun c => c.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created.{adminNote}"
+    redirect "/"
 
 page logout "/logout" GET do
   modifyCtx fun c => c.withSession fun s => s.clear
