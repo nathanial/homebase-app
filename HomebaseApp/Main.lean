@@ -40,6 +40,8 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.use Middleware.securityHeaders
     |>.sseEndpoint "/events/kanban" "kanban"
     |>.sseEndpoint "/events/chat" "chat"
+    |>.sseEndpoint "/events/time" "time"
+    |>.sseEndpoint "/events/gallery" "gallery"
     |> registerPages
     |>.withPersistentDatabase journalPath
 

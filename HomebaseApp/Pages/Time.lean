@@ -3,6 +3,7 @@
 -/
 import Scribe
 import Loom
+import Loom.SSE
 import Ledger
 import HomebaseApp.Shared
 import HomebaseApp.Models
@@ -206,13 +207,15 @@ def renderTimer (timer : Option Timer) (nowMs : Nat) : HtmlM Unit := do
         div [class_ "time-timer-info"] do
           p [class_ "time-timer-description"] (text t.description)
           renderCategory t.category
-        form [hx_post "/time/stop", hx_swap "none", class_ "time-timer-form"] do
+        form [hx_post "/time/stop", hx_swap "none", class_ "time-timer-form",
+              attr_ "hx-on::after-request" "if(event.detail.successful) window.location.reload()"] do
           button [type_ "submit", class_ "btn btn-danger"] (text "Stop Timer")
     | none =>
       div [class_ "time-timer-inactive"] do
         div [class_ "time-timer-display"] do
           span [id_ "timer-value"] (text "00:00:00")
-        form [hx_post "/time/start", hx_swap "none", class_ "time-timer-form"] do
+        form [hx_post "/time/start", hx_swap "none", class_ "time-timer-form",
+              attr_ "hx-on::after-request" "if(event.detail.successful) window.location.reload()"] do
           div [class_ "form-row"] do
             input [type_ "text", name_ "description", placeholder_ "What are you working on?",
                    class_ "form-input", required_]
@@ -294,6 +297,8 @@ def timePageContent (ctx : Context) (timer : Option Timer) (todayEntries : List 
     div [id_ "modal-container"] (pure ())
     -- Timer update script
     script [type_ "text/javascript"] "(function() { const timerEl = document.getElementById('timer-value'); if (!timerEl || !timerEl.dataset.start) return; const startTime = parseInt(timerEl.dataset.start); function update() { const elapsed = Math.floor((Date.now() - startTime) / 1000); const h = Math.floor(elapsed / 3600); const m = Math.floor((elapsed % 3600) / 60); const s = elapsed % 60; const pad = n => n.toString().padStart(2, '0'); timerEl.textContent = pad(h) + ':' + pad(m) + ':' + pad(s); } update(); setInterval(update, 1000); })();"
+    -- SSE for real-time updates across tabs
+    script [src_ "/js/time.js"]
 
 /-- Weekly summary content -/
 def weekSummaryContent (_ctx : Context) (entries : List TimeEntry) (weekStartMs : Nat) : HtmlM Unit := do
@@ -375,6 +380,7 @@ action timeStart "/time/start" POST [HomebaseApp.Middleware.authRequired] do
                                  startTime := nowMs, category := category, user := userEid }
         DbTimer.TxM.create eid timer
         audit "CREATE" "timer" eid.id.toNat [("description", description), ("category", category)]
+      let _ ← SSE.publishEvent "time" "timer-started" (jsonStr! { description, category })
       redirect "/time"
 
 -- Stop timer
@@ -397,6 +403,7 @@ action timeStop "/time/stop" POST [HomebaseApp.Middleware.authRequired] do
     runAuditTx! do
       DbTimer.TxM.delete timerEid
       audit "DELETE" "timer" timer.id []
+    let _ ← SSE.publishEvent "time" "timer-stopped" (jsonStr! { "duration" : duration })
     redirect "/time"
   | _, _ => redirect "/time"
 
@@ -463,6 +470,7 @@ action timeCreateEntry "/time/entry" POST [HomebaseApp.Middleware.authRequired] 
       DbTimeEntry.TxM.create eid entry
       audit "CREATE" "time-entry" eid.id.toNat [("description", description),
             ("duration", toString duration), ("category", category), ("manual", "true")]
+    let _ ← SSE.publishEvent "time" "entry-created" (jsonStr! { description, category, "duration" : duration })
     redirect "/time"
   | _, _, _ => badRequest "Invalid time format or not logged in"
 
@@ -507,6 +515,8 @@ action timeUpdateEntry "/time/entry/:id" PUT [HomebaseApp.Middleware.authRequire
     DbTimeEntry.TxM.setDescription eid description
     DbTimeEntry.TxM.setCategory eid category
     audit "UPDATE" "time-entry" id [("description", description), ("category", category)]
+  let entryId := id
+  let _ ← SSE.publishEvent "time" "entry-updated" (jsonStr! { entryId, description, category })
   redirect "/time"
 
 -- Delete entry
@@ -515,6 +525,8 @@ action timeDeleteEntry "/time/entry/:id" DELETE [HomebaseApp.Middleware.authRequ
   runAuditTx! do
     DbTimeEntry.TxM.delete eid
     audit "DELETE" "time-entry" id []
+  let entryId := id
+  let _ ← SSE.publishEvent "time" "entry-deleted" (jsonStr! { entryId })
   redirect "/time"
 
 end HomebaseApp.Pages

@@ -3,6 +3,7 @@
 -/
 import Scribe
 import Loom
+import Loom.SSE
 import Ledger
 import Citadel
 import HomebaseApp.Shared
@@ -195,6 +196,8 @@ def galleryPageContent (ctx : Context) (items : List GalleryItem) (filter : Stri
     div [id_ "modal-container"] (pure ())
     -- Drag & drop script
     script [type_ "text/javascript"] "(function() { const zone = document.getElementById('upload-zone'); const input = document.getElementById('file-input'); if (!zone || !input) return; ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => { zone.addEventListener(event, e => { e.preventDefault(); e.stopPropagation(); }); }); ['dragenter', 'dragover'].forEach(event => { zone.addEventListener(event, () => zone.classList.add('dragover')); }); ['dragleave', 'drop'].forEach(event => { zone.addEventListener(event, () => zone.classList.remove('dragover')); }); zone.addEventListener('drop', e => { const files = e.dataTransfer.files; if (files.length > 0) { input.files = files; document.getElementById('upload-form').requestSubmit(); } }); zone.addEventListener('click', () => input.click()); })();"
+    -- SSE for real-time updates across tabs
+    script [src_ "/js/gallery.js"]
 
 /-- Render lightbox modal for an item -/
 def renderLightbox (item : GalleryItem) (now : Nat) : HtmlM Unit := do
@@ -288,6 +291,7 @@ action galleryUpload "/gallery/upload" POST [HomebaseApp.Middleware.authRequired
       }
       DbGalleryItem.TxM.create eid item
       audit "CREATE" "gallery-item" eid.id.toNat [("file_name", fileName)]
+    let _ ← SSE.publishEvent "gallery" "item-uploaded" (jsonStr! { fileName, mimeType })
     redirect "/gallery"
 
 -- Edit item form
@@ -327,6 +331,8 @@ action galleryUpdateItem "/gallery/item/:id" PUT [HomebaseApp.Middleware.authReq
     DbGalleryItem.TxM.setTitle eid title
     DbGalleryItem.TxM.setDescription eid description
     audit "UPDATE" "gallery-item" id [("title", title)]
+  let itemId := id
+  let _ ← SSE.publishEvent "gallery" "item-updated" (jsonStr! { itemId, title })
   redirect "/gallery"
 
 -- Delete item
@@ -342,6 +348,9 @@ action galleryDeleteItem "/gallery/item/:id" DELETE [HomebaseApp.Middleware.auth
     runAuditTx! do
       DbGalleryItem.TxM.delete eid
       audit "DELETE" "gallery-item" id [("file_name", item.fileName)]
+    let itemId := id
+    let fileName := item.fileName
+    let _ ← SSE.publishEvent "gallery" "item-deleted" (jsonStr! { itemId, fileName })
     redirect "/gallery"
 
 end HomebaseApp.Pages
