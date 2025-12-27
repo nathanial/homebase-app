@@ -66,8 +66,15 @@ def formatDurationShort (seconds : Nat) : String :=
   else if minutes > 0 then s!"{minutes}m"
   else s!"{seconds}s"
 
-/-- Get current time in milliseconds -/
-def timeGetNowMs : IO Nat := IO.monoMsNow
+/-- Get current wall clock time in milliseconds since Unix epoch.
+    Uses shell command since Lean 4 doesn't have built-in wall clock time. -/
+def timeGetNowMs : IO Nat := do
+  -- Use 'date' command to get Unix timestamp in milliseconds
+  -- macOS: date +%s000 (seconds with 000 appended for ms precision)
+  -- For actual milliseconds on macOS, we'd need gdate or use seconds * 1000
+  let output ← IO.Process.output { cmd := "date", args := #["+%s"] }
+  let seconds := output.stdout.trim.toNat?.getD 0
+  return seconds * 1000
 
 /-- Get start of today (midnight) in milliseconds - approximation -/
 def getStartOfToday (nowMs : Nat) : Nat :=

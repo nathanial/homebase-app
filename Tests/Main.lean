@@ -5,6 +5,7 @@
 import Crucible
 import HomebaseApp.Tests.Kanban
 import HomebaseApp.Tests.EntityPull
+import HomebaseApp.Tests.Time
 
 open Crucible
 
