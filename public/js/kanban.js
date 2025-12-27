@@ -73,14 +73,25 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     }
   }
 
+  function getBoardId() {
+    // Extract board ID from URL: /kanban/board/123
+    var match = window.location.pathname.match(/\/kanban\/board\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
   function refreshBoard() {
     if (refreshPending) return;
+    var boardId = getBoardId();
+    if (!boardId) {
+      console.log('No board ID found, skipping refresh');
+      return;
+    }
     refreshPending = true;
-    console.log('Refreshing kanban board...');
+    console.log('Refreshing kanban board', boardId);
     setTimeout(function() {
       // Only refresh the columns container, not the whole page
       // This preserves the SSE connection
-      htmx.ajax('GET', '/kanban/columns', {target: '#board-columns', swap: 'innerHTML'});
+      htmx.ajax('GET', '/kanban/board/' + boardId + '/columns', {target: '#board-columns', swap: 'innerHTML'});
       refreshPending = false;
     }, 100);
   }
