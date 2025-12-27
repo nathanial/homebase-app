@@ -85,4 +85,45 @@ structure DbChatAttachment where
   message : EntityId     -- Reference to parent message
   deriving Inhabited
 
+-- ============================================================================
+-- Time Tracking Entity Structures
+-- ============================================================================
+
+/-- Time entry (completed time record). -/
+structure DbTimeEntry where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  description : String   -- What was worked on
+  startTime : Nat        -- milliseconds since epoch
+  endTime : Nat          -- milliseconds since epoch
+  duration : Nat         -- duration in seconds (computed for quick access)
+  category : String      -- e.g., "Work", "Personal", "Learning"
+  user : EntityId        -- Reference to user who logged the time
+  deriving Inhabited
+
+/-- Active timer (running time entry, not yet completed). -/
+structure DbTimer where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  description : String   -- What is being worked on
+  startTime : Nat        -- When timer started (milliseconds since epoch)
+  category : String      -- Timer category
+  user : EntityId        -- Reference to user who started the timer
+  deriving Inhabited
+
+-- ============================================================================
+-- Gallery Entity Structures
+-- ============================================================================
+
+/-- Gallery item (photo or file). -/
+structure DbGalleryItem where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String         -- Display title
+  description : String   -- Optional description
+  fileName : String      -- Original filename
+  storedPath : String    -- Path in data/uploads/
+  mimeType : String      -- MIME type
+  fileSize : Nat         -- Size in bytes
+  uploadedAt : Nat       -- milliseconds since epoch
+  user : EntityId        -- Reference to uploader
+  deriving Inhabited
+
 end HomebaseApp.Models

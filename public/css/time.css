@@ -1,0 +1,369 @@
+/* Time Tracking Section Styles */
+
+/* Container */
+.time-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* Timer Section */
+.time-timer-section {
+  background: var(--color-white);
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-timer-active,
+.time-timer-inactive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.time-timer-display {
+  font-size: 4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-slate-800);
+  text-align: center;
+}
+
+.time-timer-display.running {
+  color: var(--color-blue-600);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.time-timer-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.time-timer-description {
+  font-size: 1.125rem;
+  color: var(--color-slate-700);
+}
+
+.time-timer-form {
+  width: 100%;
+  max-width: 600px;
+}
+
+.time-timer-form .form-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.time-timer-form .form-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.time-timer-form .form-select {
+  width: 140px;
+}
+
+/* Category Badges */
+.time-category {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.category-work {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.category-personal {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.category-learning {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.category-health {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.category-other {
+  background: var(--color-slate-200);
+  color: var(--color-slate-700);
+}
+
+/* Today Summary */
+.time-today-summary {
+  background: var(--color-white);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.time-summary-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-slate-800);
+}
+
+.time-summary-total {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-blue-600);
+}
+
+/* Summary Bar */
+.time-summary-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--color-slate-200);
+}
+
+.time-summary-segment {
+  min-width: 8px;
+  transition: flex-basis 0.3s ease;
+}
+
+.time-summary-segment.category-work { background: #3b82f6; }
+.time-summary-segment.category-personal { background: #ec4899; }
+.time-summary-segment.category-learning { background: #10b981; }
+.time-summary-segment.category-health { background: #f59e0b; }
+.time-summary-segment.category-other { background: var(--color-slate-500); }
+
+/* Entries Section */
+.time-entries-section {
+  background: var(--color-white);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-entries-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.time-entries-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-slate-800);
+}
+
+.time-entries-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Entries Table */
+.time-entries-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.time-entries-table th,
+.time-entries-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-slate-200);
+}
+
+.time-entries-table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-slate-500);
+}
+
+.time-entries-table tbody tr:hover {
+  background: var(--color-slate-100);
+}
+
+.time-entry-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+}
+
+.time-entry-description {
+  color: var(--color-slate-800);
+}
+
+.time-entry-duration {
+  font-weight: 600;
+  color: var(--color-slate-700);
+  white-space: nowrap;
+}
+
+.time-entry-actions {
+  white-space: nowrap;
+}
+
+.time-entry-actions .btn-icon {
+  margin-left: 0.25rem;
+}
+
+/* Empty State */
+.time-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--color-slate-500);
+}
+
+/* Weekly Summary */
+.time-week-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.time-week-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-slate-800);
+}
+
+.time-week-total {
+  background: var(--color-white);
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-week-total h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-slate-500);
+  margin-bottom: 0.5rem;
+}
+
+.time-week-total-value {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--color-blue-600);
+}
+
+.time-week-categories {
+  background: var(--color-white);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-week-categories h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-slate-800);
+  margin-bottom: 1rem;
+}
+
+.time-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.time-category-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.time-category-duration {
+  font-weight: 600;
+  color: var(--color-slate-700);
+}
+
+.time-week-days {
+  background: var(--color-white);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-week-days h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-slate-800);
+  margin-bottom: 1rem;
+}
+
+.time-day-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-slate-200);
+}
+
+.time-day-row:last-child {
+  border-bottom: none;
+}
+
+.time-day-label {
+  color: var(--color-slate-600);
+}
+
+.time-day-duration {
+  font-weight: 600;
+  color: var(--color-slate-700);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .time-timer-display {
+    font-size: 2.5rem;
+  }
+
+  .time-timer-form .form-row {
+    flex-direction: column;
+  }
+
+  .time-timer-form .form-input,
+  .time-timer-form .form-select {
+    width: 100%;
+  }
+
+  .time-entries-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

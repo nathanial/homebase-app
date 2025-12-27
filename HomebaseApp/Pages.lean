@@ -11,6 +11,8 @@ import HomebaseApp.Pages.Sections
 import HomebaseApp.Pages.Kanban
 import HomebaseApp.Pages.Chat
 import HomebaseApp.Pages.Admin
+import HomebaseApp.Pages.Time
+import HomebaseApp.Pages.Gallery
 import HomebaseApp.Middleware
 
 namespace HomebaseApp.Pages

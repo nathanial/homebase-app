@@ -93,6 +93,8 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         link [rel_ "stylesheet", href_ "/css/app.css"]
         link [rel_ "stylesheet", href_ "/css/chat.css"]
         link [rel_ "stylesheet", href_ "/css/kanban.css"]
+        link [rel_ "stylesheet", href_ "/css/time.css"]
+        link [rel_ "stylesheet", href_ "/css/gallery.css"]
         -- External scripts
         script [src_ "https://unpkg.com/htmx.org@2.0.4"]
         script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]

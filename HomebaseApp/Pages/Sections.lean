@@ -33,15 +33,6 @@ page notebook "/notebook" GET do
   html (Shared.render ctx "Notebook - Homebase" "/notebook"
     (sectionContent "📓" "Notebook" "Notebook section coming soon."))
 
-/-! ## Time Section -/
-
-page time "/time" GET do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then
-    return ← redirect "/login"
-  html (Shared.render ctx "Time - Homebase" "/time"
-    (sectionContent "⏰" "Time" "Time tracking section coming soon."))
-
 /-! ## Health Section -/
 
 page health "/health" GET do
@@ -59,15 +50,6 @@ page recipes "/recipes" GET do
     return ← redirect "/login"
   html (Shared.render ctx "Recipes - Homebase" "/recipes"
     (sectionContent "🍳" "Recipes" "Recipes section coming soon."))
-
-/-! ## Gallery Section -/
-
-page gallery "/gallery" GET do
-  let ctx ← getCtx
-  if !isLoggedIn ctx then
-    return ← redirect "/login"
-  html (Shared.render ctx "Gallery - Homebase" "/gallery"
-    (sectionContent "🖼️" "Gallery" "Gallery section coming soon."))
 
 /-! ## News Section -/
 

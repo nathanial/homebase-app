@@ -20,6 +20,9 @@ makeLedgerEntity DbCard (attrPrefix := "card")
 makeLedgerEntity DbChatThread (attrPrefix := "chat-thread")
 makeLedgerEntity DbChatMessage (attrPrefix := "chat-message")
 makeLedgerEntity DbChatAttachment (attrPrefix := "chat-attachment")
+makeLedgerEntity DbTimeEntry (attrPrefix := "time-entry")
+makeLedgerEntity DbTimer (attrPrefix := "timer")
+makeLedgerEntity DbGalleryItem (attrPrefix := "gallery-item")
 
 namespace HomebaseApp.Entities
 -- Re-export for convenience
