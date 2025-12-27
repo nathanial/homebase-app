@@ -28,6 +28,12 @@ open HomebaseApp.Helpers
 
 /-! ## Data Structures -/
 
+structure Board where
+  id : Nat
+  name : String
+  order : Nat
+  deriving Inhabited
+
 structure Card where
   id : Nat
   title : String
@@ -45,6 +51,41 @@ structure Column where
 
 /-! ## Database Helpers -/
 
+/-- Get all boards from the database -/
+def getBoards (ctx : Context) : List Board :=
+  match ctx.database with
+  | none => []
+  | some db =>
+    let boardIds := db.entitiesWithAttr DbBoard.attr_name
+    let boards := boardIds.filterMap fun boardId =>
+      match DbBoard.pull db boardId with
+      | some b => some { id := b.id, name := b.name, order := b.order }
+      | none => none
+    boards.toArray.qsort (fun a b => a.order < b.order) |>.toList
+
+/-- Get a specific board by ID -/
+def getBoard (ctx : Context) (boardId : Nat) : Option Board :=
+  (getBoards ctx).find? (·.id == boardId)
+
+/-- Get the next order value for a new board -/
+def getNextBoardOrder (ctx : Context) : Nat :=
+  match (getBoards ctx).map (·.order) with
+  | [] => 0
+  | orders => orders.foldl max 0 + 1
+
+/-- Get columns for a specific board -/
+def getColumnsForBoard (ctx : Context) (boardId : Nat) : List (EntityId × String × Int) :=
+  match ctx.database with
+  | none => []
+  | some db =>
+    let boardEid : EntityId := ⟨boardId⟩
+    let columnIds := db.findByAttrValue DbColumn.attr_board (.ref boardEid)
+    columnIds.filterMap fun colId =>
+      match db.getOne colId DbColumn.attr_name, db.getOne colId DbColumn.attr_order with
+      | some (.string name), some (.int order) => some (colId, name, order)
+      | _, _ => none
+
+/-- Get all columns (for backward compatibility, finds orphans) -/
 def getColumns (ctx : Context) : List (EntityId × String × Int) :=
   match ctx.database with
   | none => []
@@ -66,6 +107,18 @@ def getCardsForColumn (db : Db) (colId : EntityId) : List Card :=
     | none => none
   cards.toArray.qsort (fun a b => a.order < b.order) |>.toList
 
+/-- Get columns with their cards for a specific board -/
+def getColumnsWithCardsForBoard (ctx : Context) (boardId : Nat) : List Column :=
+  match ctx.database with
+  | none => []
+  | some db =>
+    let rawColumns := getColumnsForBoard ctx boardId
+    let columns := rawColumns.map fun (colId, name, order) =>
+      let cards := getCardsForColumn db colId
+      { id := colId.id.toNat, name := name, order := order.toNat, cards := cards }
+    columns.toArray.qsort (fun a b => a.order < b.order) |>.toList
+
+/-- Get all columns with cards (for backward compatibility) -/
 def getColumnsWithCards (ctx : Context) : List Column :=
   match ctx.database with
   | none => []
@@ -89,8 +142,8 @@ def getCard (ctx : Context) (cardId : Nat) : Option (Card × Nat) :=
                              labels := dbCard.labels, order := dbCard.order }, dbCard.column.id.toNat)
     | none => none
 
-def getNextColumnOrder (ctx : Context) : Int :=
-  let columns := getColumns ctx
+def getNextColumnOrder (ctx : Context) (boardId : Nat) : Int :=
+  let columns := getColumnsForBoard ctx boardId
   match columns.map (fun (_, _, order) => order) with
   | [] => 0
   | orders => orders.foldl max 0 + 1
@@ -167,6 +220,54 @@ def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
          class_ "kanban-column-cards sortable-cards"] do
       for card in col.cards do renderCard ctx card
 
+/-- Render a single board item in the sidebar -/
+def renderBoardItem (board : Board) (isActive : Bool) : HtmlM Unit := do
+  let activeClass := if isActive then " active" else ""
+  a [href_ s!"/kanban/board/{board.id}", class_ s!"kanban-sidebar-item{activeClass}"] do
+    span [class_ "kanban-sidebar-item-name"] (text board.name)
+    if isActive then
+      div [class_ "kanban-sidebar-item-actions"] do
+        button [hx_get s!"/kanban/board/{board.id}/edit",
+                hx_target "#modal-container", hx_swap "innerHTML",
+                class_ "btn-icon", title_ "Edit board",
+                attr_ "onclick" "event.preventDefault(); event.stopPropagation();"] (text "e")
+        button [hx_delete s!"/kanban/board/{board.id}",
+                hx_swap "none", hx_confirm s!"Delete board '{board.name}' and all its columns/cards?",
+                class_ "btn-icon btn-icon-danger", title_ "Delete board",
+                attr_ "onclick" "event.preventDefault(); event.stopPropagation();"] (text "x")
+
+/-- Render the board sidebar -/
+def renderBoardSidebar (boards : List Board) (activeBoard : Option Board) : HtmlM Unit := do
+  aside [class_ "kanban-sidebar"] do
+    div [class_ "kanban-sidebar-header"] do
+      span [class_ "kanban-sidebar-title"] (text "Boards")
+      button [hx_get "/kanban/add-board-form",
+              hx_target "#modal-container", hx_swap "innerHTML",
+              class_ "btn-icon text-muted", title_ "Add board"] (text "+")
+    div [class_ "kanban-sidebar-list"] do
+      for board in boards do
+        renderBoardItem board (activeBoard.map (·.id) == some board.id)
+
+/-- Render the full kanban page content with sidebar and board -/
+def kanbanPageContent (ctx : Context) (boards : List Board) (activeBoard : Board) (columns : List Column) : HtmlM Unit := do
+  div [class_ "kanban-wrapper"] do
+    renderBoardSidebar boards (some activeBoard)
+    div [id_ "kanban-board", class_ "kanban-board"] do
+      div [class_ "kanban-header"] do
+        h1 [class_ "kanban-title"] (text activeBoard.name)
+        button [hx_get s!"/kanban/board/{activeBoard.id}/add-column-form",
+                hx_target "#modal-container", hx_swap "innerHTML",
+                class_ "btn-icon text-muted", title_ "Add column"] (text "+")
+        div [class_ "kanban-meta"] do
+          span [id_ "sse-status", class_ "status-indicator"] (text "* Live")
+          span [class_ "kanban-count"] (text s!"{columns.length} columns")
+      div [class_ "kanban-scroll"] do
+        div [id_ "board-columns", class_ "kanban-columns"] do
+          for col in columns do renderColumn ctx col
+  div [id_ "modal-container"] (pure ())
+  script [src_ "/js/kanban.js"]
+
+/-- Legacy boardContent for backward compatibility -/
 def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
   div [id_ "kanban-board", class_ "kanban-board"] do
     div [class_ "kanban-header"] do
@@ -185,22 +286,186 @@ def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
 
 /-! ## Pages -/
 
--- Main kanban board
-view kanban "/kanban" [HomebaseApp.Middleware.authRequired] do
+-- Main kanban board - redirects to first board or creates default
+action kanban "/kanban" GET [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  let columns := getColumnsWithCards ctx
-  html (Shared.render ctx "Kanban - Homebase" "/kanban" (boardContent ctx columns))
+  let boards := getBoards ctx
+  match boards.head? with
+  | some board => redirect s!"/kanban/board/{board.id}"
+  | none =>
+    -- Auto-create "Default" board
+    let (eid, _) ← withNewEntityAudit! fun eid => do
+      let dbBoard : DbBoard := { id := eid.id.toNat, name := "Default", order := 0 }
+      DbBoard.TxM.create eid dbBoard
+      audit "CREATE" "board" eid.id.toNat [("name", "Default"), ("auto_created", "true")]
+    -- Migrate any orphan columns to the new board
+    let ctx ← getCtx
+    let orphanColumns := getColumns ctx
+    if !orphanColumns.isEmpty then
+      runAuditTx! do
+        for (colId, _, _) in orphanColumns do
+          DbColumn.TxM.setBoard colId eid
+        audit "MIGRATE" "columns" eid.id.toNat [("count", toString orphanColumns.length)]
+    redirect s!"/kanban/board/{eid.id.toNat}"
 
--- Get all columns (for SSE refresh)
-view kanbanColumns "/kanban/columns" [HomebaseApp.Middleware.authRequired] do
+-- View specific board
+view kanbanBoard "/kanban/board/:boardId" [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
   let ctx ← getCtx
-  let columns := getColumnsWithCards ctx
+  let boards := getBoards ctx
+  match getBoard ctx boardId with
+  | none => notFound "Board not found"
+  | some board =>
+    let columns := getColumnsWithCardsForBoard ctx boardId
+    html (Shared.render ctx s!"{board.name} - Kanban - Homebase" "/kanban" (kanbanPageContent ctx boards board columns))
+
+-- Get all columns for a board (for SSE refresh)
+view kanbanBoardColumns "/kanban/board/:boardId/columns" [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
+  let ctx ← getCtx
+  let columns := getColumnsWithCardsForBoard ctx boardId
   html (HtmlM.render do
     for col in columns do renderColumn ctx col)
 
 -- Note: SSE endpoint "/events/kanban" is registered separately in Main.lean
 
--- Add column form
+-- Add board form
+view kanbanAddBoardForm "/kanban/add-board-form" [HomebaseApp.Middleware.authRequired] do
+  let ctx ← getCtx
+  html (HtmlM.render do
+    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+      div [class_ "modal-container modal-sm"] do
+        h3 [class_ "modal-title"] (text "Add Board")
+        form [hx_post "/kanban/board", hx_swap "none", modalClearAttr] do
+          csrfField ctx.csrfToken
+          div [class_ "form-stack"] do
+            div [class_ "form-group"] do
+              label [for_ "name", class_ "form-label"] (text "Board Name")
+              input [type_ "text", name_ "name", id_ "name", class_ "form-input",
+                     placeholder_ "Board name", required_, autofocus_]
+            div [class_ "form-actions"] do
+              button [type_ "button", class_ "btn btn-secondary",
+                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+              button [type_ "submit", class_ "btn btn-primary"] (text "Add Board"))
+
+-- Create board
+action kanbanCreateBoard "/kanban/board" POST [HomebaseApp.Middleware.authRequired] do
+  let ctx ← getCtx
+  let name := ctx.paramD "name" ""
+  if name.isEmpty then return ← badRequest "Board name is required"
+  let ctx ← getCtx
+  let order := getNextBoardOrder ctx
+  let (eid, _) ← withNewEntityAudit! fun eid => do
+    let dbBoard : DbBoard := { id := eid.id.toNat, name := name, order := order }
+    DbBoard.TxM.create eid dbBoard
+    audit "CREATE" "board" eid.id.toNat [("name", name)]
+  let _ ← SSE.publishEvent "kanban" "board-created" (jsonStr! { "boardId" : eid.id.toNat, name })
+  -- Redirect to the new board
+  redirect s!"/kanban/board/{eid.id.toNat}"
+
+-- Edit board form
+view kanbanEditBoardForm "/kanban/board/:boardId/edit" [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
+  let ctx ← getCtx
+  match getBoard ctx boardId with
+  | none => notFound "Board not found"
+  | some board =>
+    html (HtmlM.render do
+      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+        div [class_ "modal-container modal-sm"] do
+          h3 [class_ "modal-title"] (text "Edit Board")
+          form [hx_put s!"/kanban/board/{board.id}", hx_swap "none", modalClearAttr] do
+            csrfField ctx.csrfToken
+            div [class_ "form-stack"] do
+              div [class_ "form-group"] do
+                label [for_ "name", class_ "form-label"] (text "Board Name")
+                input [type_ "text", name_ "name", id_ "name", value_ board.name,
+                       class_ "form-input", placeholder_ "Board name", required_, autofocus_]
+              div [class_ "form-actions"] do
+                button [type_ "button", class_ "btn btn-secondary",
+                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+                button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
+
+-- Update board
+action kanbanUpdateBoard "/kanban/board/:boardId" PUT [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
+  let ctx ← getCtx
+  let name := ctx.paramD "name" ""
+  if name.isEmpty then return ← badRequest "Board name is required"
+  let oldName := match getBoard ctx boardId with
+    | some b => b.name
+    | none => "(unknown)"
+  let eid : EntityId := ⟨boardId⟩
+  runAuditTx! do
+    DbBoard.TxM.setName eid name
+    audit "UPDATE" "board" boardId [("old_name", oldName), ("new_name", name)]
+  let _ ← SSE.publishEvent "kanban" "board-updated" (jsonStr! { "boardId" : boardId, name })
+  html ""
+
+-- Delete board (cascade delete columns and cards)
+action kanbanDeleteBoard "/kanban/board/:boardId" DELETE [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
+  let ctx ← getCtx
+  let some db := ctx.database | return ← badRequest "Database not available"
+  let boardName := match getBoard ctx boardId with
+    | some b => b.name
+    | none => "(unknown)"
+  let boardEid : EntityId := ⟨boardId⟩
+  -- Get all columns for this board
+  let columnIds := db.findByAttrValue DbColumn.attr_board (.ref boardEid)
+  -- Get all cards for these columns
+  let allCardIds := columnIds.foldl (init := []) fun acc colId =>
+    acc ++ db.findByAttrValue DbCard.attr_column (.ref colId)
+  let columnCount := columnIds.length
+  let cardCount := allCardIds.length
+  runAuditTx! do
+    -- Delete all cards
+    for cardId in allCardIds do
+      DbCard.TxM.delete cardId
+    -- Delete all columns
+    for colId in columnIds do
+      DbColumn.TxM.delete colId
+    -- Delete the board
+    DbBoard.TxM.delete boardEid
+    audit "DELETE" "board" boardId [
+      ("name", boardName),
+      ("cascade_columns", toString columnCount),
+      ("cascade_cards", toString cardCount)
+    ]
+  let _ ← SSE.publishEvent "kanban" "board-deleted" (jsonStr! { "boardId" : boardId })
+  -- Redirect to /kanban (will auto-create default if needed)
+  redirect "/kanban"
+
+-- Add column form (board-aware)
+view kanbanAddColumnFormForBoard "/kanban/board/:boardId/add-column-form" [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
+  let ctx ← getCtx
+  html (HtmlM.render do
+    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
+      div [class_ "modal-container modal-sm"] do
+        h3 [class_ "modal-title"] (text "Add Column")
+        form [hx_post s!"/kanban/board/{boardId}/column", hx_swap "none", modalClearAttr] do
+          csrfField ctx.csrfToken
+          div [class_ "form-stack"] do
+            div [class_ "form-group"] do
+              label [for_ "name", class_ "form-label"] (text "Column Name")
+              input [type_ "text", name_ "name", id_ "name", class_ "form-input",
+                     placeholder_ "Column name", required_, autofocus_]
+            div [class_ "form-actions"] do
+              button [type_ "button", class_ "btn btn-secondary",
+                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
+              button [type_ "submit", class_ "btn btn-primary"] (text "Add Column"))
+
+-- Create column (board-aware)
+action kanbanCreateColumnForBoard "/kanban/board/:boardId/column" POST [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
+  let ctx ← getCtx
+  let name := ctx.paramD "name" ""
+  if name.isEmpty then return ← badRequest "Column name is required"
+  let ctx ← getCtx
+  let order := getNextColumnOrder ctx boardId
+  let boardEid : EntityId := ⟨boardId⟩
+  let (eid, _) ← withNewEntityAudit! fun eid => do
+    let dbCol : DbColumn := { id := eid.id.toNat, name := name, order := order.toNat, board := boardEid }
+    DbColumn.TxM.create eid dbCol
+    audit "CREATE" "column" eid.id.toNat [("name", name), ("board_id", toString boardId)]
+  let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { "columnId" : eid.id.toNat, "boardId" : boardId, name })
+  html ""
+
+-- Add column form (legacy - kept for backward compatibility)
 view kanbanAddColumnForm "/kanban/add-column-form" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
   html (HtmlM.render do
@@ -224,13 +489,17 @@ action kanbanCreateColumn "/kanban/column" POST [HomebaseApp.Middleware.authRequ
   let ctx ← getCtx
   let name := ctx.paramD "name" ""
   if name.isEmpty then return ← badRequest "Column name is required"
+  -- Get the first board (legacy route - new code should use board-specific route)
+  let boards := getBoards ctx
+  let some board := boards.head? | return ← badRequest "No board exists"
+  let boardEid : EntityId := ⟨board.id⟩
   let ctx ← getCtx
-  let order := getNextColumnOrder ctx
+  let order := getNextColumnOrder ctx board.id
   let (eid, _) ← withNewEntityAudit! fun eid => do
-    let dbCol : DbColumn := { id := eid.id.toNat, name := name, order := order.toNat }
+    let dbCol : DbColumn := { id := eid.id.toNat, name := name, order := order.toNat, board := boardEid }
     DbColumn.TxM.create eid dbCol
-    audit "CREATE" "column" eid.id.toNat [("name", name)]
-  let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { "columnId" : eid.id.toNat, name })
+    audit "CREATE" "column" eid.id.toNat [("name", name), ("board_id", toString board.id)]
+  let _ ← SSE.publishEvent "kanban" "column-created" (jsonStr! { "columnId" : eid.id.toNat, "boardId" : board.id, name })
   html ""
 
 -- Get column

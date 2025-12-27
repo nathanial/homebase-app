@@ -55,6 +55,13 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 // =============================================================================
 
 (function() {
+  // Prevent multiple SSE connections across script re-executions
+  if (window._kanbanSSEInitialized) {
+    console.log('Kanban SSE already initialized, skipping');
+    return;
+  }
+  window._kanbanSSEInitialized = true;
+
   var status = document.getElementById('sse-status');
   var eventSource = null;
   var refreshPending = false;
@@ -81,6 +88,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
   function connectSSE() {
     if (eventSource) {
       eventSource.close();
+      eventSource = null;
     }
 
     console.log('Connecting to SSE...');
@@ -99,7 +107,8 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     // Listen for specific event types
     var eventTypes = ['column-created', 'column-updated', 'column-deleted',
                       'card-created', 'card-updated', 'card-deleted',
-                      'card-moved', 'card-reordered'];
+                      'card-moved', 'card-reordered',
+                      'board-created', 'board-updated', 'board-deleted'];
 
     eventTypes.forEach(function(eventType) {
       eventSource.addEventListener(eventType, function(e) {
@@ -108,6 +117,35 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
       });
     });
   }
+
+  function disconnectSSE() {
+    if (eventSource) {
+      console.log('Closing SSE connection...');
+      eventSource.close();
+      eventSource = null;
+    }
+  }
+
+  // Close SSE on page unload/navigation
+  window.addEventListener('beforeunload', function() {
+    window._kanbanSSEInitialized = false;
+    disconnectSSE();
+  });
+  window.addEventListener('pagehide', function() {
+    window._kanbanSSEInitialized = false;
+    disconnectSSE();
+  });
+
+  // Handle visibility changes (tab switch, minimize)
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      // Page is hidden - disconnect to free up connection slot
+      disconnectSSE();
+    } else {
+      // Page is visible again - reconnect
+      connectSSE();
+    }
+  });
 
   // Connect on page load
   if (document.readyState === 'loading') {

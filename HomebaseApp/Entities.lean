@@ -12,8 +12,9 @@ open HomebaseApp.Models
 
 -- Generate entity helpers (must be outside namespace blocks)
 -- Use attrPrefix to match existing attribute names in the database
-makeLedgerEntity DbCard (attrPrefix := "card")
+makeLedgerEntity DbBoard (attrPrefix := "board")
 makeLedgerEntity DbColumn (attrPrefix := "column")
+makeLedgerEntity DbCard (attrPrefix := "card")
 makeLedgerEntity DbChatThread (attrPrefix := "chat-thread")
 makeLedgerEntity DbChatMessage (attrPrefix := "chat-message")
 makeLedgerEntity DbChatAttachment (attrPrefix := "chat-attachment")

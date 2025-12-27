@@ -181,6 +181,13 @@ function afterMessageSubmit(form) {
 // =============================================================================
 
 (function() {
+  // Prevent multiple SSE connections across script re-executions
+  if (window._chatSSEInitialized) {
+    console.log('Chat SSE already initialized, skipping');
+    return;
+  }
+  window._chatSSEInitialized = true;
+
   var eventSource = null;
   var refreshPending = false;
   var messagesRefreshPending = false;
@@ -233,6 +240,7 @@ function afterMessageSubmit(form) {
   function connectSSE() {
     if (eventSource) {
       eventSource.close();
+      eventSource = null;
     }
 
     console.log('Connecting to Chat SSE...');
@@ -272,6 +280,33 @@ function afterMessageSubmit(form) {
       }
     });
   }
+
+  function disconnectSSE() {
+    if (eventSource) {
+      console.log('Closing Chat SSE connection...');
+      eventSource.close();
+      eventSource = null;
+    }
+  }
+
+  // Close SSE on page unload/navigation
+  window.addEventListener('beforeunload', function() {
+    window._chatSSEInitialized = false;
+    disconnectSSE();
+  });
+  window.addEventListener('pagehide', function() {
+    window._chatSSEInitialized = false;
+    disconnectSSE();
+  });
+
+  // Handle visibility changes (tab switch, minimize)
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      disconnectSSE();
+    } else {
+      connectSSE();
+    }
+  });
 
   // Connect on page load
   if (document.readyState === 'loading') {
