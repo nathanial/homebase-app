@@ -85,6 +85,19 @@ structure DbChatAttachment where
   message : EntityId     -- Reference to parent message
   deriving Inhabited
 
+/-- Database entity for Chat message link embeds. -/
+structure DbLinkEmbed where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  url : String           -- Original URL
+  embedType : String     -- "youtube" | "twitter" | "generic"
+  title : String         -- Page/video title
+  description : String   -- Description or tweet text
+  thumbnailUrl : String  -- Image URL for preview
+  authorName : String    -- Author (for Twitter)
+  videoId : String       -- Video ID (for YouTube)
+  message : EntityId     -- Reference to parent message
+  deriving Inhabited
+
 -- ============================================================================
 -- Time Tracking Entity Structures
 -- ============================================================================

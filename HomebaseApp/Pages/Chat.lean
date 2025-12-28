@@ -12,6 +12,7 @@ import HomebaseApp.Entities
 import HomebaseApp.Helpers
 import HomebaseApp.Middleware
 import HomebaseApp.Upload
+import HomebaseApp.Embeds
 
 namespace HomebaseApp.Pages
 
@@ -45,6 +46,7 @@ structure Message where
   timestamp : Nat
   userName : String
   attachments : List Attachment := []
+  embeds : List Embeds.LinkEmbed := []
   deriving Inhabited
 
 structure Thread where
@@ -104,9 +106,25 @@ def getAttachmentsForMessage (db : Db) (messageId : EntityId) : List Attachment 
     | some a => some { id := a.id, fileName := a.fileName, mimeType := a.mimeType, fileSize := a.fileSize, url := s!"/uploads/{a.storedPath}" }
     | none => none
 
+def getEmbedsForMessage (db : Db) (messageId : EntityId) : List Embeds.LinkEmbed :=
+  let embedIds := db.findByAttrValue DbLinkEmbed.attr_message (.ref messageId)
+  embedIds.filterMap fun embedId =>
+    match DbLinkEmbed.pull db embedId with
+    | some e => some {
+        url := e.url
+        embedType := e.embedType
+        title := e.title
+        description := e.description
+        thumbnailUrl := e.thumbnailUrl
+        authorName := e.authorName
+        videoId := e.videoId
+      }
+    | none => none
+
 def toViewMessageWithAttachments (db : Db) (msgId : EntityId) (m : DbChatMessage) : Message :=
   let attachments := getAttachmentsForMessage db msgId
-  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserNameFromDb db m.user, attachments := attachments }
+  let embeds := getEmbedsForMessage db msgId
+  { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserNameFromDb db m.user, attachments := attachments, embeds := embeds }
 
 def toViewMessage (db : Db) (m : DbChatMessage) : Message :=
   { id := m.id, content := m.content, timestamp := m.timestamp, userName := getUserNameFromDb db m.user, attachments := [] }
@@ -142,6 +160,46 @@ def renderAttachment (att : Attachment) : HtmlM Unit := do
       span [class_ "chat-attachment-name"] (text att.fileName)
       span [class_ "chat-attachment-size"] (text (formatFileSize att.fileSize))
 
+/-! ## Embed Rendering -/
+
+def renderYouTubeEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
+  a [href_ embed.url, target_ "_blank", class_ "chat-embed-youtube-link"] do
+    div [class_ "chat-embed-youtube-thumb"] do
+      img [src_ embed.thumbnailUrl, alt_ embed.title]
+      div [class_ "chat-embed-play-icon"] (text "▶")
+    if !embed.title.isEmpty && embed.title != "YouTube Video" then
+      div [class_ "chat-embed-youtube-info"] do
+        div [class_ "chat-embed-title"] (text embed.title)
+
+def renderTwitterEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
+  a [href_ embed.url, target_ "_blank", class_ "chat-embed-twitter-link"] do
+    div [class_ "chat-embed-twitter-header"] do
+      span [class_ "chat-embed-twitter-icon"] (text "𝕏")
+      if !embed.authorName.isEmpty then
+        span [class_ "chat-embed-twitter-author"] (text embed.authorName)
+    if !embed.description.isEmpty then
+      div [class_ "chat-embed-twitter-text"] (text embed.description)
+    -- Show image if available (fxtwitter provides these)
+    if !embed.thumbnailUrl.isEmpty then
+      img [src_ embed.thumbnailUrl, alt_ "", class_ "chat-embed-twitter-image"]
+
+def renderGenericEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
+  a [href_ embed.url, target_ "_blank", class_ "chat-embed-generic-link"] do
+    if !embed.thumbnailUrl.isEmpty then
+      img [src_ embed.thumbnailUrl, alt_ "", class_ "chat-embed-generic-thumb"]
+    div [class_ "chat-embed-generic-info"] do
+      if !embed.title.isEmpty then
+        div [class_ "chat-embed-title"] (text embed.title)
+      if !embed.description.isEmpty then
+        div [class_ "chat-embed-description"] (text embed.description)
+
+def renderEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
+  div [class_ s!"chat-embed chat-embed-{embed.embedType}"] do
+    match embed.embedType with
+    | "youtube" => renderYouTubeEmbed embed
+    | "twitter" => renderTwitterEmbed embed
+    | _ => renderGenericEmbed embed
+
 
 def renderThreadItem (thread : Thread) (isActive : Bool) (now : Nat) : HtmlM Unit := do
   let activeClass := if isActive then " chat-thread-active" else ""
@@ -170,6 +228,12 @@ def renderMessage (msg : Message) (now : Nat) : HtmlM Unit := do
     div [class_ "chat-message-content"] do
       for line in msg.content.splitOn "\n" do
         p [] (text line)
+    -- Render embeds (link previews)
+    if !msg.embeds.isEmpty then
+      div [class_ "chat-embeds"] do
+        for embed in msg.embeds do
+          renderEmbed embed
+    -- Render attachments (uploaded files)
     if !msg.attachments.isEmpty then
       div [class_ "chat-attachments"] do
         for att in msg.attachments do
@@ -477,19 +541,52 @@ action chatAddMessage "/chat/thread/:id/message" POST [HomebaseApp.Middleware.au
       | none => EntityId.null
     | none => EntityId.null
   let now ← getNowMs
-  let (eid, _) ← withNewEntityAudit! fun eid => do
+
+  -- Detect URLs and fetch embed metadata (before transaction)
+  let urls := Embeds.detectUrls content.trim
+  let fetchedEmbeds ← Embeds.fetchEmbedsForUrls urls
+
+  -- Allocate entity ID for the message
+  let msgEid ← match ← allocEntityId with
+    | some eid => pure eid
+    | none => throw (IO.userError "No database connection")
+
+  -- Allocate entity IDs for all embeds upfront
+  let mut embedEids : List EntityId := []
+  for _ in fetchedEmbeds do
+    match ← allocEntityId with
+    | some eid => embedEids := embedEids ++ [eid]
+    | none => throw (IO.userError "No database connection")
+
+  -- Run the audit transaction with pre-allocated IDs
+  runAuditTx! do
     let dbMessage : DbChatMessage := {
-      id := eid.id.toNat
+      id := msgEid.id.toNat
       content := content.trim
       timestamp := now
       thread := ⟨id⟩
       user := userId
     }
-    DbChatMessage.TxM.create eid dbMessage
+    DbChatMessage.TxM.create msgEid dbMessage
     -- Link attachments to this message
     for attId in attachmentIds do
-      DbChatAttachment.TxM.setMessage ⟨attId⟩ eid
-    audit "CREATE" "chat-message" eid.id.toNat [("thread_id", toString id), ("attachment_count", toString attachmentIds.length)]
+      DbChatAttachment.TxM.setMessage ⟨attId⟩ msgEid
+    -- Store embeds for this message (using pre-allocated IDs)
+    for (embed, embedEid) in fetchedEmbeds.zip embedEids do
+      let dbEmbed : DbLinkEmbed := {
+        id := embedEid.id.toNat
+        url := embed.url
+        embedType := embed.embedType
+        title := embed.title
+        description := embed.description
+        thumbnailUrl := embed.thumbnailUrl
+        authorName := embed.authorName
+        videoId := embed.videoId
+        message := msgEid
+      }
+      DbLinkEmbed.TxM.create embedEid dbEmbed
+    audit "CREATE" "chat-message" msgEid.id.toNat [("thread_id", toString id), ("attachment_count", toString attachmentIds.length), ("embed_count", toString fetchedEmbeds.length)]
+  let eid := msgEid
   let ctx ← getCtx
   let (viewUserName, viewAttachments) := match ctx.database with
     | some db =>
@@ -506,6 +603,7 @@ action chatAddMessage "/chat/thread/:id/message" POST [HomebaseApp.Middleware.au
     timestamp := now
     userName := viewUserName
     attachments := viewAttachments
+    embeds := fetchedEmbeds
   }
   let messageId := eid.id.toNat
   let threadId := id
