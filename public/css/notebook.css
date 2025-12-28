@@ -1,8 +1,13 @@
 /* Notebook Styles - Tree Layout */
 
+/* Remove padding from main content area for notebook page */
+.main-content:has(.notebook-container) {
+  padding: 0;
+}
+
 .notebook-container {
   display: flex;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 56px); /* Full height minus navbar */
   gap: 0;
 }
 
@@ -186,6 +191,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: white;
 }
 
@@ -218,6 +224,14 @@
   display: flex;
   flex-direction: column;
   background: white;
+  min-height: 0; /* Allow flex shrinking */
+}
+
+.notebook-editor form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .notebook-editor-header {
@@ -281,11 +295,19 @@
 }
 
 /* Quill Rich Text Editor */
+#quill-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .notebook-editor .ql-toolbar {
   border: none;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   padding: 8px 12px;
+  flex-shrink: 0;
 }
 
 .notebook-editor .ql-container {
@@ -296,6 +318,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .notebook-editor .ql-editor {

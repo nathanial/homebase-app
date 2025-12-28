@@ -11,6 +11,7 @@ import HomebaseApp.Models
 import HomebaseApp.Entities
 import HomebaseApp.Helpers
 import HomebaseApp.Middleware
+import HomebaseApp.Upload
 
 namespace HomebaseApp.Pages
 
@@ -414,5 +415,22 @@ action deleteNote "/notebook/note/:id" DELETE [HomebaseApp.Middleware.authRequir
     let notebookId := note.notebookId
     let _ ← SSE.publishEvent "notebook" "note-deleted" (jsonStr! { noteId, notebookId })
     htmxRedirect s!"/notebook/{note.notebookId}"
+
+-- Upload image for rich text editor
+action notebookUploadImage "/notebook/upload-image" POST [HomebaseApp.Middleware.authRequired] do
+  let ctx ← getCtx
+  match ctx.file "image" with
+  | none => json "{\"error\": \"No file uploaded\"}"
+  | some file =>
+    -- Validate it's an image
+    let contentType := file.contentType.getD "application/octet-stream"
+    if !contentType.startsWith "image/" then
+      json "{\"error\": \"Only images are allowed\"}"
+    else if file.content.size > Upload.maxFileSize then
+      json "{\"error\": \"File too large\"}"
+    else
+      let storedPath ← Upload.storeFile file.content (file.filename.getD "image")
+      let url := s!"/uploads/{storedPath}"
+      json s!"\{\"url\": \"{url}\"}"
 
 end HomebaseApp.Pages

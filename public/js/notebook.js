@@ -35,6 +35,49 @@
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
   }
 
+  // Upload image to server and return URL
+  function uploadImage(file, callback) {
+    var formData = new FormData();
+    formData.append('image', file);
+
+    fetch('/notebook/upload-image', {
+      method: 'POST',
+      body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      if (data.url) {
+        callback(data.url);
+      } else {
+        console.error('Upload failed:', data.error);
+        alert('Image upload failed: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(function(err) {
+      console.error('Upload error:', err);
+      alert('Image upload failed');
+    });
+  }
+
+  // Custom image handler for Quill
+  function imageHandler() {
+    var input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = function() {
+      var file = input.files[0];
+      if (file) {
+        uploadImage(file, function(url) {
+          var range = quillInstance.getSelection(true);
+          quillInstance.insertEmbed(range.index, 'image', url);
+          quillInstance.setSelection(range.index + 1);
+        });
+      }
+    };
+  }
+
   // Initialize Quill rich text editor
   function initQuillEditor(onTextChange) {
     var contentInput = document.getElementById('note-content');
@@ -52,18 +95,23 @@
     editorContainer.id = 'quill-editor';
     contentInput.parentNode.insertBefore(editorContainer, contentInput);
 
-    // Initialize Quill with toolbar
+    // Initialize Quill with toolbar and custom image handler
     quillInstance = new Quill('#quill-editor', {
       theme: 'snow',
       modules: {
-        toolbar: [
-          [{ 'header': [1, 2, 3, false] }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-          ['blockquote', 'code-block'],
-          ['link', 'image'],
-          ['clean']
-        ]
+        toolbar: {
+          container: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            ['blockquote', 'code-block'],
+            ['link', 'image'],
+            ['clean']
+          ],
+          handlers: {
+            image: imageHandler
+          }
+        }
       },
       placeholder: 'Write your note...'
     });
@@ -72,6 +120,28 @@
     if (contentInput.value) {
       quillInstance.root.innerHTML = contentInput.value;
     }
+
+    // Handle paste events to intercept base64 images
+    quillInstance.root.addEventListener('paste', function(e) {
+      var clipboardData = e.clipboardData || window.clipboardData;
+      if (clipboardData && clipboardData.items) {
+        for (var i = 0; i < clipboardData.items.length; i++) {
+          var item = clipboardData.items[i];
+          if (item.type.indexOf('image') !== -1) {
+            e.preventDefault();
+            var file = item.getAsFile();
+            if (file) {
+              uploadImage(file, function(url) {
+                var range = quillInstance.getSelection(true);
+                quillInstance.insertEmbed(range.index, 'image', url);
+                quillInstance.setSelection(range.index + 1);
+              });
+            }
+            return;
+          }
+        }
+      }
+    });
 
     // Sync changes to hidden textarea and trigger autosave
     quillInstance.on('text-change', function() {
