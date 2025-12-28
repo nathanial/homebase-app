@@ -129,45 +129,51 @@ def getNote (ctx : Context) (noteId : Nat) : Option NoteView :=
     | none => none
   | none => none
 
+/-- Get all notes grouped by notebook ID -/
+def getAllNotesGrouped (ctx : Context) (notebooks : List NotebookView) : List (Nat × List NoteView) :=
+  notebooks.map fun nb => (nb.id, getNotesInNotebook ctx nb.id)
+
 /-! ## View Helpers -/
 
 /-- Attribute to clear modal after form submission -/
 def notebookModalClearAttr : Attr :=
   ⟨"hx-on::after-request", "document.getElementById('modal-container').innerHTML = ''"⟩
 
-/-- Render notebook list sidebar -/
-def renderNotebookList (notebooks : List NotebookView) (selectedId : Option Nat) : HtmlM Unit := do
+/-- Render notebook tree with expandable notes -/
+def renderNotebookTree (notebooks : List NotebookView) (notesMap : List (Nat × List NoteView))
+    (selectedNoteId : Option Nat) : HtmlM Unit := do
   div [class_ "notebook-sidebar"] do
     div [class_ "notebook-sidebar-header"] do
       h3 [] (text "Notebooks")
       button [hx_get "/notebook/new", hx_target "#modal-container",
               hx_swap "innerHTML", class_ "btn btn-sm btn-primary"] (text "+")
-    div [class_ "notebook-list"] do
+    div [class_ "notebook-tree"] do
       if notebooks.isEmpty then
         p [class_ "notebook-empty-hint"] (text "No notebooks yet")
       else
         for nb in notebooks do
-          let isSelected := selectedId == some nb.id
-          a [href_ s!"/notebook/{nb.id}",
-             class_ (if isSelected then "notebook-item selected" else "notebook-item")] do
-            span [class_ "notebook-item-title"] (text nb.title)
-            span [class_ "notebook-item-count"] (text (toString nb.noteCount))
-
-/-- Render notes list -/
-def renderNotesList (notes : List NoteView) (now : Nat) (selectedId : Option Nat) : HtmlM Unit := do
-  div [class_ "notebook-notes-list"] do
-    if notes.isEmpty then
-      div [class_ "notebook-notes-empty"] do
-        p [] (text "No notes in this notebook")
-        p [class_ "text-muted"] (text "Create one to get started!")
-    else
-      for note in notes do
-        let isSelected := selectedId == some note.id
-        a [href_ s!"/notebook/note/{note.id}",
-           class_ (if isSelected then "notebook-note-item selected" else "notebook-note-item")] do
-          h4 [class_ "notebook-note-title"] (text note.title)
-          p [class_ "notebook-note-preview"] (text (note.content.take 100))
-          span [class_ "notebook-note-time"] (text (notebookFormatRelativeTime note.updatedAt now))
+          let notes := notesMap.find? (fun p => p.1 == nb.id) |>.map (·.2) |>.getD []
+          -- Expand if contains selected note
+          let isExpanded := selectedNoteId.any (fun selId => notes.any (·.id == selId))
+          div [class_ "notebook-tree-item",
+               attr_ "oncontextmenu" s!"showNotebookContextMenu(event, {nb.id})"] do
+            span [class_ "notebook-tree-toggle",
+                  attr_ "onclick" s!"toggleNotebook({nb.id})"]
+              (text (if isExpanded then "▼" else "▶"))
+            span [class_ "notebook-tree-title"] (text nb.title)
+            button [hx_get s!"/notebook/{nb.id}/note/new", hx_target "#modal-container",
+                    hx_swap "innerHTML", class_ "notebook-tree-add"] (text "+")
+          div [id_ s!"notebook-{nb.id}-notes",
+               class_ (if isExpanded then "notebook-tree-notes" else "notebook-tree-notes collapsed")] do
+            if notes.isEmpty then
+              span [class_ "notebook-tree-empty"] (text "No notes")
+            else
+              for note in notes do
+                let isSelected := selectedNoteId == some note.id
+                a [href_ s!"/notebook/note/{note.id}",
+                   class_ (if isSelected then "notebook-tree-note selected" else "notebook-tree-note"),
+                   attr_ "oncontextmenu" s!"showNoteContextMenu(event, {note.id})"] do
+                  span [class_ "notebook-tree-note-title"] (text note.title)
 
 /-- Render note editor -/
 def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
@@ -177,51 +183,28 @@ def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
       div [class_ "notebook-editor-header"] do
         input [type_ "text", name_ "title", id_ "note-title", value_ note.title,
                class_ "notebook-title-input", placeholder_ "Note title", required_]
-        div [class_ "notebook-editor-actions"] do
-          span [id_ "save-status", class_ "notebook-save-status"] (pure ())
-          button [type_ "button", hx_delete s!"/notebook/note/{note.id}",
-                  hx_confirm "Delete this note?", hx_swap "none",
-                  class_ "btn btn-danger btn-sm"] (text "Delete")
+        span [id_ "save-status", class_ "notebook-save-status"] (pure ())
       textarea [name_ "content", id_ "note-content", class_ "notebook-content-input",
                 placeholder_ "Write your note in markdown...", rows_ 20] note.content
 
-/-- Render empty state when no notebook selected -/
+/-- Render empty state when no note selected -/
 def notebookRenderEmptyState : HtmlM Unit := do
   div [class_ "notebook-empty-state"] do
     div [class_ "notebook-empty-icon"] (text "📓")
-    h2 [] (text "Select a Notebook")
-    p [] (text "Choose a notebook from the sidebar or create a new one")
+    h2 [] (text "Select a Note")
+    p [] (text "Choose a note from the sidebar or create a new one")
 
 /-- Main notebook page content -/
-def notebookPageContent (ctx : Context) (notebooks : List NotebookView) (selectedNotebook : Option NotebookView)
-    (notes : List NoteView) (selectedNote : Option NoteView) (now : Nat) : HtmlM Unit := do
+def notebookPageContent (ctx : Context) (notebooks : List NotebookView)
+    (notesMap : List (Nat × List NoteView)) (selectedNote : Option NoteView) : HtmlM Unit := do
   div [class_ "notebook-container"] do
-    -- Sidebar with notebooks
-    renderNotebookList notebooks (selectedNotebook.map (·.id))
+    -- Tree sidebar with notebooks and notes
+    renderNotebookTree notebooks notesMap (selectedNote.map (·.id))
     -- Main content area
     div [class_ "notebook-main"] do
-      match selectedNotebook with
+      match selectedNote with
+      | some note => renderNoteEditor note ctx
       | none => notebookRenderEmptyState
-      | some nb =>
-        div [class_ "notebook-content"] do
-          -- Notebook header
-          div [class_ "notebook-header"] do
-            h2 [] (text nb.title)
-            div [class_ "notebook-header-actions"] do
-              button [hx_get s!"/notebook/{nb.id}/note/new", hx_target "#modal-container",
-                      hx_swap "innerHTML", class_ "btn btn-primary btn-sm"] (text "+ New Note")
-              button [hx_get s!"/notebook/{nb.id}/edit", hx_target "#modal-container",
-                      hx_swap "innerHTML", class_ "btn btn-secondary btn-sm"] (text "Edit")
-              button [hx_delete s!"/notebook/{nb.id}", hx_confirm "Delete this notebook and all its notes?",
-                      hx_swap "none", class_ "btn btn-danger btn-sm"] (text "Delete")
-          -- Split view: notes list + editor
-          div [class_ "notebook-split"] do
-            renderNotesList notes now (selectedNote.map (·.id))
-            match selectedNote with
-            | some note => renderNoteEditor note ctx
-            | none =>
-              div [class_ "notebook-no-note"] do
-                p [] (text "Select a note to view or edit")
     -- Modal container
     div [id_ "modal-container"] (pure ())
     -- SSE script
@@ -229,13 +212,13 @@ def notebookPageContent (ctx : Context) (notebooks : List NotebookView) (selecte
 
 /-! ## Pages -/
 
--- Main notebook page (no notebook selected)
+-- Main notebook page (no note selected)
 view notebookPage "/notebook" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
   let notebooks := getNotebooks ctx
-  let now ← notebookGetNowMs
+  let notesMap := getAllNotesGrouped ctx notebooks
   html (Shared.render ctx "Notebook - Homebase" "/notebook"
-    (notebookPageContent ctx notebooks none [] none now))
+    (notebookPageContent ctx notebooks notesMap none))
 
 -- New notebook form (modal) - MUST come before /notebook/:id
 view newNotebookForm "/notebook/new" [HomebaseApp.Middleware.authRequired] do
@@ -256,30 +239,28 @@ view newNotebookForm "/notebook/new" [HomebaseApp.Middleware.authRequired] do
                       attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
               button [type_ "submit", class_ "btn btn-primary"] (text "Create"))
 
--- View specific notebook - MUST come after /notebook/new
+-- View specific notebook (redirect to notebook page, notebooks expand via JS)
 view notebookView "/notebook/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   let notebooks := getNotebooks ctx
-  let now ← notebookGetNowMs
+  let notesMap := getAllNotesGrouped ctx notebooks
   match getNotebook ctx id with
   | none => notFound "Notebook not found"
-  | some nb =>
-    let notes := getNotesInNotebook ctx id
-    html (Shared.render ctx s!"{nb.title} - Notebook" "/notebook"
-      (notebookPageContent ctx notebooks (some nb) notes none now))
+  | some _ =>
+    -- No note selected, just show the page with this notebook expanded
+    html (Shared.render ctx "Notebook - Homebase" "/notebook"
+      (notebookPageContent ctx notebooks notesMap none))
 
 -- View specific note
 view noteView "/notebook/note/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   let notebooks := getNotebooks ctx
-  let now ← notebookGetNowMs
+  let notesMap := getAllNotesGrouped ctx notebooks
   match getNote ctx id with
   | none => notFound "Note not found"
   | some note =>
-    let nb := getNotebook ctx note.notebookId
-    let notes := getNotesInNotebook ctx note.notebookId
     html (Shared.render ctx s!"{note.title} - Notebook" "/notebook"
-      (notebookPageContent ctx notebooks nb notes (some note) now))
+      (notebookPageContent ctx notebooks notesMap (some note)))
 
 -- Edit notebook form (modal)
 view editNotebookForm "/notebook/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
