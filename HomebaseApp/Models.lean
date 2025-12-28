@@ -146,6 +146,7 @@ structure DbNote where
   notebook : EntityId    -- Reference to parent notebook
   createdAt : Nat
   updatedAt : Nat
+  version : Nat          -- Optimistic locking version (increments on each save)
   user : EntityId        -- Reference to owner
   deriving Inhabited
 

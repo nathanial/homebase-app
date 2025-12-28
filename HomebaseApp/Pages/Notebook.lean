@@ -45,6 +45,7 @@ structure NoteView where
   notebookId : Nat
   createdAt : Nat
   updatedAt : Nat
+  version : Nat
   deriving Inhabited
 
 /-! ## Helpers -/
@@ -112,7 +113,8 @@ def getNotesInNotebook (ctx : Context) (nbId : Nat) : List NoteView :=
       match DbNote.pull db noteId with
       | some note =>
         some { id := note.id, title := note.title, content := note.content,
-               notebookId := nbId, createdAt := note.createdAt, updatedAt := note.updatedAt }
+               notebookId := nbId, createdAt := note.createdAt, updatedAt := note.updatedAt,
+               version := note.version }
       | none => none
     notes.toArray.qsort (fun a b => a.updatedAt > b.updatedAt) |>.toList  -- newest first
   | none => []
@@ -126,7 +128,7 @@ def getNote (ctx : Context) (noteId : Nat) : Option NoteView :=
     | some note =>
       some { id := note.id, title := note.title, content := note.content,
              notebookId := note.notebook.id.toNat, createdAt := note.createdAt,
-             updatedAt := note.updatedAt }
+             updatedAt := note.updatedAt, version := note.version }
     | none => none
   | none => none
 
@@ -183,6 +185,8 @@ def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
   div [class_ "notebook-editor"] do
     form [attr_ "action" s!"/notebook/note/{note.id}", attr_ "method" "PUT"] do
       csrfField ctx.csrfToken
+      -- Hidden version field for optimistic locking
+      input [type_ "hidden", name_ "version", id_ "note-version", value_ (toString note.version)]
       div [class_ "notebook-editor-header"] do
         input [type_ "text", name_ "title", id_ "note-title", value_ note.title,
                class_ "notebook-title-input", placeholder_ "Note title", required_]
@@ -376,30 +380,50 @@ action createNote "/notebook/:id/note/create" POST [HomebaseApp.Middleware.authR
     let nbEid : EntityId := ⟨id⟩
     let (noteEid, _) ← withNewEntityAudit! fun eid => do
       let note : DbNote := { id := eid.id.toNat, title := title, content := content,
-                             notebook := nbEid, createdAt := now, updatedAt := now, user := userEid }
+                             notebook := nbEid, createdAt := now, updatedAt := now,
+                             version := 1, user := userEid }
       DbNote.TxM.create eid note
       audit "CREATE" "note" eid.id.toNat [("title", title), ("notebook_id", toString id)]
     let notebookId := id
     let _ ← SSE.publishEvent "notebook" "note-created" (jsonStr! { notebookId, title })
     seeOther s!"/notebook/note/{noteEid.id.toNat}"
 
--- Update note
+-- Update note with optimistic locking
 action updateNote "/notebook/note/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   let title := ctx.paramD "title" ""
   let content := ctx.paramD "content" ""
   let saveId := ctx.paramD "saveId" ""
+  let clientVersion := (ctx.paramD "version" "0").toNat?.getD 0
   if title.isEmpty then return ← badRequest "Title is required"
-  let now ← notebookGetNowMs
-  let eid : EntityId := ⟨id⟩
-  runAuditTx! do
-    DbNote.TxM.setTitle eid title
-    DbNote.TxM.setContent eid content
-    DbNote.TxM.setUpdatedAt eid now
-    audit "UPDATE" "note" id [("title", title)]
-  let noteId := id
-  let _ ← SSE.publishEvent "notebook" "note-updated" (jsonStr! { noteId, title, saveId })
-  seeOther s!"/notebook/note/{id}"
+
+  -- Get current note to check version
+  match getNote ctx id with
+  | none => notFound "Note not found"
+  | some currentNote =>
+    -- Check for version conflict
+    if clientVersion != currentNote.version then
+      -- Version mismatch - return conflict with current data
+      let conflict := true
+      let serverVersion := currentNote.version
+      let serverTitle := currentNote.title
+      let serverContent := currentNote.content
+      json (jsonStr! { conflict, serverVersion, serverTitle, serverContent })
+    else
+      -- Version matches - proceed with update
+      let now ← notebookGetNowMs
+      let eid : EntityId := ⟨id⟩
+      let newVersion := currentNote.version + 1
+      runAuditTx! do
+        DbNote.TxM.setTitle eid title
+        DbNote.TxM.setContent eid content
+        DbNote.TxM.setUpdatedAt eid now
+        DbNote.TxM.setVersion eid newVersion
+        audit "UPDATE" "note" id [("title", title), ("version", toString newVersion)]
+      let noteId := id
+      let version := newVersion
+      let _ ← SSE.publishEvent "notebook" "note-updated" (jsonStr! { noteId, title, saveId, version })
+      json (jsonStr! { noteId, version })
 
 -- Delete note
 action deleteNote "/notebook/note/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do

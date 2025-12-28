@@ -342,9 +342,10 @@
 
     var titleInput = document.getElementById('note-title');
     var contentInput = document.getElementById('note-content');
+    var versionInput = document.getElementById('note-version');
     var statusEl = document.getElementById('save-status');
 
-    if (!titleInput || !contentInput || !statusEl) return;
+    if (!titleInput || !contentInput || !statusEl || !versionInput) return;
 
     var lastSavedTitle = titleInput.value;
     var lastSavedContent = contentInput.value;
@@ -384,8 +385,25 @@
       fetch(actionUrl, {
         method: 'PUT',
         body: formData
-      }).then(function(response) {
-        if (response.ok || response.redirected) {
+      })
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
+        if (data.conflict) {
+          // Version conflict detected
+          statusEl.textContent = 'Conflict!';
+          statusEl.className = 'notebook-save-status status-error';
+
+          var msg = 'This note was modified in another tab/window.\n\n' +
+                    'Your changes cannot be saved without overwriting the other changes.\n\n' +
+                    'Click OK to reload with the latest version (your changes will be lost), ' +
+                    'or Cancel to continue editing (you can copy your changes first).';
+
+          if (confirm(msg)) {
+            window.location.reload();
+          }
+        } else if (data.version) {
+          // Success - update version
+          versionInput.value = data.version;
           lastSavedTitle = title;
           lastSavedContent = content;
           statusEl.textContent = 'Saved';
@@ -406,7 +424,7 @@
             }
           }, 2000);
         } else {
-          throw new Error('Save failed');
+          throw new Error('Unexpected response');
         }
       }).catch(function(e) {
         console.error('Autosave error:', e);
