@@ -172,18 +172,17 @@ def renderNotesList (notes : List NoteView) (now : Nat) (selectedId : Option Nat
 /-- Render note editor -/
 def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
   div [class_ "notebook-editor"] do
-    form [hx_put s!"/notebook/note/{note.id}", hx_swap "none",
-          attr_ "hx-on::after-request" "if(event.detail.successful) window.location.reload()"] do
+    form [attr_ "action" s!"/notebook/note/{note.id}", attr_ "method" "PUT"] do
       csrfField ctx.csrfToken
       div [class_ "notebook-editor-header"] do
-        input [type_ "text", name_ "title", value_ note.title,
+        input [type_ "text", name_ "title", id_ "note-title", value_ note.title,
                class_ "notebook-title-input", placeholder_ "Note title", required_]
         div [class_ "notebook-editor-actions"] do
-          button [type_ "submit", class_ "btn btn-primary btn-sm"] (text "Save")
+          span [id_ "save-status", class_ "notebook-save-status"] (pure ())
           button [type_ "button", hx_delete s!"/notebook/note/{note.id}",
                   hx_confirm "Delete this note?", hx_swap "none",
                   class_ "btn btn-danger btn-sm"] (text "Delete")
-      textarea [name_ "content", class_ "notebook-content-input",
+      textarea [name_ "content", id_ "note-content", class_ "notebook-content-input",
                 placeholder_ "Write your note in markdown...", rows_ 20] note.content
 
 /-- Render empty state when no notebook selected -/
@@ -402,6 +401,7 @@ action updateNote "/notebook/note/:id" PUT [HomebaseApp.Middleware.authRequired]
   let ctx ← getCtx
   let title := ctx.paramD "title" ""
   let content := ctx.paramD "content" ""
+  let saveId := ctx.paramD "saveId" ""
   if title.isEmpty then return ← badRequest "Title is required"
   let now ← notebookGetNowMs
   let eid : EntityId := ⟨id⟩
@@ -411,7 +411,7 @@ action updateNote "/notebook/note/:id" PUT [HomebaseApp.Middleware.authRequired]
     DbNote.TxM.setUpdatedAt eid now
     audit "UPDATE" "note" id [("title", title)]
   let noteId := id
-  let _ ← SSE.publishEvent "notebook" "note-updated" (jsonStr! { noteId, title })
+  let _ ← SSE.publishEvent "notebook" "note-updated" (jsonStr! { noteId, title, saveId })
   seeOther s!"/notebook/note/{id}"
 
 -- Delete note

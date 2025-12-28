@@ -303,3 +303,23 @@
     max-height: 200px;
   }
 }
+
+/* Autosave Status Indicator */
+.notebook-save-status {
+  font-size: 12px;
+  padding: 4px 8px;
+  margin-right: 8px;
+  transition: opacity 0.3s ease;
+}
+
+.status-saving {
+  color: #60a5fa;
+}
+
+.status-saved {
+  color: #34d399;
+}
+
+.status-error {
+  color: #f87171;
+}
