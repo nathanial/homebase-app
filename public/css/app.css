@@ -267,6 +267,19 @@ body {
   margin-bottom: 0.75rem;
 }
 
+/* Confirmation Modal */
+.confirm-message {
+  color: var(--color-slate-600);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 /* Forms */
 .form-group {
   margin-bottom: 0.75rem;

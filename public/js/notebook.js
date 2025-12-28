@@ -184,9 +184,9 @@
 
   window.deleteNotebook = function(nbId) {
     hideContextMenu();
-    if (confirm('Delete this notebook and all its notes?')) {
+    showConfirmModal('Delete this notebook and all its notes?', function() {
       htmx.ajax('DELETE', '/notebook/' + nbId, {swap: 'none'});
-    }
+    });
   };
 
   // Context menu for notes
@@ -206,9 +206,9 @@
 
   window.deleteNote = function(noteId) {
     hideContextMenu();
-    if (confirm('Delete this note?')) {
+    showConfirmModal('Delete this note?', function() {
       htmx.ajax('DELETE', '/notebook/note/' + noteId, {swap: 'none'});
-    }
+    });
   };
 
   document.addEventListener('click', hideContextMenu);

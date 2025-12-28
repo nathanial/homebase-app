@@ -102,6 +102,7 @@ def layout (ctx : Context) (pageTitle : String) (currentPath : String) (content 
         -- External scripts
         script [src_ "https://unpkg.com/htmx.org@2.0.4"]
         script [src_ "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"]
+        script [src_ "/js/confirm-modal.js"]
       body [] do
         div [class_ "app-container"] do
           sidebar ctx currentPath
