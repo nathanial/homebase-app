@@ -68,8 +68,8 @@
   // Export for direct use
   window.showConfirmModal = showConfirmModal;
 
-  // Intercept HTMX confirm events
-  document.body.addEventListener('htmx:confirm', function(e) {
+  // Intercept HTMX confirm events (use document, not body, since script loads in head)
+  document.addEventListener('htmx:confirm', function(e) {
     // Only intercept if there's a confirm message
     if (!e.detail.question) return;
 
