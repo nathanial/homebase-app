@@ -254,6 +254,34 @@
   background: var(--color-blue-600);
 }
 
+/* Attach Button */
+.chat-attach-btn {
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--chat-message-border);
+  border-radius: 0.5rem;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--color-slate-500);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.chat-attach-btn:hover {
+  color: var(--color-blue-500);
+  border-color: var(--color-blue-400);
+}
+
+/* Input Container Dragover State */
+.chat-input-container.dragover {
+  background: var(--color-blue-50);
+  border-radius: 0.5rem;
+  box-shadow: inset 0 0 0 2px var(--color-blue-400);
+}
+
+.chat-input-container.dragover .chat-input {
+  border-color: var(--color-blue-400);
+}
+
 /* Empty State */
 .chat-empty-state {
   flex: 1;
@@ -310,45 +338,9 @@
    File Upload Styles
    ============================================================================= */
 
-/* Upload Zone */
-.chat-upload-zone {
-  margin: 0.5rem 1rem;
-  padding: 1rem;
-  border: 2px dashed var(--chat-message-border);
-  border-radius: 0.5rem;
-  background: var(--chat-sidebar-bg);
-  text-align: center;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.chat-upload-zone:hover {
-  border-color: var(--color-blue-400);
-  background: var(--color-blue-50);
-}
-
-.chat-upload-zone.dragover {
-  border-color: var(--color-blue-500);
-  background: var(--color-blue-100);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
-}
-
+/* Hidden file input */
 .chat-file-input {
   display: none;
-}
-
-.chat-upload-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  color: var(--color-slate-600);
-  font-size: 0.875rem;
-}
-
-.chat-upload-icon {
-  font-size: 1.25rem;
 }
 
 /* Upload Preview */

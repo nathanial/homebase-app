@@ -142,21 +142,6 @@ def renderAttachment (att : Attachment) : HtmlM Unit := do
       span [class_ "chat-attachment-name"] (text att.fileName)
       span [class_ "chat-attachment-size"] (text (formatFileSize att.fileSize))
 
-def renderUploadZone (threadId : Nat) : HtmlM Unit := do
-  div [id_ "upload-zone", class_ "chat-upload-zone",
-       attr_ "ondragover" "event.preventDefault(); this.classList.add('dragover')",
-       attr_ "ondragleave" "this.classList.remove('dragover')",
-       attr_ "ondrop" "handleFileDrop(event, this)"] do
-    input [type_ "file", id_ "file-input",
-           class_ "chat-file-input",
-           attr_ "multiple" "true",
-           attr_ "accept" "image/*,.pdf,.txt",
-           attr_ "onchange" "handleFileSelect(this.files)",
-           attr_ "data-thread-id" (toString threadId)]
-    label [for_ "file-input", class_ "chat-upload-label"] do
-      span [class_ "chat-upload-icon"] (text "📁")
-      text "Drop files here or click to upload"
-  div [id_ "upload-preview", class_ "chat-upload-preview"] (pure ())
 
 def renderThreadItem (thread : Thread) (isActive : Bool) (now : Nat) : HtmlM Unit := do
   let activeClass := if isActive then " chat-thread-active" else ""
@@ -191,7 +176,6 @@ def renderMessage (msg : Message) (now : Nat) : HtmlM Unit := do
           renderAttachment att
 
 def renderMessageInput (ctx : Context) (threadId : Nat) : HtmlM Unit := do
-  renderUploadZone threadId
   form [id_ "message-form",
         attr_ "hx-post" s!"/chat/thread/{threadId}/message",
         hx_target "#messages-list",
@@ -199,12 +183,31 @@ def renderMessageInput (ctx : Context) (threadId : Nat) : HtmlM Unit := do
         attr_ "hx-on::after-request" "afterMessageSubmit(this)"] do
     input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
     input [type_ "hidden", name_ "attachments", id_ "attachments-input", value_ ""]
-    div [class_ "chat-input-container"] do
+    -- Hidden file input
+    input [type_ "file", id_ "file-input",
+           class_ "chat-file-input",
+           attr_ "multiple" "true",
+           attr_ "accept" "image/*,.pdf,.txt",
+           attr_ "onchange" "handleFileSelect(this.files)",
+           attr_ "data-thread-id" (toString threadId)]
+    -- Preview area for pending files
+    div [id_ "upload-preview", class_ "chat-upload-preview"] (pure ())
+    -- Input container with drag/drop support
+    div [class_ "chat-input-container",
+         id_ "chat-input-drop-zone",
+         attr_ "ondragover" "handleDragOver(event)",
+         attr_ "ondragleave" "handleDragLeave(event)",
+         attr_ "ondrop" "handleInputDrop(event)"] do
       textarea [name_ "content", id_ "message-content",
                 class_ "chat-input",
-                placeholder_ "Type your message...",
+                placeholder_ "Type a message or drop files here...",
                 rows_ 2,
                 attr_ "onkeydown" "if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitMessageWithAttachments(); }"]
+      -- Attach button
+      button [type_ "button", class_ "chat-attach-btn",
+              attr_ "onclick" "document.getElementById('file-input').click()",
+              title_ "Attach files"]
+        (text "📎")
       button [type_ "submit", class_ "chat-send-btn",
               attr_ "onclick" "event.preventDefault(); submitMessageWithAttachments()"]
         (text "Send")

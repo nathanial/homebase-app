@@ -10,10 +10,31 @@
 // Pending files to upload with the message
 var pendingFiles = [];
 
-// Handle file drop on the upload zone
-function handleFileDrop(event, zone) {
+// Handle drag over the input container
+function handleDragOver(event) {
   event.preventDefault();
-  zone.classList.remove('dragover');
+  event.stopPropagation();
+  var zone = document.getElementById('chat-input-drop-zone');
+  if (zone) zone.classList.add('dragover');
+}
+
+// Handle drag leave
+function handleDragLeave(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  var zone = document.getElementById('chat-input-drop-zone');
+  // Only remove class if leaving the container entirely
+  if (zone && !zone.contains(event.relatedTarget)) {
+    zone.classList.remove('dragover');
+  }
+}
+
+// Handle drop on input container
+function handleInputDrop(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  var zone = document.getElementById('chat-input-drop-zone');
+  if (zone) zone.classList.remove('dragover');
   var files = event.dataTransfer.files;
   handleFileSelect(files);
 }
