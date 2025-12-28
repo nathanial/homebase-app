@@ -10,6 +10,12 @@
 // Pending files to upload with the message
 var pendingFiles = [];
 
+// Track recently submitted message IDs to avoid SSE duplicate handling
+var recentlySubmittedMessageIds = [];
+
+// Track pending submission to handle race condition with SSE
+var pendingSubmissionThreadId = null;
+
 // Handle drag over the input container
 function handleDragOver(event) {
   event.preventDefault();
@@ -175,6 +181,9 @@ async function submitMessageWithAttachments() {
   pendingFiles = [];
   updateUploadPreview();
 
+  // Mark that we're submitting to this thread (to handle SSE race condition)
+  pendingSubmissionThreadId = threadId ? parseInt(threadId, 10) : null;
+
   // Submit the form via HTMX
   htmx.trigger(form, 'submit');
 }
@@ -195,6 +204,28 @@ function afterMessageSubmit(form) {
   }
   pendingFiles = [];
   updateUploadPreview();
+
+  // Find the message ID that was just added (last message in list)
+  var messagesList = document.getElementById('messages-list');
+  if (messagesList) {
+    var messages = messagesList.querySelectorAll('.chat-message');
+    if (messages.length > 0) {
+      var lastMsg = messages[messages.length - 1];
+      var match = lastMsg.id.match(/message-(\d+)/);
+      if (match) {
+        var msgId = parseInt(match[1], 10);
+        recentlySubmittedMessageIds.push(msgId);
+        // Clean up after 5 seconds
+        setTimeout(function() {
+          var idx = recentlySubmittedMessageIds.indexOf(msgId);
+          if (idx > -1) recentlySubmittedMessageIds.splice(idx, 1);
+        }, 5000);
+      }
+    }
+  }
+
+  // Clear pending submission flag
+  pendingSubmissionThreadId = null;
 }
 
 // =============================================================================
@@ -251,6 +282,31 @@ function afterMessageSubmit(form) {
     }, 100);
   }
 
+  function appendMessage(messageId) {
+    console.log('Appending message', messageId);
+    var messagesList = document.getElementById('messages-list');
+    if (!messagesList) return;
+
+    // Check if message already exists (avoid duplicates)
+    if (document.getElementById('message-' + messageId)) {
+      console.log('Message already exists, skipping');
+      return;
+    }
+
+    fetch('/chat/message/' + messageId)
+      .then(function(response) {
+        if (!response.ok) throw new Error('Failed to fetch message');
+        return response.text();
+      })
+      .then(function(html) {
+        messagesList.insertAdjacentHTML('beforeend', html);
+        scrollToBottom();
+      })
+      .catch(function(err) {
+        console.error('Error appending message:', err);
+      });
+  }
+
   function scrollToBottom() {
     var messagesList = document.getElementById('messages-list');
     if (messagesList) {
@@ -283,18 +339,41 @@ function afterMessageSubmit(form) {
       });
     });
 
-    // Message events - refresh messages if viewing that thread
+    // Message events - append new message if viewing that thread
     eventSource.addEventListener('message-added', function(e) {
       console.log('Chat SSE event: message-added', e.data);
       try {
         var data = JSON.parse(e.data);
         var currentThreadId = getCurrentThreadId();
         console.log('Current thread:', currentThreadId, 'Event thread:', data.threadId, 'Match:', currentThreadId === data.threadId);
-        if (data.threadId && currentThreadId === data.threadId) {
-          console.log('Refreshing messages for matching thread');
-          refreshMessages(data.threadId);
+
+        // Skip if this is our own message (we already added it via form response)
+        if (data.messageId && recentlySubmittedMessageIds.indexOf(data.messageId) > -1) {
+          console.log('Skipping own message (already added via form)');
+          refreshThreadList();
+          return;
         }
-        // Refresh thread list after checking (so active class is still there)
+
+        // Skip if we're currently submitting to this thread (race condition handling)
+        if (pendingSubmissionThreadId && data.threadId === pendingSubmissionThreadId) {
+          console.log('Skipping SSE during pending submission');
+          // Record the message ID so we don't process it later either
+          if (data.messageId) {
+            recentlySubmittedMessageIds.push(data.messageId);
+            setTimeout(function() {
+              var idx = recentlySubmittedMessageIds.indexOf(data.messageId);
+              if (idx > -1) recentlySubmittedMessageIds.splice(idx, 1);
+            }, 5000);
+          }
+          refreshThreadList();
+          return;
+        }
+
+        if (data.threadId && currentThreadId === data.threadId && data.messageId) {
+          console.log('Appending new message');
+          appendMessage(data.messageId);
+        }
+        // Refresh thread list to update preview/count
         refreshThreadList();
       } catch (err) {
         console.log('Error parsing message-added event data:', err);
@@ -338,13 +417,17 @@ function afterMessageSubmit(form) {
 
   // Auto-scroll to bottom when new messages are added
   document.body.addEventListener('htmx:afterSwap', function(evt) {
-    if (evt.detail.target.id === 'messages-list') {
-      scrollToBottom();
+    // Scroll after swapping messages list or the entire message area (SSE refresh)
+    if (evt.detail.target.id === 'messages-list' ||
+        evt.detail.target.id === 'chat-messages-area') {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 50);
     }
   });
 
   // Scroll to bottom on initial page load
   document.addEventListener('DOMContentLoaded', function() {
-    scrollToBottom();
+    // Small delay to ensure content is rendered
+    setTimeout(scrollToBottom, 100);
   });
 })();

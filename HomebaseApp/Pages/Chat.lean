@@ -512,6 +512,20 @@ action chatAddMessage "/chat/thread/:id/message" POST [HomebaseApp.Middleware.au
   let _ ← SSE.publishEvent "chat" "message-added" (jsonStr! { messageId, threadId })
   html (HtmlM.render (renderMessage msg now))
 
+-- Get single message (for SSE append)
+view chatGetMessage "/chat/message/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
+  let ctx ← getCtx
+  let now ← getNowMs
+  match ctx.database with
+  | none => notFound "Database not available"
+  | some db =>
+    let msgId : EntityId := ⟨id⟩
+    match DbChatMessage.pull db msgId with
+    | none => notFound "Message not found"
+    | some dbMsg =>
+      let msg := toViewMessageWithAttachments db msgId dbMsg
+      html (HtmlM.render (renderMessage msg now))
+
 -- Search
 view chatSearch "/chat/search" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
