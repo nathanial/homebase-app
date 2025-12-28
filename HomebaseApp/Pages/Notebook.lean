@@ -175,8 +175,10 @@ def renderNotebookTree (notebooks : List NotebookView) (notesMap : List (Nat × 
                    attr_ "oncontextmenu" s!"showNoteContextMenu(event, {note.id})"] do
                   span [class_ "notebook-tree-note-title"] (text note.title)
 
-/-- Render note editor -/
+/-- Render note editor with Quill rich text -/
 def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
+  -- Quill CSS
+  link [rel_ "stylesheet", href_ "https://cdn.quilljs.com/1.3.7/quill.snow.css"]
   div [class_ "notebook-editor"] do
     form [attr_ "action" s!"/notebook/note/{note.id}", attr_ "method" "PUT"] do
       csrfField ctx.csrfToken
@@ -184,8 +186,11 @@ def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
         input [type_ "text", name_ "title", id_ "note-title", value_ note.title,
                class_ "notebook-title-input", placeholder_ "Note title", required_]
         span [id_ "save-status", class_ "notebook-save-status"] (pure ())
+      -- Hidden textarea for form submission, Quill editor container added by JS
       textarea [name_ "content", id_ "note-content", class_ "notebook-content-input",
-                placeholder_ "Write your note in markdown...", rows_ 20] note.content
+                style_ "display:none"] note.content
+  -- Quill JS (must load before notebook.js)
+  script [src_ "https://cdn.quilljs.com/1.3.7/quill.min.js"]
 
 /-- Render empty state when no note selected -/
 def notebookRenderEmptyState : HtmlM Unit := do

@@ -280,6 +280,107 @@
   color: #f87171;
 }
 
+/* Quill Rich Text Editor */
+.notebook-editor .ql-toolbar {
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 8px 12px;
+}
+
+.notebook-editor .ql-container {
+  flex: 1;
+  font-family: inherit;
+  font-size: 14px;
+  border: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.notebook-editor .ql-editor {
+  flex: 1;
+  padding: 16px;
+  line-height: 1.6;
+}
+
+.notebook-editor .ql-editor.ql-blank::before {
+  color: #94a3b8;
+  font-style: normal;
+}
+
+/* Quill content styling */
+.notebook-editor .ql-editor h1 {
+  font-size: 1.75em;
+  margin-bottom: 0.5em;
+}
+
+.notebook-editor .ql-editor h2 {
+  font-size: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.notebook-editor .ql-editor h3 {
+  font-size: 1.25em;
+  margin-bottom: 0.5em;
+}
+
+.notebook-editor .ql-editor blockquote {
+  border-left: 4px solid #e2e8f0;
+  padding-left: 16px;
+  color: #64748b;
+  margin: 1em 0;
+}
+
+.notebook-editor .ql-editor pre.ql-syntax {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.notebook-editor .ql-editor code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+}
+
+.notebook-editor .ql-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* Toolbar button styling */
+.notebook-editor .ql-toolbar button:hover,
+.notebook-editor .ql-toolbar button:focus,
+.notebook-editor .ql-toolbar button.ql-active {
+  color: #3b82f6;
+}
+
+.notebook-editor .ql-toolbar .ql-stroke {
+  stroke: #64748b;
+}
+
+.notebook-editor .ql-toolbar button:hover .ql-stroke,
+.notebook-editor .ql-toolbar button.ql-active .ql-stroke {
+  stroke: #3b82f6;
+}
+
+.notebook-editor .ql-toolbar .ql-fill {
+  fill: #64748b;
+}
+
+.notebook-editor .ql-toolbar button:hover .ql-fill,
+.notebook-editor .ql-toolbar button.ql-active .ql-fill {
+  fill: #3b82f6;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .notebook-sidebar {

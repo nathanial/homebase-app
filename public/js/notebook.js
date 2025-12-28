@@ -15,6 +15,7 @@
   var eventSource = null;
   var refreshPending = false;
   var lastSaveId = null;
+  var quillInstance = null;
 
   // Debounce helper
   function debounce(fn, delay) {
@@ -32,6 +33,53 @@
   // Generate unique save ID
   function generateSaveId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  }
+
+  // Initialize Quill rich text editor
+  function initQuillEditor(onTextChange) {
+    var contentInput = document.getElementById('note-content');
+    if (!contentInput) return null;
+
+    // Clean up previous instance if exists
+    if (quillInstance) {
+      var oldContainer = document.getElementById('quill-editor');
+      if (oldContainer) oldContainer.remove();
+      quillInstance = null;
+    }
+
+    // Create container for Quill
+    var editorContainer = document.createElement('div');
+    editorContainer.id = 'quill-editor';
+    contentInput.parentNode.insertBefore(editorContainer, contentInput);
+
+    // Initialize Quill with toolbar
+    quillInstance = new Quill('#quill-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          ['blockquote', 'code-block'],
+          ['link', 'image'],
+          ['clean']
+        ]
+      },
+      placeholder: 'Write your note...'
+    });
+
+    // Set initial content from hidden textarea
+    if (contentInput.value) {
+      quillInstance.root.innerHTML = contentInput.value;
+    }
+
+    // Sync changes to hidden textarea and trigger autosave
+    quillInstance.on('text-change', function() {
+      contentInput.value = quillInstance.root.innerHTML;
+      if (onTextChange) onTextChange();
+    });
+
+    return quillInstance;
   }
 
   // Context menu for notebooks
@@ -234,7 +282,8 @@
 
     var saveNote = debounce(function() {
       var title = titleInput.value.trim();
-      var content = contentInput.value;
+      // Get content from Quill if available, otherwise from textarea
+      var content = quillInstance ? quillInstance.root.innerHTML : contentInput.value;
 
       // Skip if nothing changed
       if (title === lastSavedTitle && content === lastSavedContent) return;
@@ -247,6 +296,11 @@
       if (fadeTimeout) {
         clearTimeout(fadeTimeout);
         fadeTimeout = null;
+      }
+
+      // Sync Quill content to hidden textarea for FormData
+      if (quillInstance) {
+        contentInput.value = quillInstance.root.innerHTML;
       }
 
       var formData = new FormData(form);
@@ -292,7 +346,9 @@
     }, 1000);
 
     titleInput.addEventListener('input', saveNote);
-    contentInput.addEventListener('input', saveNote);
+
+    // Initialize Quill rich text editor (passes saveNote as callback for text changes)
+    initQuillEditor(saveNote);
 
     console.log('Notebook autosave initialized');
   }
