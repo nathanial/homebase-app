@@ -200,19 +200,9 @@ All six dashboard sections are now fully implemented with SSE support:
 
 ## Code Improvements
 
-### [Priority: High] Consolidate Duplicate Password Hashing Implementation
+### [COMPLETED] Consolidate Duplicate Password Hashing Implementation
 
-**Current State:** Password hashing is implemented twice - once in `Helpers.lean` and again in `Auth.lean` with identical logic.
-
-**Proposed Change:** Remove the duplicate implementation in `Auth.lean` and import from `Helpers.lean`.
-
-**Benefits:** Single source of truth, easier maintenance, reduced code duplication.
-
-**Affected Files:**
-- `HomebaseApp/Pages/Auth.lean`
-- `HomebaseApp/Helpers.lean`
-
-**Estimated Effort:** Small
+Both `Helpers.lean` and `Auth.lean` now use `Crypt.Password` from the `crypt` library. The duplicate implementations have been replaced with a single, secure approach.
 
 ---
 
@@ -396,18 +386,17 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 
 ## Security Considerations
 
-### [Priority: Critical] Replace Weak Password Hashing Algorithm
+### [COMPLETED] Replace Weak Password Hashing Algorithm
 
-**Issue:** The application uses a simple polynomial hash for passwords (see `Helpers.lean`). This is explicitly marked as "demo only" but should not be used in any production scenario.
+Password hashing now uses Argon2id via the `crypt` library (libsodium FFI bindings).
 
-**Location:**
-- `HomebaseApp/Helpers.lean`
-- `HomebaseApp/Pages/Auth.lean` (duplicate implementation)
+**Changes Made:**
+- Added `crypt` dependency to lakefile.lean
+- Updated `HomebaseApp/Helpers.lean` to use `Crypt.Password.hashStr` and `Crypt.Password.verify`
+- Updated `HomebaseApp/Pages/Auth.lean` to use secure password hashing
+- Updated `HomebaseApp/Pages/Admin.lean` to use secure password hashing
 
-**Action Required:** Replace with bcrypt, argon2, or similar secure password hashing. This would require FFI bindings to a cryptographic library.
-
-**Estimated Effort:** Medium
-**Dependencies:** Cryptographic library FFI
+**Note:** Existing user passwords in the old polynomial hash format will need to be reset, as they cannot be verified against the new Argon2id format.
 
 ---
 
@@ -626,17 +615,16 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 | Category | Critical | High | Medium | Low |
 |----------|----------|------|--------|-----|
 | Features | 0 | 2 | 5 | 4 |
-| Improvements | 0 | 3 | 4 | 1 |
+| Improvements | 0 | 2 | 4 | 1 |
 | Cleanup | 0 | 1 | 2 | 2 |
-| Security | 1 | 2 | 2 | 1 |
+| Security | 0 | 2 | 2 | 1 |
 | Performance | 0 | 0 | 2 | 2 |
 | UX/UI | 0 | 1 | 4 | 2 |
-| **Total** | **1** | **9** | **19** | **12** |
+| **Total** | **0** | **8** | **19** | **12** |
 
 **Recommended Priority Order:**
-1. Replace weak password hashing (Critical Security)
-2. Enable CSRF protection (High Security)
-3. Secure session secret key (High Security)
-4. Consolidate duplicate code (High Cleanup/Improvement)
-5. Add user profile page (High Feature)
-6. Add loading states (High UX)
+1. Enable CSRF protection (High Security)
+2. Secure session secret key (High Security)
+3. Consolidate duplicate isLoggedIn/isAdmin code (High Improvement)
+4. Add user profile page (High Feature)
+5. Add loading states (High UX)

@@ -3,6 +3,7 @@
 -/
 import Loom
 import Ledger
+import Crypt
 import HomebaseApp.Models
 
 namespace HomebaseApp.Helpers
@@ -11,31 +12,20 @@ open Loom
 open Ledger
 open HomebaseApp.Models
 
-/-! ## Password Hashing -/
+/-! ## Password Hashing (Argon2id via libsodium) -/
 
-/-- Simple polynomial hash (demo only - use bcrypt/argon2 in production) -/
-private def polyHash (data : ByteArray) : Nat :=
-  let prime : Nat := 31
-  data.foldl (init := 0) fun hash byte =>
-    hash * prime + byte.toNat
+/-- Hash a password using Argon2id for secure storage.
+    Returns an encoded string containing salt and parameters. -/
+def hashPassword (password : String) : IO (Except String String) := do
+  let _ ← Crypt.init
+  match ← Crypt.Password.hashStr password with
+  | .ok hash => return .ok hash
+  | .error e => return .error (toString e)
 
-/-- Convert Nat to hex string -/
-private def toHexString (n : Nat) : String :=
-  let hex := n.toDigits 16
-  String.mk hex
-
-/-- Hash a password with the app secret -/
-def hashPassword (password : String) (secret : ByteArray) : String :=
-  let passBytes := password.toUTF8
-  let combined := secret ++ passBytes
-  let hash1 := polyHash combined
-  let hash1Str := toString hash1
-  let hash2 := polyHash (combined ++ hash1Str.toUTF8)
-  s!"{toHexString hash1}-{toHexString hash2}"
-
-/-- Verify a password against a hash -/
-def verifyPassword (password hash : String) (secret : ByteArray) : Bool :=
-  hashPassword password secret == hash
+/-- Verify a password against a stored Argon2id hash -/
+def verifyPassword (password storedHash : String) : IO Bool := do
+  let _ ← Crypt.init
+  Crypt.Password.verify password storedHash
 
 /-! ## Auth Guards -/
 

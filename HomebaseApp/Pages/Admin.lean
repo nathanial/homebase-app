@@ -206,18 +206,21 @@ action adminStoreUser "/admin/user" POST [HomebaseApp.Middleware.authRequired, H
     modifyCtx fun c => c.withFlash fun f => f.set "error" "Email already registered"
     redirect "/admin/user/new"
   | none =>
-    let ctx ← getCtx
-    let passwordHash := hashPassword password ctx.config.secretKey
-    let isAdminVal := isAdminParam == "on" || isAdminParam == "true"
-    let (_, _) ← withNewEntityAudit! fun eid => do
-      let dbUser : DbUser := {
-        id := eid.id.toNat, email := email, passwordHash := passwordHash,
-        name := name, isAdmin := isAdminVal
-      }
-      DbUser.TxM.create eid dbUser
-      audit "CREATE" "user" eid.id.toNat [("email", email), ("name", name), ("is_admin", toString isAdminVal)]
-    modifyCtx fun c => c.withFlash fun f => f.set "success" s!"User '{name}' created successfully"
-    redirect "/admin"
+    match ← hashPassword password with
+    | .error e =>
+      modifyCtx fun c => c.withFlash fun f => f.set "error" s!"Password hashing failed: {e}"
+      redirect "/admin/user/new"
+    | .ok passwordHash =>
+      let isAdminVal := isAdminParam == "on" || isAdminParam == "true"
+      let (_, _) ← withNewEntityAudit! fun eid => do
+        let dbUser : DbUser := {
+          id := eid.id.toNat, email := email, passwordHash := passwordHash,
+          name := name, isAdmin := isAdminVal
+        }
+        DbUser.TxM.create eid dbUser
+        audit "CREATE" "user" eid.id.toNat [("email", email), ("name", name), ("is_admin", toString isAdminVal)]
+      modifyCtx fun c => c.withFlash fun f => f.set "success" s!"User '{name}' created successfully"
+      redirect "/admin"
 
 -- Edit user form
 view adminEditUser "/admin/user/:id/edit" [HomebaseApp.Middleware.authRequired, HomebaseApp.Middleware.adminRequired] (id : Nat) do
@@ -246,7 +249,14 @@ action adminUpdateUser "/admin/user/:id" PUT [HomebaseApp.Middleware.authRequire
       return ← redirect s!"/admin/user/{id}/edit"
   | none => pure ()
   let isAdminVal := isAdminParam == "on" || isAdminParam == "true"
-  let ctx ← getCtx
+  -- Hash password before transaction (if provided)
+  let passwordHashOpt ← if !password.isEmpty then do
+    match ← hashPassword password with
+    | .error e =>
+      modifyCtx fun c => c.withFlash fun f => f.set "error" s!"Password hashing failed: {e}"
+      return ← redirect s!"/admin/user/{id}/edit"
+    | .ok h => pure (some h)
+  else pure none
   runAuditTx! do
     let db ← AuditTxM.getDb
     let (oldEmail, oldName, oldIsAdmin) := match DbUser.pull db eid with
@@ -255,14 +265,13 @@ action adminUpdateUser "/admin/user/:id" PUT [HomebaseApp.Middleware.authRequire
     DbUser.TxM.setEmail eid email
     DbUser.TxM.setName eid name
     DbUser.TxM.setIsAdmin eid isAdminVal
-    if !password.isEmpty then
-      let passwordHash := hashPassword password ctx.config.secretKey
+    if let some passwordHash := passwordHashOpt then
       DbUser.TxM.setPasswordHash eid passwordHash
     let changes :=
       (if oldEmail != email then [("old_email", oldEmail), ("new_email", email)] else []) ++
       (if oldName != name then [("old_name", oldName), ("new_name", name)] else []) ++
       (if oldIsAdmin != isAdminVal then [("old_is_admin", toString oldIsAdmin), ("new_is_admin", toString isAdminVal)] else []) ++
-      (if !password.isEmpty then [("password_changed", "true")] else [])
+      (if passwordHashOpt.isSome then [("password_changed", "true")] else [])
     audit "UPDATE" "user" id changes
   modifyCtx fun c => c.withFlash fun f => f.set "success" s!"User '{name}' updated successfully"
   redirect "/admin"

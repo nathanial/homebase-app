@@ -4,6 +4,7 @@
 import Scribe
 import Loom
 import Ledger
+import Crypt
 import HomebaseApp.Shared
 import HomebaseApp.Models
 
@@ -17,23 +18,19 @@ open Ledger
 open HomebaseApp.Shared
 open HomebaseApp.Models
 
-/-! ## Password Hashing (copied from Helpers to avoid circular deps) -/
+/-! ## Password Hashing (Argon2id via libsodium) -/
 
-private def polyHash (data : ByteArray) : Nat :=
-  let prime : Nat := 31
-  data.foldl (init := 0) fun hash byte =>
-    hash * prime + byte.toNat
+/-- Hash a password using Argon2id for secure storage -/
+def hashPassword (password : String) : IO (Except String String) := do
+  let _ ← Crypt.init
+  match ← Crypt.Password.hashStr password with
+  | .ok hash => return .ok hash
+  | .error e => return .error (toString e)
 
-private def toHexString (n : Nat) : String :=
-  String.ofList (n.toDigits 16)
-
-def hashPassword (password : String) (secret : ByteArray) : String :=
-  let passBytes := password.toUTF8
-  let combined := secret ++ passBytes
-  let hash1 := polyHash combined
-  let hash1Str := toString hash1
-  let hash2 := polyHash (combined ++ hash1Str.toUTF8)
-  s!"{toHexString hash1}-{toHexString hash2}"
+/-- Verify a password against a stored Argon2id hash -/
+def verifyPassword (password storedHash : String) : IO Bool := do
+  let _ ← Crypt.init
+  Crypt.Password.verify password storedHash
 
 /-! ## User Lookups -/
 
@@ -136,10 +133,10 @@ page loginSubmit "/login" POST do
     redirect "/login"
   | some userId =>
     let storedHash := getAttrString ctx userId userPasswordHash
-    let inputHash := hashPassword password ctx.config.secretKey
     match storedHash with
     | some hash =>
-      if hash == inputHash then
+      let valid ← verifyPassword password hash
+      if valid then
         let userName := (getAttrString ctx userId userName).getD "User"
         let isAdminUser := getAttrBool ctx userId userIsAdmin
         modifyCtx fun c => c.withSession fun s =>
@@ -177,20 +174,23 @@ page registerSubmit "/register" POST do
     redirect "/register"
   | none =>
     let isFirstUser := !hasAnyUsers ctx
-    let ctx ← getCtx
-    let passwordHash := hashPassword password ctx.config.secretKey
-    let (userId, _) ← withNewEntity! fun userId => do
-      Ledger.TxM.addStr userId userName name
-      Ledger.TxM.addStr userId userEmail email
-      Ledger.TxM.addStr userId userPasswordHash passwordHash
-      Ledger.TxM.addBool userId userIsAdmin isFirstUser
-    modifyCtx fun c => c.withSession fun s =>
-      s.set "user_id" (toString userId.id)
-       |>.set "user_name" name
-       |>.set "is_admin" (if isFirstUser then "true" else "false")
-    let adminNote := if isFirstUser then " You have been granted admin privileges." else ""
-    modifyCtx fun c => c.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created.{adminNote}"
-    redirect "/"
+    match ← hashPassword password with
+    | .error e =>
+      modifyCtx fun c => c.withFlash fun f => f.set "error" s!"Password hashing failed: {e}"
+      redirect "/register"
+    | .ok passwordHash =>
+      let (userId, _) ← withNewEntity! fun userId => do
+        Ledger.TxM.addStr userId userName name
+        Ledger.TxM.addStr userId userEmail email
+        Ledger.TxM.addStr userId userPasswordHash passwordHash
+        Ledger.TxM.addBool userId userIsAdmin isFirstUser
+      modifyCtx fun c => c.withSession fun s =>
+        s.set "user_id" (toString userId.id)
+         |>.set "user_name" name
+         |>.set "is_admin" (if isFirstUser then "true" else "false")
+      let adminNote := if isFirstUser then " You have been granted admin privileges." else ""
+      modifyCtx fun c => c.withFlash fun f => f.set "success" s!"Welcome, {name}! Your account has been created.{adminNote}"
+      redirect "/"
 
 page logout "/logout" GET do
   modifyCtx fun c => c.withSession fun s => s.clear

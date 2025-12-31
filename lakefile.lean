@@ -9,6 +9,7 @@ require crucible from git "https://github.com/nathanial/crucible" @ "v0.0.1"
 require chronicle from git "https://github.com/nathanial/chronicle" @ "v0.0.1"
 require staple from git "https://github.com/nathanial/staple" @ "v0.0.1"
 require wisp from git "https://github.com/nathanial/wisp" @ "v0.0.1"
+require crypt from git "https://github.com/nathanial/crypt" @ "v0.0.1"
 
 -- OpenSSL linking (required by citadel's TLS support via loom)
 -- Lake doesn't propagate moreLinkArgs from dependencies, so we must add them here
@@ -25,7 +26,11 @@ def curlLinkArgs : Array String :=
     "-Wl,-rpath,/opt/homebrew/lib",
     "-Wl,-rpath,/usr/local/lib"]
 
-def allLinkArgs : Array String := opensslLinkArgs ++ curlLinkArgs
+-- Sodium linking (required by crypt)
+def sodiumLinkArgs : Array String :=
+  #["-L/opt/homebrew/lib", "-lsodium"]
+
+def allLinkArgs : Array String := opensslLinkArgs ++ curlLinkArgs ++ sodiumLinkArgs
 
 @[default_target]
 lean_lib HomebaseApp where
