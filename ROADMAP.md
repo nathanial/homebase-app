@@ -15,27 +15,16 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 
 ## Feature Proposals
 
-### [Priority: High] Implement Placeholder Dashboard Sections
+### [COMPLETED] Implement Dashboard Sections
 
-**Description:** Six dashboard sections (Notebook, Time, Health, Recipes, Gallery, News) are currently placeholder pages displaying "coming soon" messages.
+All six dashboard sections are now fully implemented with SSE support:
 
-**Rationale:** These sections are prominently featured in the sidebar navigation, but clicking them leads to empty content. Implementing at least basic functionality for these sections would significantly improve the application's utility.
-
-**Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Sections.lean`
-- New files for each section (e.g., `Notebook.lean`, `Time.lean`, etc.)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean` (new entity definitions)
-
-**Suggested Implementations:**
-- **Notebook:** Markdown-based notes with folders/tags
-- **Time:** Time tracking with timers and daily/weekly reports
-- **Health:** Weight, exercise, medication tracking
-- **Recipes:** Recipe storage with ingredients and instructions
-- **Gallery:** Photo/file gallery leveraging existing upload infrastructure
-- **News:** RSS feed reader or link aggregator
-
-**Estimated Effort:** Large (per section: Medium)
-**Dependencies:** None
+- **Notebook:** Markdown notes with notebook organization (`Pages/Notebook.lean`)
+- **Time:** Time tracking with timers and duration reports (`Pages/Time.lean`)
+- **Health:** Weight, exercise, medication, notes tracking (`Pages/Health.lean`)
+- **Recipes:** Recipe storage with ingredients, instructions, categories (`Pages/Recipes.lean`)
+- **Gallery:** Photo/file gallery with upload support (`Pages/Gallery.lean`)
+- **News:** Link aggregator with read/save tracking (`Pages/News.lean`)
 
 ---
 
@@ -46,8 +35,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Users cannot recover access if they forget their password. Email verification would prevent account creation with fake emails.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Auth.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean`
+- `HomebaseApp/Pages/Auth.lean`
+- `HomebaseApp/Models.lean`
 - New email sending infrastructure
 
 **Estimated Effort:** Large
@@ -62,8 +51,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Standard feature for any user-authenticated application. Currently only admins can modify user data.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/` (new `Profile.lean` file)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Shared.lean` (add profile link to navbar)
+- `HomebaseApp/Pages/` (new `Profile.lean` file)
+- `HomebaseApp/Shared.lean` (add profile link to navbar)
 
 **Estimated Effort:** Medium
 **Dependencies:** None
@@ -77,8 +66,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** For a personal dashboard, users may want private boards. For team use, explicit sharing would be valuable.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Models.lean`
+- `HomebaseApp/Pages/Kanban.lean`
 
 **Estimated Effort:** Large
 **Dependencies:** User profile system
@@ -92,8 +81,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** For multi-user scenarios, knowing who is in a conversation and being able to @mention users would improve communication.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean`
+- `HomebaseApp/Models.lean`
+- `HomebaseApp/Pages/Chat.lean`
 
 **Estimated Effort:** Medium
 **Dependencies:** None
@@ -107,9 +96,9 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Due dates are a fundamental feature for task management boards.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean` (add `dueDate` to `DbCard`)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean` (card forms and display)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/kanban.css`
+- `HomebaseApp/Models.lean` (add `dueDate` to `DbCard`)
+- `HomebaseApp/Pages/Kanban.lean` (card forms and display)
+- `public/css/kanban.css`
 
 **Estimated Effort:** Medium
 **Dependencies:** None
@@ -123,8 +112,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Checklists are valuable for breaking down cards into smaller actionable items.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean` (new `DbCardChecklist` entity)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Models.lean` (new `DbCardChecklist` entity)
+- `HomebaseApp/Pages/Kanban.lean`
 
 **Estimated Effort:** Medium
 **Dependencies:** None
@@ -138,8 +127,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Comments allow for conversation and context around tasks.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean` (new `DbCardComment` entity)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Models.lean` (new `DbCardComment` entity)
+- `HomebaseApp/Pages/Kanban.lean`
 
 **Estimated Effort:** Medium
 **Dependencies:** None
@@ -153,10 +142,10 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Many users prefer dark mode, especially for extended use.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/app.css`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/kanban.css`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/chat.css`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Shared.lean` (add theme toggle)
+- `public/css/app.css`
+- `public/css/kanban.css`
+- `public/css/chat.css`
+- `HomebaseApp/Shared.lean` (add theme toggle)
 
 **Estimated Effort:** Medium
 **Dependencies:** User profile/settings page (to persist preference)
@@ -170,9 +159,9 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Attaching files to tasks is useful for documentation and reference.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Models.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
-- Reuse existing upload infrastructure from Chat
+- `HomebaseApp/Models.lean`
+- `HomebaseApp/Pages/Kanban.lean`
+- Reuse existing upload infrastructure from Chat/Gallery
 
 **Estimated Effort:** Medium
 **Dependencies:** None
@@ -186,7 +175,7 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Users and admins may want to see who changed what and when.
 
 **Affected Files:**
-- New page in `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/`
+- New page in `HomebaseApp/Pages/`
 - May need to query Chronicle logs or add a separate audit trail entity
 
 **Estimated Effort:** Medium
@@ -201,8 +190,8 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 **Rationale:** Power users benefit from keyboard navigation (e.g., `n` for new card, `?` for help).
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/kanban.js`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/chat.js`
+- `public/js/kanban.js`
+- `public/js/chat.js`
 
 **Estimated Effort:** Small
 **Dependencies:** None
@@ -213,15 +202,15 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 
 ### [Priority: High] Consolidate Duplicate Password Hashing Implementation
 
-**Current State:** Password hashing is implemented twice - once in `Helpers.lean` (lines 17-38) and again in `Auth.lean` (lines 22-36) with identical logic.
+**Current State:** Password hashing is implemented twice - once in `Helpers.lean` and again in `Auth.lean` with identical logic.
 
-**Proposed Change:** Remove the duplicate implementation in `Auth.lean` and import from `Helpers.lean`. The comment "copied from Helpers to avoid circular deps" suggests a past issue, but the current import structure should allow this.
+**Proposed Change:** Remove the duplicate implementation in `Auth.lean` and import from `Helpers.lean`.
 
 **Benefits:** Single source of truth, easier maintenance, reduced code duplication.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Auth.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Helpers.lean`
+- `HomebaseApp/Pages/Auth.lean`
+- `HomebaseApp/Helpers.lean`
 
 **Estimated Effort:** Small
 
@@ -230,9 +219,9 @@ This document outlines feature opportunities, code improvements, and cleanup tas
 ### [Priority: High] Consolidate Duplicate isLoggedIn and isAdmin Implementations
 
 **Current State:** These helper functions are defined in three places:
-1. `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Helpers.lean` (lines 59-77)
-2. `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Shared.lean` (lines 18-25)
-3. `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Middleware.lean` (lines 11-16)
+1. `HomebaseApp/Helpers.lean`
+2. `HomebaseApp/Shared.lean`
+3. `HomebaseApp/Middleware.lean`
 
 The implementations differ slightly (`Shared.lean` checks session for `is_admin`, while `Helpers.lean` queries the database).
 
@@ -241,9 +230,9 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Benefits:** Consistent behavior, reduced maintenance burden, clearer code.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Helpers.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Shared.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Middleware.lean`
+- `HomebaseApp/Helpers.lean`
+- `HomebaseApp/Shared.lean`
+- `HomebaseApp/Middleware.lean`
 
 **Estimated Effort:** Small
 
@@ -258,8 +247,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Benefits:** Cleaner code, consistent behavior, easier to add features like "remember me" later.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Home.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Sections.lean`
+- `HomebaseApp/Pages/Home.lean`
+- Various section pages
 
 **Estimated Effort:** Small
 
@@ -274,9 +263,9 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Benefits:** Better user experience, easier debugging.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Admin.lean`
+- `HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Pages/Chat.lean`
+- `HomebaseApp/Pages/Admin.lean`
 
 **Estimated Effort:** Medium
 
@@ -291,8 +280,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Benefits:** Better separation of concerns, easier testing, smaller file sizes.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean`
+- `HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Pages/Chat.lean`
 - New `Views/` directory
 
 **Estimated Effort:** Medium
@@ -308,8 +297,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Benefits:** Compile-time safety where possible, consistent error handling.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean`
+- `HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Pages/Chat.lean`
 
 **Estimated Effort:** Medium
 
@@ -324,8 +313,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Benefits:** Protection against brute-force attacks and abuse.
 
 **Affected Files:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Middleware.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Main.lean`
+- `HomebaseApp/Middleware.lean`
+- `HomebaseApp/Main.lean`
 
 **Estimated Effort:** Medium
 **Dependencies:** May require Loom framework changes
@@ -339,7 +328,7 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** The Kanban module contains legacy code for backward compatibility (e.g., `boardContent` function, `kanbanAddColumnForm`, `kanbanCreateColumn` routes).
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean` (lines 271-286, 468-503)
+- `HomebaseApp/Pages/Kanban.lean`
 
 **Action Required:** Verify if legacy routes are still needed. If not, remove them to reduce code size.
 
@@ -352,8 +341,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** Similar helper functions exist for each entity type with slightly different patterns. For example, `getBoard`, `getColumn`, `getCard` in Kanban, and `getChatThread`, `getMessagesForThread` in Chat.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean` (lines 54-157)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean` (lines 66-131)
+- `HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Pages/Chat.lean`
 
 **Action Required:** Consider creating a generic pattern or extracting to a shared module.
 
@@ -366,8 +355,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** Several places use inline JavaScript in HTML attributes (e.g., `attr_ "onclick"`, `attr_ "ondragover"`).
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean` (modal close handlers)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean` (upload zone handlers)
+- `HomebaseApp/Pages/Kanban.lean` (modal close handlers)
+- `HomebaseApp/Pages/Chat.lean` (upload zone handlers)
 
 **Action Required:** Move event handlers to JavaScript files for better separation and CSP compliance.
 
@@ -377,14 +366,15 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 
 ### [Priority: Low] Add Missing Test Coverage
 
-**Issue:** Only Kanban card operations have tests. No tests for:
+**Issue:** Tests exist for Kanban card operations, Time tracking, and EntityPull. Still missing tests for:
 - Authentication flows
 - Chat operations
 - Admin operations
 - Upload functionality
+- Gallery, Notebook, Health, Recipes, News modules
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Tests/`
+- `HomebaseApp/Tests/`
 
 **Action Required:** Add test suites for each major feature area.
 
@@ -408,11 +398,11 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 
 ### [Priority: Critical] Replace Weak Password Hashing Algorithm
 
-**Issue:** The application uses a simple polynomial hash for passwords (see `Helpers.lean` lines 17-34). This is explicitly marked as "demo only" but should not be used in any production scenario.
+**Issue:** The application uses a simple polynomial hash for passwords (see `Helpers.lean`). This is explicitly marked as "demo only" but should not be used in any production scenario.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Helpers.lean` (lines 17-34)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Auth.lean` (lines 22-36)
+- `HomebaseApp/Helpers.lean`
+- `HomebaseApp/Pages/Auth.lean` (duplicate implementation)
 
 **Action Required:** Replace with bcrypt, argon2, or similar secure password hashing. This would require FFI bindings to a cryptographic library.
 
@@ -423,10 +413,10 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 
 ### [Priority: High] Enable CSRF Protection
 
-**Issue:** CSRF protection is explicitly disabled in the configuration (`csrfEnabled := false` in `Main.lean` line 22).
+**Issue:** CSRF protection is explicitly disabled in the configuration (`csrfEnabled := false` in `Main.lean`).
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Main.lean` (line 22)
+- `HomebaseApp/Main.lean`
 
 **Action Required:** Enable CSRF protection. The CSRF token field is already present in forms (`csrfField ctx.csrfToken`), so enabling should work.
 
@@ -436,10 +426,10 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 
 ### [Priority: High] Secure Session Secret Key
 
-**Issue:** The session secret key is hardcoded in source code (`secretKey := "homebase-app-secret-key-min-32-chars!!".toUTF8` in `Main.lean` line 19).
+**Issue:** The session secret key is hardcoded in source code (`secretKey := "homebase-app-secret-key-min-32-chars!!".toUTF8` in `Main.lean`).
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Main.lean` (line 19)
+- `HomebaseApp/Main.lean`
 
 **Action Required:** Load secret key from environment variable or secure configuration file.
 
@@ -452,8 +442,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** Limited validation on form inputs. For example, email format is not validated server-side, password strength is not enforced.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Auth.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Admin.lean`
+- `HomebaseApp/Pages/Auth.lean`
+- `HomebaseApp/Pages/Admin.lean`
 
 **Action Required:** Add server-side validation for email format, password strength, and other user inputs.
 
@@ -466,7 +456,7 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** Sessions appear to have no expiration. Users stay logged in indefinitely.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Main.lean`
+- `HomebaseApp/Main.lean`
 
 **Action Required:** Configure session expiration and implement session renewal on activity.
 
@@ -480,7 +470,7 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** While security headers middleware exists, CSP headers are not configured.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Middleware.lean`
+- `HomebaseApp/Middleware.lean`
 
 **Action Required:** Add appropriate CSP headers, though this may require changes to inline scripts.
 
@@ -495,9 +485,9 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** All list queries (boards, columns, cards, threads, messages) load all results without pagination.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Kanban.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Chat.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Admin.lean`
+- `HomebaseApp/Pages/Kanban.lean`
+- `HomebaseApp/Pages/Chat.lean`
+- `HomebaseApp/Pages/Admin.lean`
 
 **Action Required:** Add pagination for admin user list, chat messages, and potentially large card lists.
 
@@ -510,8 +500,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** SSE events trigger full section reloads even when partial updates would suffice.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/kanban.js` (lines 82-96)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/chat.js` (lines 213-231)
+- `public/js/kanban.js`
+- `public/js/chat.js`
 
 **Action Required:** Use SSE event data to perform targeted DOM updates instead of full HTMX reloads.
 
@@ -537,7 +527,7 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** JavaScript files are served as-is without minification or bundling.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/`
+- `public/js/`
 
 **Action Required:** Add build step to bundle and minify JS (consider esbuild or similar).
 
@@ -552,9 +542,9 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** HTMX operations show no loading indicators. Users don't know if an action is processing.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/app.css`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/kanban.js`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/chat.js`
+- `public/css/app.css`
+- `public/js/kanban.js`
+- `public/js/chat.js`
 
 **Action Required:** Add loading spinners, button disable states, and skeleton loaders.
 
@@ -567,9 +557,9 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** The sidebar-based layout may not work well on mobile devices.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/app.css`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/kanban.css`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/css/chat.css`
+- `public/css/app.css`
+- `public/css/kanban.css`
+- `public/css/chat.css`
 
 **Action Required:** Add responsive breakpoints for tablet and mobile layouts, consider collapsible sidebar.
 
@@ -582,8 +572,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** Flash messages only appear on page load/redirect. HTMX operations don't show feedback.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Shared.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/js/` (new file)
+- `HomebaseApp/Shared.lean`
+- `public/js/` (new file)
 
 **Action Required:** Add a toast notification system for real-time feedback.
 
@@ -596,8 +586,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** Form errors redirect to the same page with flash messages. No inline validation.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Auth.lean`
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Pages/Admin.lean`
+- `HomebaseApp/Pages/Auth.lean`
+- `HomebaseApp/Pages/Admin.lean`
 
 **Action Required:** Add client-side validation and inline error messages.
 
@@ -622,8 +612,8 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 **Issue:** No favicon is configured, and the app is not installable as a PWA.
 
 **Location:**
-- `/Users/Shared/Projects/lean-workspace/homebase-app/public/` (new assets)
-- `/Users/Shared/Projects/lean-workspace/homebase-app/HomebaseApp/Shared.lean` (head section)
+- `public/` (new assets)
+- `HomebaseApp/Shared.lean` (head section)
 
 **Action Required:** Add favicon, web manifest, and service worker for PWA capabilities.
 
@@ -635,19 +625,18 @@ The implementations differ slightly (`Shared.lean` checks session for `is_admin`
 
 | Category | Critical | High | Medium | Low |
 |----------|----------|------|--------|-----|
-| Features | 0 | 3 | 5 | 4 |
+| Features | 0 | 2 | 5 | 4 |
 | Improvements | 0 | 3 | 4 | 1 |
 | Cleanup | 0 | 1 | 2 | 2 |
-| Security | 1 | 3 | 2 | 1 |
+| Security | 1 | 2 | 2 | 1 |
 | Performance | 0 | 0 | 2 | 2 |
 | UX/UI | 0 | 1 | 4 | 2 |
-| **Total** | **1** | **11** | **19** | **12** |
+| **Total** | **1** | **9** | **19** | **12** |
 
 **Recommended Priority Order:**
 1. Replace weak password hashing (Critical Security)
 2. Enable CSRF protection (High Security)
 3. Secure session secret key (High Security)
 4. Consolidate duplicate code (High Cleanup/Improvement)
-5. Implement placeholder sections (High Feature)
-6. Add user profile page (High Feature)
-7. Add loading states (High UX)
+5. Add user profile page (High Feature)
+6. Add loading states (High UX)
