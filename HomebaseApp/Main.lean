@@ -49,7 +49,7 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.sseEndpoint "/events/news" "news"
     |> registerPages
     |>.withPersistentDatabase journalPath
-    |>.withStencil { templateDir := "templates", hotReload := true }
+    |>.withStencil { templateDir := "templates", extension := ".html.hbs", hotReload := true }
 
 /-- Check if there are any admin users. If no admins exist but users do,
     promote all users to admin. This ensures there's always an admin. -/

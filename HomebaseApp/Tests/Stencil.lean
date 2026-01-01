@@ -12,7 +12,7 @@ open Loom.Stencil
 testSuite "Stencil Template Discovery"
 
 test "discover loads kanban partials with correct names" := do
-  let config : Config := { templateDir := "templates", hotReload := false }
+  let config : Config := { templateDir := "templates", extension := ".html.hbs", hotReload := false }
   let manager ← Manager.discover config
 
   -- Print all discovered partials for debugging
@@ -36,7 +36,7 @@ test "discover loads kanban partials with correct names" := do
   shouldSatisfy (columnPartial.isSome || columnNoUnderscore.isSome) "kanban column partial should exist"
 
 test "discover loads chat partials with correct names" := do
-  let config : Config := { templateDir := "templates", hotReload := false }
+  let config : Config := { templateDir := "templates", extension := ".html.hbs", hotReload := false }
   let manager ← Manager.discover config
 
   let threadAreaPartial := manager.getPartial "chat/_thread-area"
@@ -48,7 +48,7 @@ test "discover loads chat partials with correct names" := do
   shouldSatisfy (threadAreaPartial.isSome || threadAreaNoUnderscore.isSome) "chat thread-area partial should exist"
 
 test "list all registered partials" := do
-  let config : Config := { templateDir := "templates", hotReload := false, autoRegisterPartials := true }
+  let config : Config := { templateDir := "templates", extension := ".html.hbs", hotReload := false, autoRegisterPartials := true }
   let manager ← Manager.discover config
 
   IO.println s!"\nTotal partials: {manager.partialCount}"
