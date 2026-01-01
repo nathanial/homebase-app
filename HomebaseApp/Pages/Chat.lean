@@ -271,7 +271,7 @@ view chatThread "/chat/thread/:id" [HomebaseApp.Middleware.authRequired] (id : N
       if ctx.header "HX-Request" == some "true" then
         let data := mergeContext (chatPageData ctx [] (some thread) messages now)
           (.object #[("csrfToken", .string ctx.csrfToken)])
-        Loom.Stencil.ActionM.render "chat/thread-area" data
+        Loom.Stencil.ActionM.renderPartial "chat/_thread-area" data
       else
         let threadData := getThreads ctx
         let threads := threadData.map fun (tid, t) => toViewThread db tid t
