@@ -47,6 +47,7 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.sseEndpoint "/events/health" "health"
     |>.sseEndpoint "/events/recipes" "recipes"
     |>.sseEndpoint "/events/news" "news"
+    |>.sseEndpoint "/events/hot-reload" "hot-reload"
     |> registerPages
     |>.withPersistentDatabase journalPath
     |>.withStencil { templateDir := "templates", extension := ".html.hbs", hotReload := true }
