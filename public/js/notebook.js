@@ -5,6 +5,8 @@
  */
 
 (function() {
+  console.log('Notebook JavaScript started');
+  console.log('Notebook JavaScript loaded');
   // Prevent multiple SSE connections
   if (window._notebookSSEInitialized) {
     console.log('Notebook SSE already initialized, skipping');

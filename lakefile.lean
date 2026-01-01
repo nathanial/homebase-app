@@ -4,12 +4,23 @@ open Lake DSL
 package homebaseApp where
   version := v!"0.1.0"
 
-require loom from git "https://github.com/nathanial/loom" @ "v0.0.5"
+require loom from git "https://github.com/nathanial/loom" @ "v0.0.6"
+-- require loom from "../../web/loom"
+
 require crucible from git "https://github.com/nathanial/crucible" @ "v0.0.1"
+-- require crucible from "../../testing/crucible"
+
 require chronicle from git "https://github.com/nathanial/chronicle" @ "v0.0.1"
+-- require chronicle from "../../web/chronicle"
+
 require staple from git "https://github.com/nathanial/staple" @ "v0.0.2"
+-- require staple from "../../util/staple"
+
 require wisp from git "https://github.com/nathanial/wisp" @ "v0.0.1"
+-- require wisp from "../../network/wisp"
+
 require crypt from git "https://github.com/nathanial/crypt" @ "v0.0.1"
+-- require crypt from "../../util/crypt"
 
 -- OpenSSL linking (required by citadel's TLS support via loom)
 -- Lake doesn't propagate moreLinkArgs from dependencies, so we must add them here
