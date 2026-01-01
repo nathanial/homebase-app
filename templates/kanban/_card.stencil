@@ -1,0 +1,23 @@
+<div id="card-{{id}}" data-card-id="{{id}}" class="kanban-card">
+  <div class="kanban-card-header">
+    <h4 class="kanban-card-title">{{title}}</h4>
+    <div class="kanban-card-actions">
+      <button hx-get="/kanban/card/{{id}}/edit"
+              hx-target="#modal-container" hx-swap="innerHTML"
+              class="btn-icon">e</button>
+      <button hx-delete="/kanban/card/{{id}}"
+              hx-swap="none" hx-confirm="Delete this card?"
+              class="btn-icon btn-icon-danger">x</button>
+    </div>
+  </div>
+  {{#if hasLabels}}
+  <div class="kanban-labels">
+    {{#each labels}}
+    <span class="label {{labelClass}}">{{label}}</span>
+    {{/each}}
+  </div>
+  {{/if}}
+  {{#if hasDescription}}
+  <p class="kanban-card-description">{{description}}</p>
+  {{/if}}
+</div>

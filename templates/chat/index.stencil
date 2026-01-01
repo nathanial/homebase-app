@@ -1,0 +1,55 @@
+<div id="chat-container" class="chat-container">
+  <div class="chat-sidebar">
+    <div class="chat-search">
+      <input type="search" name="q" class="chat-search-input"
+             placeholder="Search messages..."
+             hx-get="/chat/search"
+             hx-trigger="keyup changed delay:300ms"
+             hx-target="#chat-messages-area"
+             hx-swap="innerHTML">
+    </div>
+    <div id="chat-threads" class="chat-threads">
+      <div class="chat-threads-header">
+        <h2>Threads</h2>
+        <button class="btn btn-primary btn-sm"
+                hx-get="/chat/thread/new"
+                hx-target="#modal-container"
+                hx-swap="innerHTML">+ New Thread</button>
+      </div>
+      <div id="threads-list" class="chat-threads-list">
+        {{#each threads}}
+        <div id="thread-{{id}}" class="chat-thread-item{{#if isActive}} chat-thread-active{{/if}}"
+             hx-get="/chat/thread/{{id}}"
+             hx-target="#chat-messages-area"
+             hx-swap="innerHTML"
+             hx-push-url="true">
+          <div class="chat-thread-header">
+            <h4 class="chat-thread-title">{{title}}</h4>
+            <span class="chat-thread-time">{{relativeTime}}</span>
+          </div>
+          {{#if hasLastMessage}}
+          <p class="chat-thread-preview">{{lastMessagePreview}}</p>
+          {{/if}}
+          <div class="chat-thread-meta">
+            <span class="chat-thread-count">{{messageCount}} messages</span>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+  <div id="chat-messages-area" class="chat-main">
+    <div id="chat-main-content">
+      {{#if hasActiveThread}}
+      {{> chat/_thread-area}}
+      {{else}}
+      <div class="chat-empty-state">
+        <div class="text-6xl mb-4">Select a thread</div>
+        <p>Choose a thread from the sidebar or create a new one.</p>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+</div>
+<div id="modal-container"></div>
+<script src="/js/chat.js"></script>

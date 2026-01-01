@@ -1,0 +1,29 @@
+{{#if hasItems}}
+<div class="gallery-grid">
+  {{#each items}}
+  <div id="item-{{id}}" class="gallery-item"
+       hx-get="/gallery/item/{{id}}" hx-target="#modal-container" hx-swap="innerHTML">
+    {{#if isImage}}
+    <div class="gallery-thumbnail">
+      <img src="{{url}}" alt="{{title}}" loading="lazy">
+    </div>
+    {{else}}
+    <div class="gallery-thumbnail gallery-file">
+      <span class="gallery-file-icon">📄</span>
+      <span class="gallery-file-ext">{{extension}}</span>
+    </div>
+    {{/if}}
+    <div class="gallery-item-info">
+      <p class="gallery-item-title">{{displayTitle}}</p>
+      <p class="gallery-item-meta">{{formattedSize}} · {{relativeTime}}</p>
+    </div>
+  </div>
+  {{/each}}
+</div>
+{{else}}
+<div class="gallery-empty">
+  <div class="gallery-empty-icon">🖼️</div>
+  <p>No items in your gallery yet.</p>
+  <p class="text-muted">Upload some photos or files to get started!</p>
+</div>
+{{/if}}

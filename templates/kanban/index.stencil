@@ -1,0 +1,50 @@
+<div class="kanban-wrapper">
+  <aside class="kanban-sidebar">
+    <div class="kanban-sidebar-header">
+      <span class="kanban-sidebar-title">Boards</span>
+      <button hx-get="/kanban/add-board-form"
+              hx-target="#modal-container" hx-swap="innerHTML"
+              class="btn-icon text-muted" title="Add board">+</button>
+    </div>
+    <div class="kanban-sidebar-list">
+      {{#each boards}}
+      <a href="/kanban/board/{{id}}" class="kanban-sidebar-item{{#if isActive}} active{{/if}}">
+        <span class="kanban-sidebar-item-name">{{name}}</span>
+        {{#if isActive}}
+        <div class="kanban-sidebar-item-actions">
+          <button hx-get="/kanban/board/{{id}}/edit"
+                  hx-target="#modal-container" hx-swap="innerHTML"
+                  class="btn-icon" title="Edit board"
+                  onclick="event.preventDefault(); event.stopPropagation();">e</button>
+          <button hx-delete="/kanban/board/{{id}}"
+                  hx-swap="none" hx-confirm="Delete board '{{name}}' and all its columns/cards?"
+                  class="btn-icon btn-icon-danger" title="Delete board"
+                  onclick="event.preventDefault(); event.stopPropagation();">x</button>
+        </div>
+        {{/if}}
+      </a>
+      {{/each}}
+    </div>
+  </aside>
+  <div id="kanban-board" class="kanban-board">
+    <div class="kanban-header">
+      <h1 class="kanban-title">{{activeBoard.name}}</h1>
+      <button hx-get="/kanban/board/{{activeBoard.id}}/add-column-form"
+              hx-target="#modal-container" hx-swap="innerHTML"
+              class="btn-icon text-muted" title="Add column">+</button>
+      <div class="kanban-meta">
+        <span id="sse-status" class="status-indicator">* Live</span>
+        <span class="kanban-count">{{columnCount}} columns</span>
+      </div>
+    </div>
+    <div class="kanban-scroll">
+      <div id="board-columns" class="kanban-columns">
+        {{#each columns}}
+        {{> kanban/_column}}
+        {{/each}}
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modal-container"></div>
+<script src="/js/kanban.js"></script>

@@ -1,0 +1,36 @@
+{{#if hasEntries}}
+<table class="time-entries-table">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Description</th>
+      <th>Category</th>
+      <th>Duration</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each entries}}
+    <tr id="entry-{{id}}" class="time-entry-row">
+      <td class="time-entry-time">{{timeRange}}</td>
+      <td class="time-entry-description">{{description}}</td>
+      <td class="time-entry-category">
+        <span class="time-category {{categoryClass}}">{{category}}</span>
+      </td>
+      <td class="time-entry-duration">{{durationFormatted}}</td>
+      <td class="time-entry-actions">
+        <button hx-get="/time/entry/{{id}}/edit" hx-target="#modal-container"
+                hx-swap="innerHTML" class="btn-icon" title="Edit">e</button>
+        <button hx-delete="/time/entry/{{id}}" hx-swap="none"
+                hx-confirm="Delete this time entry?"
+                class="btn-icon btn-icon-danger" title="Delete">x</button>
+      </td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+{{else}}
+<div class="time-empty">
+  <p>No time entries for today. Start tracking!</p>
+</div>
+{{/if}}

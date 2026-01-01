@@ -5,6 +5,8 @@ import Scribe
 import Loom
 import Loom.SSE
 import Loom.Htmx
+import Loom.Stencil
+import Stencil
 import Ledger
 import HomebaseApp.Shared
 import HomebaseApp.Models
@@ -12,6 +14,7 @@ import HomebaseApp.Entities
 import HomebaseApp.Helpers
 import HomebaseApp.Middleware
 import HomebaseApp.Upload
+import HomebaseApp.StencilHelpers
 
 namespace HomebaseApp.Pages
 
@@ -26,6 +29,7 @@ open HomebaseApp.Shared hiding isLoggedIn isAdmin
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers
+open HomebaseApp.StencilHelpers
 
 /-! ## View Models -/
 
@@ -136,89 +140,50 @@ def getNote (ctx : Context) (noteId : Nat) : Option NoteView :=
 def getAllNotesGrouped (ctx : Context) (notebooks : List NotebookView) : List (Nat × List NoteView) :=
   notebooks.map fun nb => (nb.id, getNotesInNotebook ctx nb.id)
 
-/-! ## View Helpers -/
+/-! ## Stencil Value Helpers -/
 
-/-- Attribute to clear modal after form submission -/
-def notebookModalClearAttr : Attr :=
-  ⟨"hx-on::after-request", "document.getElementById('modal-container').innerHTML = ''"⟩
+/-- Convert a note to Stencil.Value -/
+def noteToValue (note : NoteView) (selectedNoteId : Option Nat) : Stencil.Value :=
+  .object #[
+    ("id", .int (Int.ofNat note.id)),
+    ("title", .string note.title),
+    ("content", .string note.content),
+    ("notebookId", .int (Int.ofNat note.notebookId)),
+    ("version", .int (Int.ofNat note.version)),
+    ("isSelected", .bool (selectedNoteId == some note.id))
+  ]
 
-/-- Render notebook tree with expandable notes -/
-def renderNotebookTree (notebooks : List NotebookView) (notesMap : List (Nat × List NoteView))
-    (selectedNoteId : Option Nat) : HtmlM Unit := do
-  div [class_ "notebook-sidebar"] do
-    div [class_ "notebook-sidebar-header"] do
-      h3 [] (text "Notebooks")
-      button [hx_get "/notebook/new", hx_target "#modal-container",
-              hx_swap "innerHTML", class_ "btn btn-sm btn-primary"] (text "+")
-    div [class_ "notebook-tree"] do
-      if notebooks.isEmpty then
-        p [class_ "notebook-empty-hint"] (text "No notebooks yet")
-      else
-        for nb in notebooks do
-          let notes := notesMap.find? (fun p => p.1 == nb.id) |>.map (·.2) |>.getD []
-          -- Expand if contains selected note
-          let isExpanded := selectedNoteId.any (fun selId => notes.any (·.id == selId))
-          div [class_ "notebook-tree-item",
-               attr_ "oncontextmenu" s!"showNotebookContextMenu(event, {nb.id})"] do
-            span [class_ "notebook-tree-toggle",
-                  attr_ "onclick" s!"toggleNotebook({nb.id})"]
-              (text (if isExpanded then "▼" else "▶"))
-            span [class_ "notebook-tree-title"] (text nb.title)
-            button [hx_get s!"/notebook/{nb.id}/note/new", hx_target "#modal-container",
-                    hx_swap "innerHTML", class_ "notebook-tree-add"] (text "+")
-          div [id_ s!"notebook-{nb.id}-notes",
-               class_ (if isExpanded then "notebook-tree-notes" else "notebook-tree-notes collapsed")] do
-            if notes.isEmpty then
-              span [class_ "notebook-tree-empty"] (text "No notes")
-            else
-              for note in notes do
-                let isSelected := selectedNoteId == some note.id
-                a [href_ s!"/notebook/note/{note.id}",
-                   class_ (if isSelected then "notebook-tree-note selected" else "notebook-tree-note"),
-                   attr_ "oncontextmenu" s!"showNoteContextMenu(event, {note.id})"] do
-                  span [class_ "notebook-tree-note-title"] (text note.title)
+/-- Convert a notebook with its notes to Stencil.Value -/
+def notebookWithNotesToValue (nb : NotebookView) (notes : List NoteView)
+    (selectedNoteId : Option Nat) : Stencil.Value :=
+  let isExpanded := selectedNoteId.any fun selId => notes.any (·.id == selId)
+  .object #[
+    ("id", .int (Int.ofNat nb.id)),
+    ("title", .string nb.title),
+    ("noteCount", .int (Int.ofNat nb.noteCount)),
+    ("hasNotes", .bool (!notes.isEmpty)),
+    ("notes", .array (notes.map (noteToValue · selectedNoteId)).toArray),
+    ("expandIcon", .string (if isExpanded then "▼" else "▶")),
+    ("notesClass", .string (if isExpanded then "notebook-tree-notes" else "notebook-tree-notes collapsed"))
+  ]
 
-/-- Render note editor with Quill rich text -/
-def renderNoteEditor (note : NoteView) (ctx : Context) : HtmlM Unit := do
-  -- Quill CSS
-  link [rel_ "stylesheet", href_ "https://cdn.quilljs.com/1.3.7/quill.snow.css"]
-  div [class_ "notebook-editor"] do
-    form [attr_ "action" s!"/notebook/note/{note.id}", attr_ "method" "PUT"] do
-      csrfField ctx.csrfToken
-      -- Hidden version field for optimistic locking
-      input [type_ "hidden", name_ "version", id_ "note-version", value_ (toString note.version)]
-      div [class_ "notebook-editor-header"] do
-        input [type_ "text", name_ "title", id_ "note-title", value_ note.title,
-               class_ "notebook-title-input", placeholder_ "Note title", required_]
-        span [id_ "save-status", class_ "notebook-save-status"] (pure ())
-      -- Hidden textarea for form submission, Quill editor container added by JS
-      textarea [name_ "content", id_ "note-content", class_ "notebook-content-input",
-                style_ "display:none"] note.content
-  -- Quill JS (must load before notebook.js)
-  script [src_ "https://cdn.quilljs.com/1.3.7/quill.min.js"]
-
-/-- Render empty state when no note selected -/
-def notebookRenderEmptyState : HtmlM Unit := do
-  div [class_ "notebook-empty-state"] do
-    div [class_ "notebook-empty-icon"] (text "📓")
-    h2 [] (text "Select a Note")
-    p [] (text "Choose a note from the sidebar or create a new one")
-
-/-- Main notebook page content -/
-def notebookPageContent (ctx : Context) (notebooks : List NotebookView)
-    (notesMap : List (Nat × List NoteView)) (selectedNote : Option NoteView) : HtmlM Unit := do
-  div [class_ "notebook-container"] do
-    -- Tree sidebar with notebooks and notes
-    renderNotebookTree notebooks notesMap (selectedNote.map (·.id))
-    -- Main content area
-    div [class_ "notebook-main"] do
-      match selectedNote with
-      | some note => renderNoteEditor note ctx
-      | none => notebookRenderEmptyState
-    -- Modal container
-    div [id_ "modal-container"] (pure ())
-    -- SSE script
-    script [src_ "/js/notebook.js"]
+/-- Build notebook page data for Stencil -/
+def notebookPageData (ctx : Context) (notebooks : List NotebookView)
+    (notesMap : List (Nat × List NoteView)) (selectedNote : Option NoteView) : Stencil.Value :=
+  let selectedNoteId := selectedNote.map (·.id)
+  let notebooksWithNotes := notebooks.map fun nb =>
+    let notes := notesMap.find? (fun p => p.1 == nb.id) |>.map (·.2) |>.getD []
+    notebookWithNotesToValue nb notes selectedNoteId
+  let selectedNoteValue := match selectedNote with
+    | some note => noteToValue note selectedNoteId
+    | none => .null
+  .object #[
+    ("hasNotebooks", .bool (!notebooks.isEmpty)),
+    ("notebooks", .array notebooksWithNotes.toArray),
+    ("hasSelectedNote", .bool selectedNote.isSome),
+    ("selectedNote", selectedNoteValue),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
 
 /-! ## Pages -/
 
@@ -227,27 +192,13 @@ view notebookPage "/notebook" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
   let notebooks := getNotebooks ctx
   let notesMap := getAllNotesGrouped ctx notebooks
-  html (Shared.render ctx "Notebook - Homebase" "/notebook"
-    (notebookPageContent ctx notebooks notesMap none))
+  let data := pageContext ctx "Notebook" PageId.notebook (notebookPageData ctx notebooks notesMap none)
+  Loom.Stencil.ActionM.renderWithLayout "app" "notebook/index" data
 
 -- New notebook form (modal) - MUST come before /notebook/:id
 view newNotebookForm "/notebook/new" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-sm"] do
-        h3 [class_ "modal-title"] (text "New Notebook")
-        form [hx_post "/notebook/create", hx_swap "none", notebookModalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "title", class_ "form-label"] (text "Title")
-              input [type_ "text", name_ "title", id_ "title",
-                     class_ "form-input", required_, autofocus_]
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Create"))
+  Loom.Stencil.ActionM.render "notebook/new-notebook" (.object #[("csrfToken", .string ctx.csrfToken)])
 
 -- View specific notebook (redirect to notebook page, notebooks expand via JS)
 view notebookView "/notebook/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -257,9 +208,8 @@ view notebookView "/notebook/:id" [HomebaseApp.Middleware.authRequired] (id : Na
   match getNotebook ctx id with
   | none => notFound "Notebook not found"
   | some _ =>
-    -- No note selected, just show the page with this notebook expanded
-    html (Shared.render ctx "Notebook - Homebase" "/notebook"
-      (notebookPageContent ctx notebooks notesMap none))
+    let data := pageContext ctx "Notebook" PageId.notebook (notebookPageData ctx notebooks notesMap none)
+    Loom.Stencil.ActionM.renderWithLayout "app" "notebook/index" data
 
 -- View specific note
 view noteView "/notebook/note/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -269,8 +219,9 @@ view noteView "/notebook/note/:id" [HomebaseApp.Middleware.authRequired] (id : N
   match getNote ctx id with
   | none => notFound "Note not found"
   | some note =>
-    html (Shared.render ctx s!"{note.title} - Notebook" "/notebook"
-      (notebookPageContent ctx notebooks notesMap (some note)))
+    let data := pageContext ctx s!"{note.title} - Notebook" PageId.notebook
+      (notebookPageData ctx notebooks notesMap (some note))
+    Loom.Stencil.ActionM.renderWithLayout "app" "notebook/index" data
 
 -- Edit notebook form (modal)
 view editNotebookForm "/notebook/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -278,44 +229,21 @@ view editNotebookForm "/notebook/:id/edit" [HomebaseApp.Middleware.authRequired]
   match getNotebook ctx id with
   | none => notFound "Notebook not found"
   | some nb =>
-    html (HtmlM.render do
-      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-        div [class_ "modal-container modal-sm"] do
-          h3 [class_ "modal-title"] (text "Edit Notebook")
-          form [hx_put s!"/notebook/{id}", hx_swap "none", notebookModalClearAttr] do
-            csrfField ctx.csrfToken
-            div [class_ "form-stack"] do
-              div [class_ "form-group"] do
-                label [for_ "title", class_ "form-label"] (text "Title")
-                input [type_ "text", name_ "title", id_ "title",
-                       value_ nb.title, class_ "form-input", required_]
-              div [class_ "form-actions"] do
-                button [type_ "button", class_ "btn btn-secondary",
-                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-                button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
+    let data : Stencil.Value := .object #[
+      ("id", .int (Int.ofNat id)),
+      ("title", .string nb.title),
+      ("csrfToken", .string ctx.csrfToken)
+    ]
+    Loom.Stencil.ActionM.render "notebook/edit-notebook" data
 
 -- New note form (modal)
 view newNoteForm "/notebook/:id/note/new" [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-md"] do
-        h3 [class_ "modal-title"] (text "New Note")
-        form [hx_post s!"/notebook/{id}/note/create", hx_swap "none", notebookModalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "title", class_ "form-label"] (text "Title")
-              input [type_ "text", name_ "title", id_ "title",
-                     class_ "form-input", required_, autofocus_]
-            div [class_ "form-group"] do
-              label [for_ "content", class_ "form-label"] (text "Content")
-              textarea [name_ "content", id_ "content", class_ "form-textarea", rows_ 8,
-                        placeholder_ "Write your note in markdown..."] ""
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Create"))
+  let data : Stencil.Value := .object #[
+    ("notebookId", .int (Int.ofNat id)),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
+  Loom.Stencil.ActionM.render "notebook/new-note" data
 
 /-! ## Actions -/
 

@@ -1,0 +1,21 @@
+<div id="column-{{id}}" class="kanban-column">
+  <div class="kanban-column-header">
+    <h3 class="kanban-column-title">{{name}}</h3>
+    <div class="kanban-column-actions">
+      <button hx-get="/kanban/column/{{id}}/add-card-form"
+              hx-target="#modal-container" hx-swap="innerHTML"
+              class="btn-icon" title="Add card">+</button>
+      <button hx-get="/kanban/column/{{id}}/edit"
+              hx-target="#modal-container" hx-swap="innerHTML"
+              class="btn-icon" title="Edit column">e</button>
+      <button hx-delete="/kanban/column/{{id}}"
+              hx-swap="none" hx-confirm="Delete column '{{name}}' and all its cards?"
+              class="btn-icon btn-icon-danger" title="Delete column">x</button>
+    </div>
+  </div>
+  <div id="column-cards-{{id}}" data-column-id="{{id}}" class="kanban-column-cards sortable-cards">
+    {{#each cards}}
+    {{> kanban/_card}}
+    {{/each}}
+  </div>
+</div>

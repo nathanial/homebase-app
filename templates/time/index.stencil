@@ -1,0 +1,130 @@
+<div class="time-container">
+  <!-- Timer section -->
+  <div class="time-timer-section">
+    {{#if hasActiveTimer}}
+    <div class="time-timer-active">
+      <div class="time-timer-display running">
+        <span id="timer-value" data-start="{{timer.startTime}}">{{timerElapsed}}</span>
+      </div>
+      <div class="time-timer-info">
+        <p class="time-timer-description">{{timer.description}}</p>
+        <span class="time-category {{timer.categoryClass}}">{{timer.category}}</span>
+      </div>
+      <form hx-post="/time/stop" hx-swap="none" class="time-timer-form"
+            hx-on::after-request="if(event.detail.successful) window.location.reload()">
+        <button type="submit" class="btn btn-danger">Stop Timer</button>
+      </form>
+    </div>
+    {{else}}
+    <div class="time-timer-inactive">
+      <div class="time-timer-display">
+        <span id="timer-value">00:00:00</span>
+      </div>
+      <form hx-post="/time/start" hx-swap="none" class="time-timer-form"
+            hx-on::after-request="if(event.detail.successful) window.location.reload()">
+        <div class="form-row">
+          <input type="text" name="description" placeholder="What are you working on?"
+                 class="form-input" required>
+          <select name="category" class="form-select">
+            {{#each categories}}
+            <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </select>
+          <button type="submit" class="btn btn-primary">Start</button>
+        </div>
+      </form>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Today's summary -->
+  <div class="time-today-summary">
+    <div class="time-summary-header">
+      <h2>Today</h2>
+      <span class="time-summary-total">{{totalDuration}}</span>
+    </div>
+    {{#if hasCategorySummary}}
+    <div class="time-summary-bar">
+      {{#each categorySummary}}
+      <div class="time-summary-segment {{categoryClass}}" style="flex-basis: {{percentage}}%"
+           title="{{category}}: {{duration}}"></div>
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Today's entries -->
+  <div class="time-entries-section">
+    <div class="time-entries-header">
+      <h3>Time Entries</h3>
+      <div class="time-entries-actions">
+        <button hx-get="/time/entry/add" hx-target="#modal-container"
+                hx-swap="innerHTML" class="btn btn-secondary btn-sm">+ Manual Entry</button>
+        <a href="/time/week" class="btn btn-secondary btn-sm">Weekly Report</a>
+      </div>
+    </div>
+    <div id="entries-container">
+      {{#if hasEntries}}
+      <table class="time-entries-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th>Duration</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each entries}}
+          <tr id="entry-{{id}}" class="time-entry-row">
+            <td class="time-entry-time">{{timeRange}}</td>
+            <td class="time-entry-description">{{description}}</td>
+            <td class="time-entry-category">
+              <span class="time-category {{categoryClass}}">{{category}}</span>
+            </td>
+            <td class="time-entry-duration">{{durationFormatted}}</td>
+            <td class="time-entry-actions">
+              <button hx-get="/time/entry/{{id}}/edit" hx-target="#modal-container"
+                      hx-swap="innerHTML" class="btn-icon" title="Edit">e</button>
+              <button hx-delete="/time/entry/{{id}}" hx-swap="none"
+                      hx-confirm="Delete this time entry?"
+                      class="btn-icon btn-icon-danger" title="Delete">x</button>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{else}}
+      <div class="time-empty">
+        <p>No time entries for today. Start tracking!</p>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- Timer update script -->
+  <script type="text/javascript">
+    (function() {
+      const timerEl = document.getElementById('timer-value');
+      if (!timerEl || !timerEl.dataset.start) return;
+      const startTime = parseInt(timerEl.dataset.start);
+      function update() {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const h = Math.floor(elapsed / 3600);
+        const m = Math.floor((elapsed % 3600) / 60);
+        const s = elapsed % 60;
+        const pad = n => n.toString().padStart(2, '0');
+        timerEl.textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+      }
+      update();
+      setInterval(update, 1000);
+    })();
+  </script>
+
+  <!-- SSE script -->
+  <script src="/js/time.js"></script>
+</div>

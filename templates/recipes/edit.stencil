@@ -1,0 +1,62 @@
+<div class="recipes-form-container">
+  <div class="recipes-form-header">
+    <a href="/recipes/{{id}}" class="btn btn-secondary btn-sm">Cancel</a>
+    <h1>Edit Recipe</h1>
+  </div>
+  <form action="/recipes/{{id}}" method="POST" class="recipes-form">
+    <input type="hidden" name="_method" value="PUT">
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="form-row">
+      <div class="form-group form-group-wide">
+        <label for="title" class="form-label">Title</label>
+        <input type="text" name="title" id="title" class="form-input"
+               value="{{title}}" required>
+      </div>
+      <div class="form-group">
+        <label for="category" class="form-label">Category</label>
+        <select name="category" id="category" class="form-select">
+          <option value="Breakfast"{{#if isBreakfast}} selected{{/if}}>Breakfast</option>
+          <option value="Lunch"{{#if isLunch}} selected{{/if}}>Lunch</option>
+          <option value="Dinner"{{#if isDinner}} selected{{/if}}>Dinner</option>
+          <option value="Dessert"{{#if isDessert}} selected{{/if}}>Dessert</option>
+          <option value="Snack"{{#if isSnack}} selected{{/if}}>Snack</option>
+          <option value="Beverage"{{#if isBeverage}} selected{{/if}}>Beverage</option>
+          <option value="Other"{{#if isOther}} selected{{/if}}>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="description" class="form-label">Description</label>
+      <textarea name="description" id="description" class="form-textarea" rows="2">{{description}}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="prepTime" class="form-label">Prep Time (minutes)</label>
+        <input type="number" name="prepTime" id="prepTime" class="form-input"
+               value="{{prepTime}}" min="0">
+      </div>
+      <div class="form-group">
+        <label for="cookTime" class="form-label">Cook Time (minutes)</label>
+        <input type="number" name="cookTime" id="cookTime" class="form-input"
+               value="{{cookTime}}" min="0">
+      </div>
+      <div class="form-group">
+        <label for="servings" class="form-label">Servings</label>
+        <input type="number" name="servings" id="servings" class="form-input"
+               value="{{servings}}" min="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="ingredients" class="form-label">Ingredients (one per line)</label>
+      <textarea name="ingredients" id="ingredients" class="form-textarea" rows="8">{{ingredients}}</textarea>
+    </div>
+    <div class="form-group">
+      <label for="instructions" class="form-label">Instructions (one step per line)</label>
+      <textarea name="instructions" id="instructions" class="form-textarea" rows="10">{{instructions}}</textarea>
+    </div>
+    <div class="form-actions">
+      <a href="/recipes/{{id}}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div>

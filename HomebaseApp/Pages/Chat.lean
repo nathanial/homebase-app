@@ -3,6 +3,8 @@
 -/
 import Scribe
 import Loom
+import Loom.Stencil
+import Stencil
 import Ledger
 import Staple
 import Citadel
@@ -13,6 +15,7 @@ import HomebaseApp.Helpers
 import HomebaseApp.Middleware
 import HomebaseApp.Upload
 import HomebaseApp.Embeds
+import HomebaseApp.StencilHelpers
 
 namespace HomebaseApp.Pages
 
@@ -29,6 +32,7 @@ open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers hiding isLoggedIn isAdmin
 open HomebaseApp.Upload
+open HomebaseApp.StencilHelpers
 
 /-! ## View Data Structures -/
 
@@ -148,253 +152,92 @@ def formatFileSize (bytes : Nat) : String :=
   else if bytes < 1024 * 1024 then s!"{bytes / 1024} KB"
   else s!"{bytes / (1024 * 1024)} MB"
 
-/-! ## View Helpers -/
+/-! ## Stencil Value Helpers -/
 
-def renderAttachment (att : Attachment) : HtmlM Unit := do
-  if att.mimeType.startsWith "image/" then
-    a [href_ att.url, target_ "_blank", class_ "chat-attachment-image"] do
-      img [src_ att.url, alt_ att.fileName, class_ "chat-attachment-thumbnail"]
-  else
-    a [href_ att.url, download_ att.fileName, class_ "chat-attachment-file"] do
-      span [class_ "chat-attachment-icon"] (text "📎")
-      span [class_ "chat-attachment-name"] (text att.fileName)
-      span [class_ "chat-attachment-size"] (text (formatFileSize att.fileSize))
+/-- Convert an attachment to Stencil.Value -/
+def attachmentToValue (att : Attachment) : Stencil.Value :=
+  .object #[
+    ("id", .int (Int.ofNat att.id)),
+    ("fileName", .string att.fileName),
+    ("url", .string att.url),
+    ("isImage", .bool (att.mimeType.startsWith "image/")),
+    ("fileSizeFormatted", .string (formatFileSize att.fileSize))
+  ]
 
-/-! ## Embed Rendering -/
+/-- Convert an embed to Stencil.Value -/
+def embedToValue (embed : Embeds.LinkEmbed) : Stencil.Value :=
+  .object #[
+    ("url", .string embed.url),
+    ("embedType", .string embed.embedType),
+    ("title", .string embed.title),
+    ("description", .string embed.description),
+    ("thumbnailUrl", .string embed.thumbnailUrl),
+    ("authorName", .string embed.authorName),
+    ("isYoutube", .bool (embed.embedType == "youtube")),
+    ("isTwitter", .bool (embed.embedType == "twitter")),
+    ("hasTitle", .bool (!embed.title.isEmpty && embed.title != "YouTube Video")),
+    ("hasDescription", .bool (!embed.description.isEmpty)),
+    ("hasThumbnail", .bool (!embed.thumbnailUrl.isEmpty)),
+    ("hasAuthor", .bool (!embed.authorName.isEmpty))
+  ]
 
-def renderYouTubeEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
-  a [href_ embed.url, target_ "_blank", class_ "chat-embed-youtube-link"] do
-    div [class_ "chat-embed-youtube-thumb"] do
-      img [src_ embed.thumbnailUrl, alt_ embed.title]
-      div [class_ "chat-embed-play-icon"] (text "▶")
-    if !embed.title.isEmpty && embed.title != "YouTube Video" then
-      div [class_ "chat-embed-youtube-info"] do
-        div [class_ "chat-embed-title"] (text embed.title)
+/-- Convert a message to Stencil.Value -/
+def messageToValue (msg : Message) (now : Nat) : Stencil.Value :=
+  let contentLines := msg.content.splitOn "\n"
+  .object #[
+    ("id", .int (Int.ofNat msg.id)),
+    ("userName", .string msg.userName),
+    ("relativeTime", .string (formatRelativeTime msg.timestamp now)),
+    ("contentLines", .array (contentLines.map .string).toArray),
+    ("hasEmbeds", .bool (!msg.embeds.isEmpty)),
+    ("embeds", .array (msg.embeds.map embedToValue).toArray),
+    ("hasAttachments", .bool (!msg.attachments.isEmpty)),
+    ("attachments", .array (msg.attachments.map attachmentToValue).toArray)
+  ]
 
-def renderTwitterEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
-  a [href_ embed.url, target_ "_blank", class_ "chat-embed-twitter-link"] do
-    div [class_ "chat-embed-twitter-header"] do
-      span [class_ "chat-embed-twitter-icon"] (text "𝕏")
-      if !embed.authorName.isEmpty then
-        span [class_ "chat-embed-twitter-author"] (text embed.authorName)
-    if !embed.description.isEmpty then
-      div [class_ "chat-embed-twitter-text"] (text embed.description)
-    -- Show image if available (fxtwitter provides these)
-    if !embed.thumbnailUrl.isEmpty then
-      img [src_ embed.thumbnailUrl, alt_ "", class_ "chat-embed-twitter-image"]
+/-- Convert a thread to Stencil.Value -/
+def threadToValue (thread : Thread) (isActive : Bool) (now : Nat) : Stencil.Value :=
+  let preview := match thread.lastMessage with
+    | some p => if p.length > 50 then p.take 50 ++ "..." else p
+    | none => ""
+  .object #[
+    ("id", .int (Int.ofNat thread.id)),
+    ("title", .string thread.title),
+    ("relativeTime", .string (formatRelativeTime thread.createdAt now)),
+    ("messageCount", .int (Int.ofNat thread.messageCount)),
+    ("hasLastMessage", .bool thread.lastMessage.isSome),
+    ("lastMessagePreview", .string preview),
+    ("isActive", .bool isActive)
+  ]
 
-def renderGenericEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
-  a [href_ embed.url, target_ "_blank", class_ "chat-embed-generic-link"] do
-    if !embed.thumbnailUrl.isEmpty then
-      img [src_ embed.thumbnailUrl, alt_ "", class_ "chat-embed-generic-thumb"]
-    div [class_ "chat-embed-generic-info"] do
-      if !embed.title.isEmpty then
-        div [class_ "chat-embed-title"] (text embed.title)
-      if !embed.description.isEmpty then
-        div [class_ "chat-embed-description"] (text embed.description)
+/-- Build chat page data for Stencil -/
+def chatPageData (ctx : Context) (threads : List Thread) (activeThread : Option Thread)
+    (messages : List Message) (now : Nat) : Stencil.Value :=
+  let activeId := activeThread.map (·.id)
+  .object #[
+    ("threads", .array (threads.map fun t => threadToValue t (activeId == some t.id) now).toArray),
+    ("hasActiveThread", .bool activeThread.isSome),
+    ("activeThread", match activeThread with
+      | some t => threadToValue t true now
+      | none => .null),
+    ("messages", .array (messages.map (messageToValue · now)).toArray),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
 
-def renderEmbed (embed : Embeds.LinkEmbed) : HtmlM Unit := do
-  div [class_ s!"chat-embed chat-embed-{embed.embedType}"] do
-    match embed.embedType with
-    | "youtube" => renderYouTubeEmbed embed
-    | "twitter" => renderTwitterEmbed embed
-    | _ => renderGenericEmbed embed
+/-- Convert a search result to Stencil.Value -/
+def searchResultToValue (thread : Thread) (msg : Message) (now : Nat) : Stencil.Value :=
+  .object #[
+    ("thread", threadToValue thread false now),
+    ("message", messageToValue msg now)
+  ]
 
-
-def renderThreadItem (thread : Thread) (isActive : Bool) (now : Nat) : HtmlM Unit := do
-  let activeClass := if isActive then " chat-thread-active" else ""
-  div [id_ s!"thread-{thread.id}",
-       class_ s!"chat-thread-item{activeClass}",
-       attr_ "hx-get" s!"/chat/thread/{thread.id}",
-       hx_target "#chat-messages-area",
-       hx_swap "innerHTML",
-       attr_ "hx-push-url" "true"] do
-    div [class_ "chat-thread-header"] do
-      h4 [class_ "chat-thread-title"] (text thread.title)
-      span [class_ "chat-thread-time"] (text (formatRelativeTime thread.createdAt now))
-    match thread.lastMessage with
-    | some preview =>
-      let truncated := if preview.length > 50 then preview.take 50 ++ "..." else preview
-      p [class_ "chat-thread-preview"] (text truncated)
-    | none => pure ()
-    div [class_ "chat-thread-meta"] do
-      span [class_ "chat-thread-count"] (text s!"{thread.messageCount} messages")
-
-def renderMessage (msg : Message) (now : Nat) : HtmlM Unit := do
-  div [id_ s!"message-{msg.id}", class_ "chat-message"] do
-    div [class_ "chat-message-header"] do
-      span [class_ "chat-message-author"] (text msg.userName)
-      span [class_ "chat-message-time"] (text (formatRelativeTime msg.timestamp now))
-    div [class_ "chat-message-content"] do
-      for line in msg.content.splitOn "\n" do
-        p [] (text line)
-    -- Render embeds (link previews)
-    if !msg.embeds.isEmpty then
-      div [class_ "chat-embeds"] do
-        for embed in msg.embeds do
-          renderEmbed embed
-    -- Render attachments (uploaded files)
-    if !msg.attachments.isEmpty then
-      div [class_ "chat-attachments"] do
-        for att in msg.attachments do
-          renderAttachment att
-
-def renderMessageInput (ctx : Context) (threadId : Nat) : HtmlM Unit := do
-  form [id_ "message-form",
-        attr_ "hx-post" s!"/chat/thread/{threadId}/message",
-        hx_target "#messages-list",
-        hx_swap "beforeend",
-        attr_ "hx-on::after-request" "afterMessageSubmit(this)"] do
-    input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-    input [type_ "hidden", name_ "attachments", id_ "attachments-input", value_ ""]
-    -- Hidden file input
-    input [type_ "file", id_ "file-input",
-           class_ "chat-file-input",
-           attr_ "multiple" "true",
-           attr_ "accept" "image/*,.pdf,.txt",
-           attr_ "onchange" "handleFileSelect(this.files)",
-           attr_ "data-thread-id" (toString threadId)]
-    -- Preview area for pending files
-    div [id_ "upload-preview", class_ "chat-upload-preview"] (pure ())
-    -- Input container with drag/drop support
-    div [class_ "chat-input-container",
-         id_ "chat-input-drop-zone",
-         attr_ "ondragover" "handleDragOver(event)",
-         attr_ "ondragleave" "handleDragLeave(event)",
-         attr_ "ondrop" "handleInputDrop(event)"] do
-      textarea [name_ "content", id_ "message-content",
-                class_ "chat-input",
-                placeholder_ "Type a message or drop files here...",
-                rows_ 2,
-                attr_ "onkeydown" "if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitMessageWithAttachments(); }"]
-      -- Attach button
-      button [type_ "button", class_ "chat-attach-btn",
-              attr_ "onclick" "document.getElementById('file-input').click()",
-              title_ "Attach files"]
-        (text "📎")
-      button [type_ "submit", class_ "chat-send-btn",
-              attr_ "onclick" "event.preventDefault(); submitMessageWithAttachments()"]
-        (text "Send")
-
-def renderThreadList (threads : List Thread) (activeThreadId : Option Nat) (now : Nat) : HtmlM Unit := do
-  div [id_ "chat-threads", class_ "chat-threads"] do
-    div [class_ "chat-threads-header"] do
-      h2 [] (text "Threads")
-      button [class_ "btn btn-primary btn-sm",
-              attr_ "hx-get" "/chat/thread/new",
-              hx_target "#modal-container",
-              hx_swap "innerHTML"]
-        (text "+ New Thread")
-    div [id_ "threads-list", class_ "chat-threads-list"] do
-      for thread in threads do
-        renderThreadItem thread (activeThreadId == some thread.id) now
-
-def renderMessageArea (ctx : Context) (thread : Thread) (messages : List Message) (now : Nat) : HtmlM Unit := do
-  div [class_ "chat-message-area"] do
-    div [class_ "chat-message-header-bar"] do
-      h2 [class_ "chat-current-title"] (text thread.title)
-      div [class_ "chat-message-actions"] do
-        button [class_ "btn-icon",
-                attr_ "hx-get" s!"/chat/thread/{thread.id}/edit",
-                hx_target "#modal-container",
-                hx_swap "innerHTML"]
-          (text "Edit")
-        button [class_ "btn-icon btn-icon-danger",
-                attr_ "hx-delete" s!"/chat/thread/{thread.id}",
-                hx_target "#chat-container",
-                hx_swap "innerHTML",
-                hx_confirm s!"Delete thread '{thread.title}' and all its messages?"]
-          (text "Delete")
-    div [id_ "messages-list", class_ "chat-messages-list"] do
-      for msg in messages do
-        renderMessage msg now
-    renderMessageInput ctx thread.id
-
-def renderEmptyState : HtmlM Unit := do
-  div [class_ "chat-empty-state"] do
-    div [class_ "text-6xl mb-4"] (text "Select a thread")
-    p [] (text "Choose a thread from the sidebar or create a new one.")
-
-def renderNewThreadForm (ctx : Context) : HtmlM Unit := do
-  div [class_ "modal-overlay",
-       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "modal-container modal-sm"] do
-      h3 [class_ "modal-title"] (text "New Thread")
-      form [attr_ "hx-post" "/chat/thread",
-            hx_target "#threads-list",
-            hx_swap "afterbegin",
-            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
-        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "title", class_ "form-label"] (text "Thread Title")
-            input [type_ "text", name_ "title", id_ "title",
-                   class_ "form-input", placeholder_ "Enter thread title", required_, autofocus_]
-          div [class_ "form-actions"] do
-            button [type_ "button", class_ "btn btn-secondary",
-                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
-              (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"]
-              (text "Create Thread")
-
-def renderEditThreadForm (ctx : Context) (thread : Thread) : HtmlM Unit := do
-  div [class_ "modal-overlay",
-       attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-    div [class_ "modal-container modal-sm"] do
-      h3 [class_ "modal-title"] (text "Edit Thread")
-      form [attr_ "hx-put" s!"/chat/thread/{thread.id}",
-            hx_target s!"#thread-{thread.id}",
-            hx_swap "outerHTML",
-            attr_ "hx-on::after-request" "document.getElementById('modal-container').innerHTML = ''"] do
-        input [type_ "hidden", name_ "_csrf", value_ ctx.csrfToken]
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "title", class_ "form-label"] (text "Thread Title")
-            input [type_ "text", name_ "title", id_ "title", value_ thread.title,
-                   class_ "form-input", placeholder_ "Enter thread title", required_, autofocus_]
-          div [class_ "form-actions"] do
-            button [type_ "button", class_ "btn btn-secondary",
-                    attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"]
-              (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"]
-              (text "Save Changes")
-
-def renderSearchResults (query : String) (results : List (Thread × Message)) (now : Nat) : HtmlM Unit := do
-  div [class_ "chat-search-results"] do
-    h3 [] (text s!"Search results for \"{query}\"")
-    if results.isEmpty then
-      p [class_ "text-slate-500"] (text "No messages found.")
-    else
-      for (thread, msg) in results do
-        div [class_ "chat-search-result",
-             attr_ "hx-get" s!"/chat/thread/{thread.id}",
-             hx_target "#chat-messages-area",
-             hx_swap "innerHTML"] do
-          div [class_ "chat-search-thread"] (text s!"in {thread.title}")
-          renderMessage msg now
-
-def chatContent (ctx : Context) (threads : List Thread) (activeThread : Option Thread)
-    (messages : List Message) (now : Nat) : HtmlM Unit := do
-  div [id_ "chat-container", class_ "chat-container"] do
-    div [class_ "chat-sidebar"] do
-      div [class_ "chat-search"] do
-        input [type_ "search",
-               name_ "q",
-               class_ "chat-search-input",
-               placeholder_ "Search messages...",
-               attr_ "hx-get" "/chat/search",
-               attr_ "hx-trigger" "keyup changed delay:300ms",
-               hx_target "#chat-messages-area",
-               hx_swap "innerHTML"]
-      renderThreadList threads (activeThread.map (·.id)) now
-    div [id_ "chat-messages-area", class_ "chat-main"] do
-      div [id_ "chat-main-content"] do
-        match activeThread with
-        | some thread => renderMessageArea ctx thread messages now
-        | none => renderEmptyState
-  div [id_ "modal-container"] do
-    pure ()
-  script [src_ "/js/chat.js"]
+/-- Build search results data for Stencil -/
+def searchResultsData (query : String) (results : List (Thread × Message)) (now : Nat) : Stencil.Value :=
+  .object #[
+    ("query", .string query),
+    ("hasResults", .bool (!results.isEmpty)),
+    ("results", .array (results.map fun (t, m) => searchResultToValue t m now).toArray)
+  ]
 
 /-! ## Pages -/
 
@@ -404,17 +247,13 @@ view chat "/chat" [HomebaseApp.Middleware.authRequired] do
   let now ← getNowMs
   match ctx.database with
   | none =>
-    if ctx.header "HX-Request" == some "true" then
-      html (HtmlM.render (renderThreadList [] none now))
-    else
-      html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx [] none [] now))
+    let data := pageContext ctx "Chat" PageId.chat (chatPageData ctx [] none [] now)
+    Loom.Stencil.ActionM.renderWithLayout "app" "chat/index" data
   | some db =>
     let threadData := getThreads ctx
     let threads := threadData.map fun (tid, t) => toViewThread db tid t
-    if ctx.header "HX-Request" == some "true" then
-      html (HtmlM.render (renderThreadList threads none now))
-    else
-      html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx threads none [] now))
+    let data := pageContext ctx "Chat" PageId.chat (chatPageData ctx threads none [] now)
+    Loom.Stencil.ActionM.renderWithLayout "app" "chat/index" data
 
 -- View thread
 view chatThread "/chat/thread/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -430,16 +269,19 @@ view chatThread "/chat/thread/:id" [HomebaseApp.Middleware.authRequired] (id : N
       let messageData := getMessagesForThread db ⟨id⟩
       let messages := messageData.map fun (mid, m) => toViewMessageWithAttachments db mid m
       if ctx.header "HX-Request" == some "true" then
-        html (HtmlM.render (renderMessageArea ctx thread messages now))
+        let data := mergeContext (chatPageData ctx [] (some thread) messages now)
+          (.object #[("csrfToken", .string ctx.csrfToken)])
+        Loom.Stencil.ActionM.render "chat/thread-area" data
       else
         let threadData := getThreads ctx
         let threads := threadData.map fun (tid, t) => toViewThread db tid t
-        html (Shared.render ctx "Chat - Homebase" "/chat" (chatContent ctx threads (some thread) messages now))
+        let data := pageContext ctx "Chat" PageId.chat (chatPageData ctx threads (some thread) messages now)
+        Loom.Stencil.ActionM.renderWithLayout "app" "chat/index" data
 
 -- New thread form
 view chatNewThreadForm "/chat/thread/new" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  html (HtmlM.render (renderNewThreadForm ctx))
+  Loom.Stencil.ActionM.render "chat/new" (.object #[("csrfToken", .string ctx.csrfToken)])
 
 -- Create thread
 action chatCreateThread "/chat/thread" POST [HomebaseApp.Middleware.authRequired] do
@@ -455,7 +297,7 @@ action chatCreateThread "/chat/thread" POST [HomebaseApp.Middleware.authRequired
   let thread : Thread := { id := eid.id.toNat, title := title, createdAt := now, messageCount := 0, lastMessage := none }
   let threadId := eid.id.toNat
   let _ ← SSE.publishEvent "chat" "thread-created" (jsonStr! { threadId, title })
-  html (HtmlM.render (renderThreadItem thread false now))
+  Loom.Stencil.ActionM.render "chat/thread-item" (threadToValue thread false now)
 
 -- Edit thread form
 view chatEditThreadForm "/chat/thread/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -467,7 +309,12 @@ view chatEditThreadForm "/chat/thread/:id/edit" [HomebaseApp.Middleware.authRequ
     | none => notFound "Thread not found"
     | some dbThread =>
       let thread := toViewThread db ⟨id⟩ dbThread
-      html (HtmlM.render (renderEditThreadForm ctx thread))
+      let data : Stencil.Value := .object #[
+        ("id", .int (Int.ofNat id)),
+        ("title", .string thread.title),
+        ("csrfToken", .string ctx.csrfToken)
+      ]
+      Loom.Stencil.ActionM.render "chat/edit" data
 
 -- Update thread
 action chatUpdateThread "/chat/thread/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -494,7 +341,7 @@ action chatUpdateThread "/chat/thread/:id" PUT [HomebaseApp.Middleware.authRequi
       let thread := toViewThread db eid dbThread
       let threadId := id
       let _ ← SSE.publishEvent "chat" "thread-updated" (jsonStr! { threadId, title })
-      html (HtmlM.render (renderThreadItem thread false now))
+      Loom.Stencil.ActionM.render "chat/thread-item" (threadToValue thread false now)
 
 -- Delete thread
 action chatDeleteThread "/chat/thread/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -524,7 +371,7 @@ action chatDeleteThread "/chat/thread/:id" DELETE [HomebaseApp.Middleware.authRe
     audit "DELETE" "chat-thread" id [("title", threadTitle), ("message_count", toString msgCount)]
   let threadId := id
   let _ ← SSE.publishEvent "chat" "thread-deleted" (jsonStr! { threadId })
-  html (HtmlM.render renderEmptyState)
+  Loom.Stencil.ActionM.render "chat/empty" (.object #[])
 
 -- Add message
 action chatAddMessage "/chat/thread/:id/message" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -608,7 +455,7 @@ action chatAddMessage "/chat/thread/:id/message" POST [HomebaseApp.Middleware.au
   let messageId := eid.id.toNat
   let threadId := id
   let _ ← SSE.publishEvent "chat" "message-added" (jsonStr! { messageId, threadId })
-  html (HtmlM.render (renderMessage msg now))
+  Loom.Stencil.ActionM.render "chat/message" (messageToValue msg now)
 
 -- Get single message (for SSE append)
 view chatGetMessage "/chat/message/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -622,7 +469,7 @@ view chatGetMessage "/chat/message/:id" [HomebaseApp.Middleware.authRequired] (i
     | none => notFound "Message not found"
     | some dbMsg =>
       let msg := toViewMessageWithAttachments db msgId dbMsg
-      html (HtmlM.render (renderMessage msg now))
+      Loom.Stencil.ActionM.render "chat/message" (messageToValue msg now)
 
 -- Search
 view chatSearch "/chat/search" [HomebaseApp.Middleware.authRequired] do
@@ -649,7 +496,7 @@ view chatSearch "/chat/search" [HomebaseApp.Middleware.authRequired] do
         else none
       | none => none
     let sortedResults := results.toArray.qsort (fun a b => a.2.timestamp > b.2.timestamp) |>.toList
-    html (HtmlM.render (renderSearchResults query sortedResults now))
+    Loom.Stencil.ActionM.render "chat/search-results" (searchResultsData query sortedResults now)
 
 -- Upload attachment
 action chatUploadAttachment "/chat/thread/:id/upload" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do

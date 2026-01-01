@@ -1,0 +1,71 @@
+<div class="notebook-container">
+  <!-- Tree sidebar -->
+  <div class="notebook-sidebar">
+    <div class="notebook-sidebar-header">
+      <h3>Notebooks</h3>
+      <button hx-get="/notebook/new" hx-target="#modal-container"
+              hx-swap="innerHTML" class="btn btn-sm btn-primary">+</button>
+    </div>
+    <div class="notebook-tree">
+      {{#if hasNotebooks}}
+        {{#each notebooks}}
+        <div class="notebook-tree-item" oncontextmenu="showNotebookContextMenu(event, {{id}})">
+          <span class="notebook-tree-toggle" onclick="toggleNotebook({{id}})">{{expandIcon}}</span>
+          <span class="notebook-tree-title">{{title}}</span>
+          <button hx-get="/notebook/{{id}}/note/new" hx-target="#modal-container"
+                  hx-swap="innerHTML" class="notebook-tree-add">+</button>
+        </div>
+        <div id="notebook-{{id}}-notes" class="{{notesClass}}">
+          {{#if hasNotes}}
+            {{#each notes}}
+            <a href="/notebook/note/{{id}}" class="notebook-tree-note{{#if isSelected}} selected{{/if}}"
+               oncontextmenu="showNoteContextMenu(event, {{id}})">
+              <span class="notebook-tree-note-title">{{title}}</span>
+            </a>
+            {{/each}}
+          {{else}}
+            <span class="notebook-tree-empty">No notes</span>
+          {{/if}}
+        </div>
+        {{/each}}
+      {{else}}
+        <p class="notebook-empty-hint">No notebooks yet</p>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Main content area -->
+  <div class="notebook-main">
+    {{#if hasSelectedNote}}
+      <!-- Quill CSS -->
+      <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.7/quill.snow.css">
+      <div class="notebook-editor">
+        <form action="/notebook/note/{{selectedNote.id}}" method="PUT">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <input type="hidden" name="version" id="note-version" value="{{selectedNote.version}}">
+          <div class="notebook-editor-header">
+            <input type="text" name="title" id="note-title" value="{{selectedNote.title}}"
+                   class="notebook-title-input" placeholder="Note title" required>
+            <span id="save-status" class="notebook-save-status"></span>
+          </div>
+          <textarea name="content" id="note-content" class="notebook-content-input"
+                    style="display:none">{{selectedNote.content}}</textarea>
+        </form>
+      </div>
+      <!-- Quill JS -->
+      <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    {{else}}
+      <div class="notebook-empty-state">
+        <div class="notebook-empty-icon">📓</div>
+        <h2>Select a Note</h2>
+        <p>Choose a note from the sidebar or create a new one</p>
+      </div>
+    {{/if}}
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- SSE script -->
+  <script src="/js/notebook.js"></script>
+</div>

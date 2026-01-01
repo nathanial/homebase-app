@@ -1,24 +1,24 @@
 /-
-  HomebaseApp.Pages.Home - Home page (unified route + logic + view)
+  HomebaseApp.Pages.Home - Home page
 -/
 import Loom
 import Loom.Stencil
 import HomebaseApp.Shared
+import HomebaseApp.StencilHelpers
 
 namespace HomebaseApp.Pages
 
 open Loom
 open Loom.Page
 open Loom.ActionM
-open HomebaseApp.Shared
-
-/-! ## Home Page Definition -/
+open HomebaseApp.Shared (isLoggedIn)
+open HomebaseApp.StencilHelpers
 
 page home "/" GET do
   let ctx ← getCtx
   if !isLoggedIn ctx then
     return ← redirect "/login"
-  -- Use Stencil template instead of Scribe
-  Loom.Stencil.ActionM.render "home"
+  let data := pageContext ctx "Home" PageId.home
+  Loom.Stencil.ActionM.renderWithLayout "app" "home" data
 
 end HomebaseApp.Pages

@@ -1,0 +1,73 @@
+<div class="recipes-container">
+  <!-- Header -->
+  <div class="recipes-header">
+    <h1>Recipes</h1>
+    <a href="/recipes/new" class="btn btn-primary">+ New Recipe</a>
+  </div>
+
+  <!-- Filters -->
+  <div class="recipes-filters">
+    <a href="/recipes" class="recipes-filter-tab{{#if filterAll}} active{{/if}}">All</a>
+    <a href="/recipes?category=Breakfast" class="recipes-filter-tab{{#if filterBreakfast}} active{{/if}}">
+      <span>🍳</span> Breakfast
+    </a>
+    <a href="/recipes?category=Lunch" class="recipes-filter-tab{{#if filterLunch}} active{{/if}}">
+      <span>🥗</span> Lunch
+    </a>
+    <a href="/recipes?category=Dinner" class="recipes-filter-tab{{#if filterDinner}} active{{/if}}">
+      <span>🍽️</span> Dinner
+    </a>
+    <a href="/recipes?category=Dessert" class="recipes-filter-tab{{#if filterDessert}} active{{/if}}">
+      <span>🍰</span> Dessert
+    </a>
+    <a href="/recipes?category=Snack" class="recipes-filter-tab{{#if filterSnack}} active{{/if}}">
+      <span>🍿</span> Snack
+    </a>
+    <a href="/recipes?category=Beverage" class="recipes-filter-tab{{#if filterBeverage}} active{{/if}}">
+      <span>🥤</span> Beverage
+    </a>
+    <a href="/recipes?category=Other" class="recipes-filter-tab{{#if filterOther}} active{{/if}}">
+      <span>📋</span> Other
+    </a>
+  </div>
+
+  <!-- Grid -->
+  <div id="recipes-grid">
+    {{#if hasRecipes}}
+    <div class="recipes-grid">
+      {{#each recipes}}
+      <a href="/recipes/{{id}}" class="recipes-card">
+        <div class="recipes-card-header">
+          <span class="recipes-card-icon">{{icon}}</span>
+          <span class="recipes-card-category">{{category}}</span>
+        </div>
+        <h3 class="recipes-card-title">{{title}}</h3>
+        {{#if hasDescription}}
+        <p class="recipes-card-description">{{shortDescription}}</p>
+        {{/if}}
+        <div class="recipes-card-meta">
+          {{#if hasTotalTime}}
+          <span class="recipes-card-time">⏱️ {{totalTimeFormatted}}</span>
+          {{/if}}
+          {{#if hasServings}}
+          <span class="recipes-card-servings">👥 {{servings}}</span>
+          {{/if}}
+        </div>
+      </a>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="recipes-empty">
+      <div class="recipes-empty-icon">🍳</div>
+      <p>No recipes yet</p>
+      <p class="text-muted">Add your first recipe!</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- SSE script -->
+  <script src="/js/recipes.js"></script>
+</div>

@@ -1,0 +1,46 @@
+<div class="time-container">
+  <div class="time-week-header">
+    <h1>Weekly Summary</h1>
+    <a href="/time" class="btn btn-secondary">Back to Today</a>
+  </div>
+
+  <!-- Total time card -->
+  <div class="time-week-total">
+    <h2>Total Time</h2>
+    <span class="time-week-total-value">{{totalDuration}}</span>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="time-week-categories">
+    <h3>By Category</h3>
+    {{#if hasCategorySummary}}
+    <div class="time-summary-bar">
+      {{#each categorySummary}}
+      <div class="time-summary-segment {{categoryClass}}" style="flex-basis: {{percentage}}%"
+           title="{{category}}: {{duration}}"></div>
+      {{/each}}
+    </div>
+    <div class="time-category-list">
+      {{#each categorySummary}}
+      <div class="time-category-item">
+        <span class="time-category {{categoryClass}}">{{category}}</span>
+        <span class="time-category-duration">{{duration}}</span>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Day-by-day breakdown -->
+  <div class="time-week-days">
+    <h3>By Day</h3>
+    {{#each days}}
+    {{#if hasTime}}
+    <div class="time-day-row">
+      <span class="time-day-label">{{label}}</span>
+      <span class="time-day-duration">{{duration}}</span>
+    </div>
+    {{/if}}
+    {{/each}}
+  </div>
+</div>

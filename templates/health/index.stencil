@@ -1,0 +1,106 @@
+<div class="health-container">
+  <!-- Header -->
+  <div class="health-header">
+    <h1>Health</h1>
+    <button hx-get="/health/log/new" hx-target="#modal-container"
+            hx-swap="innerHTML" class="btn btn-primary">+ Log Entry</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="health-stats">
+    <!-- Latest weight card -->
+    <div class="health-stat-card">
+      <div class="health-stat-icon">⚖️</div>
+      <div class="health-stat-content">
+        {{#if hasLatestWeight}}
+        <div class="health-stat-value">{{latestWeight.value}} {{latestWeight.unit}}</div>
+        <div class="health-stat-label">Current Weight</div>
+        {{else}}
+        <div class="health-stat-value">—</div>
+        <div class="health-stat-label">No weight logged</div>
+        {{/if}}
+      </div>
+    </div>
+    <!-- Total entries card -->
+    <div class="health-stat-card">
+      <div class="health-stat-icon">📊</div>
+      <div class="health-stat-content">
+        <div class="health-stat-value">{{totalEntries}}</div>
+        <div class="health-stat-label">Total Entries</div>
+      </div>
+    </div>
+    <!-- Exercise count card -->
+    <div class="health-stat-card">
+      <div class="health-stat-icon">🏃</div>
+      <div class="health-stat-content">
+        <div class="health-stat-value">{{exerciseCount}}</div>
+        <div class="health-stat-label">Exercise Logs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="health-filters">
+    <a href="/health" class="health-filter-tab{{#if filterAll}} active{{/if}}">All</a>
+    <a href="/health?type=weight" class="health-filter-tab{{#if filterWeight}} active{{/if}}">
+      <span>⚖️</span> Weight
+    </a>
+    <a href="/health?type=exercise" class="health-filter-tab{{#if filterExercise}} active{{/if}}">
+      <span>🏃</span> Exercise
+    </a>
+    <a href="/health?type=medication" class="health-filter-tab{{#if filterMedication}} active{{/if}}">
+      <span>💊</span> Medication
+    </a>
+    <a href="/health?type=note" class="health-filter-tab{{#if filterNote}} active{{/if}}">
+      <span>📝</span> Notes
+    </a>
+  </div>
+
+  <!-- Entries -->
+  <div id="health-entries">
+    {{#if hasEntries}}
+    <div class="health-entries-list">
+      {{#each entries}}
+      <div id="entry-{{id}}" class="health-entry-row health-entry-{{entryType}}">
+        <div class="health-entry-icon">{{icon}}</div>
+        <div class="health-entry-main">
+          <div class="health-entry-header">
+            <span class="health-entry-type">{{typeLabel}}</span>
+            <span class="health-entry-time">{{relativeTime}}</span>
+          </div>
+          <div class="health-entry-value">
+            {{#if hasValue}}
+            {{value}}{{#if hasUnit}}<span class="health-entry-unit"> {{unit}}</span>{{/if}}
+            {{else}}
+            —
+            {{/if}}
+          </div>
+          {{#if hasNotes}}
+          <p class="health-entry-notes">{{notes}}</p>
+          {{/if}}
+        </div>
+        <div class="health-entry-actions">
+          <button hx-get="/health/entry/{{id}}/edit" hx-target="#modal-container"
+                  hx-swap="innerHTML" class="btn-icon" title="Edit">e</button>
+          <button hx-delete="/health/entry/{{id}}" hx-swap="none"
+                  hx-confirm="Delete this entry?"
+                  class="btn-icon btn-icon-danger" title="Delete">x</button>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="health-empty">
+      <div class="health-empty-icon">🏥</div>
+      <p>No health entries yet</p>
+      <p class="text-muted">Start tracking your health!</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- SSE script -->
+  <script src="/js/health.js"></script>
+</div>

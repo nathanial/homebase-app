@@ -4,7 +4,7 @@ open Lake DSL
 package homebaseApp where
   version := v!"0.1.0"
 
-require loom from git "https://github.com/nathanial/loom" @ "v0.0.3"
+require loom from git "https://github.com/nathanial/loom" @ "v0.0.4"
 require crucible from git "https://github.com/nathanial/crucible" @ "v0.0.1"
 require chronicle from git "https://github.com/nathanial/chronicle" @ "v0.0.1"
 require staple from git "https://github.com/nathanial/staple" @ "v0.0.2"

@@ -1,0 +1,23 @@
+<div class="auth-card">
+  <h1 class="auth-title">Login</h1>
+  <form method="post" action="/login">
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="form-group-lg">
+      <label for="email" class="form-label">Email</label>
+      <input type="email" name="email" id="email" required
+             placeholder="you@example.com"
+             class="form-input">
+    </div>
+    <div class="form-group-lg">
+      <label for="password" class="form-label">Password</label>
+      <input type="password" name="password" id="password" required
+             placeholder="Your password"
+             class="form-input">
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Login</button>
+  </form>
+  <p class="auth-footer">
+    Don't have an account?
+    <a href="/register">Register here</a>
+  </p>
+</div>

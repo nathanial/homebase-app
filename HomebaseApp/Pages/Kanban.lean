@@ -3,8 +3,11 @@
 -/
 import Scribe
 import Loom
+import Loom.Stencil
+import Stencil
 import Ledger
 import HomebaseApp.Shared
+import HomebaseApp.StencilHelpers
 import HomebaseApp.Models
 import HomebaseApp.Entities
 import HomebaseApp.Helpers
@@ -23,6 +26,7 @@ open HomebaseApp.Shared hiding isLoggedIn isAdmin  -- Use Helpers versions
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers
+open HomebaseApp.StencilHelpers
 -- Note: Use fully qualified middleware names in page/view/action macros
 -- because #generate_pages creates code in a separate elaboration context
 
@@ -156,11 +160,7 @@ def getNextCardOrder (ctx : Context) (columnId : Nat) : Int :=
     | orders => (orders.foldl max 0 : Nat) + 1
   | none => 0
 
-/-! ## View Helpers -/
-
-/-- Attribute to clear modal after form submission -/
-def modalClearAttr : Attr :=
-  ⟨"hx-on::after-request", "document.getElementById('modal-container').innerHTML = ''"⟩
+/-! ## Stencil Value Helpers -/
 
 def labelClass (label : String) : String :=
   match label.trim.toLower with
@@ -172,117 +172,54 @@ def labelClass (label : String) : String :=
   | "blocked" => "label-blocked"
   | _ => "label-default"
 
-def renderLabel (label : String) : HtmlM Unit := do
-  if label.trim.isEmpty then pure ()
-  else span [class_ s!"label {labelClass label}"] (text label.trim)
+/-- Convert a label string to Stencil.Value with its class -/
+def labelToValue (label : String) : Stencil.Value :=
+  .object #[
+    ("label", .string label.trim),
+    ("labelClass", .string (labelClass label))
+  ]
 
-def renderLabels (labelsStr : String) : HtmlM Unit := do
-  let labels := labelsStr.splitOn ","
-  div [class_ "kanban-labels"] do
-    for label in labels do
-      renderLabel label
+/-- Convert a card to Stencil.Value -/
+def cardToValue (card : Card) : Stencil.Value :=
+  let labels := card.labels.splitOn "," |>.filter (fun s => !s.trim.isEmpty)
+  .object #[
+    ("id", .int (Int.ofNat card.id)),
+    ("title", .string card.title),
+    ("description", .string card.description),
+    ("labelsStr", .string card.labels),
+    ("hasLabels", .bool (!labels.isEmpty)),
+    ("labels", .array (labels.map labelToValue).toArray),
+    ("hasDescription", .bool (!card.description.isEmpty)),
+    ("order", .int (Int.ofNat card.order))
+  ]
 
-def renderCard (_ctx : Context) (card : Card) : HtmlM Unit := do
-  div [id_ s!"card-{card.id}", data_ "card-id" (toString card.id), class_ "kanban-card"] do
-    div [class_ "kanban-card-header"] do
-      h4 [class_ "kanban-card-title"] (text card.title)
-      div [class_ "kanban-card-actions"] do
-        -- Edit card button (opens modal)
-        button [hx_get s!"/kanban/card/{card.id}/edit",
-                hx_target "#modal-container", hx_swap "innerHTML",
-                class_ "btn-icon"] (text "e")
-        -- Delete card button (SSE refreshes board)
-        button [hx_delete s!"/kanban/card/{card.id}",
-                hx_swap "none", hx_confirm "Delete this card?",
-                class_ "btn-icon btn-icon-danger"] (text "x")
-    if !card.labels.isEmpty then renderLabels card.labels
-    if !card.description.isEmpty then
-      p [class_ "kanban-card-description"] (text card.description)
+/-- Convert a column to Stencil.Value -/
+def columnToValue (col : Column) : Stencil.Value :=
+  .object #[
+    ("id", .int (Int.ofNat col.id)),
+    ("name", .string col.name),
+    ("order", .int (Int.ofNat col.order)),
+    ("cards", .array (col.cards.map cardToValue).toArray)
+  ]
 
-def renderColumn (ctx : Context) (col : Column) : HtmlM Unit := do
-  div [id_ s!"column-{col.id}", class_ "kanban-column"] do
-    div [class_ "kanban-column-header"] do
-      h3 [class_ "kanban-column-title"] (text col.name)
-      div [class_ "kanban-column-actions"] do
-        -- Add card button (opens modal)
-        button [hx_get s!"/kanban/column/{col.id}/add-card-form",
-                hx_target "#modal-container", hx_swap "innerHTML",
-                class_ "btn-icon", title_ "Add card"] (text "+")
-        -- Edit column button (opens modal)
-        button [hx_get s!"/kanban/column/{col.id}/edit",
-                hx_target "#modal-container", hx_swap "innerHTML",
-                class_ "btn-icon", title_ "Edit column"] (text "e")
-        -- Delete column button (SSE refreshes board)
-        button [hx_delete s!"/kanban/column/{col.id}",
-                hx_swap "none", hx_confirm s!"Delete column '{col.name}' and all its cards?",
-                class_ "btn-icon btn-icon-danger", title_ "Delete column"] (text "x")
-    div [id_ s!"column-cards-{col.id}", data_ "column-id" (toString col.id),
-         class_ "kanban-column-cards sortable-cards"] do
-      for card in col.cards do renderCard ctx card
+/-- Convert a board to Stencil.Value -/
+def boardToValue (board : Board) (isActive : Bool) : Stencil.Value :=
+  .object #[
+    ("id", .int (Int.ofNat board.id)),
+    ("name", .string board.name),
+    ("order", .int (Int.ofNat board.order)),
+    ("isActive", .bool isActive)
+  ]
 
-/-- Render a single board item in the sidebar -/
-def renderBoardItem (board : Board) (isActive : Bool) : HtmlM Unit := do
-  let activeClass := if isActive then " active" else ""
-  a [href_ s!"/kanban/board/{board.id}", class_ s!"kanban-sidebar-item{activeClass}"] do
-    span [class_ "kanban-sidebar-item-name"] (text board.name)
-    if isActive then
-      div [class_ "kanban-sidebar-item-actions"] do
-        button [hx_get s!"/kanban/board/{board.id}/edit",
-                hx_target "#modal-container", hx_swap "innerHTML",
-                class_ "btn-icon", title_ "Edit board",
-                attr_ "onclick" "event.preventDefault(); event.stopPropagation();"] (text "e")
-        button [hx_delete s!"/kanban/board/{board.id}",
-                hx_swap "none", hx_confirm s!"Delete board '{board.name}' and all its columns/cards?",
-                class_ "btn-icon btn-icon-danger", title_ "Delete board",
-                attr_ "onclick" "event.preventDefault(); event.stopPropagation();"] (text "x")
-
-/-- Render the board sidebar -/
-def renderBoardSidebar (boards : List Board) (activeBoard : Option Board) : HtmlM Unit := do
-  aside [class_ "kanban-sidebar"] do
-    div [class_ "kanban-sidebar-header"] do
-      span [class_ "kanban-sidebar-title"] (text "Boards")
-      button [hx_get "/kanban/add-board-form",
-              hx_target "#modal-container", hx_swap "innerHTML",
-              class_ "btn-icon text-muted", title_ "Add board"] (text "+")
-    div [class_ "kanban-sidebar-list"] do
-      for board in boards do
-        renderBoardItem board (activeBoard.map (·.id) == some board.id)
-
-/-- Render the full kanban page content with sidebar and board -/
-def kanbanPageContent (ctx : Context) (boards : List Board) (activeBoard : Board) (columns : List Column) : HtmlM Unit := do
-  div [class_ "kanban-wrapper"] do
-    renderBoardSidebar boards (some activeBoard)
-    div [id_ "kanban-board", class_ "kanban-board"] do
-      div [class_ "kanban-header"] do
-        h1 [class_ "kanban-title"] (text activeBoard.name)
-        button [hx_get s!"/kanban/board/{activeBoard.id}/add-column-form",
-                hx_target "#modal-container", hx_swap "innerHTML",
-                class_ "btn-icon text-muted", title_ "Add column"] (text "+")
-        div [class_ "kanban-meta"] do
-          span [id_ "sse-status", class_ "status-indicator"] (text "* Live")
-          span [class_ "kanban-count"] (text s!"{columns.length} columns")
-      div [class_ "kanban-scroll"] do
-        div [id_ "board-columns", class_ "kanban-columns"] do
-          for col in columns do renderColumn ctx col
-  div [id_ "modal-container"] (pure ())
-  script [src_ "/js/kanban.js"]
-
-/-- Legacy boardContent for backward compatibility -/
-def boardContent (ctx : Context) (columns : List Column) : HtmlM Unit := do
-  div [id_ "kanban-board", class_ "kanban-board"] do
-    div [class_ "kanban-header"] do
-      h1 [class_ "kanban-title"] (text "Kanban Board")
-      button [hx_get "/kanban/add-column-form",
-              hx_target "#modal-container", hx_swap "innerHTML",
-              class_ "btn-icon text-muted", title_ "Add column"] (text "+")
-      div [class_ "kanban-meta"] do
-        span [id_ "sse-status", class_ "status-indicator"] (text "* Live")
-        span [class_ "kanban-count"] (text s!"{columns.length} columns")
-    div [class_ "kanban-scroll"] do
-      div [id_ "board-columns", class_ "kanban-columns"] do
-        for col in columns do renderColumn ctx col
-  div [id_ "modal-container"] (pure ())
-  script [src_ "/js/kanban.js"]
+/-- Build kanban page data for Stencil -/
+def kanbanPageData (ctx : Context) (boards : List Board) (activeBoard : Board) (columns : List Column) : Stencil.Value :=
+  .object #[
+    ("boards", .array (boards.map fun b => boardToValue b (b.id == activeBoard.id)).toArray),
+    ("activeBoard", boardToValue activeBoard true),
+    ("columns", .array (columns.map columnToValue).toArray),
+    ("columnCount", .int (Int.ofNat columns.length)),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
 
 /-! ## Pages -/
 
@@ -316,35 +253,25 @@ view kanbanBoard "/kanban/board/:boardId" [HomebaseApp.Middleware.authRequired] 
   | none => notFound "Board not found"
   | some board =>
     let columns := getColumnsWithCardsForBoard ctx boardId
-    html (Shared.render ctx s!"{board.name} - Kanban - Homebase" "/kanban" (kanbanPageContent ctx boards board columns))
+    let data := pageContext ctx s!"{board.name} - Kanban" PageId.kanban (kanbanPageData ctx boards board columns)
+    Loom.Stencil.ActionM.renderWithLayout "app" "kanban/index" data
 
 -- Get all columns for a board (for SSE refresh)
 view kanbanBoardColumns "/kanban/board/:boardId/columns" [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
   let ctx ← getCtx
   let columns := getColumnsWithCardsForBoard ctx boardId
-  html (HtmlM.render do
-    for col in columns do renderColumn ctx col)
+  let data := Stencil.Value.object #[
+    ("columns", .array (columns.map columnToValue).toArray)
+  ]
+  Loom.Stencil.ActionM.render "kanban/board-columns" data
 
 -- Note: SSE endpoint "/events/kanban" is registered separately in Main.lean
 
 -- Add board form
 view kanbanAddBoardForm "/kanban/add-board-form" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-sm"] do
-        h3 [class_ "modal-title"] (text "Add Board")
-        form [hx_post "/kanban/board", hx_swap "none", modalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "name", class_ "form-label"] (text "Board Name")
-              input [type_ "text", name_ "name", id_ "name", class_ "form-input",
-                     placeholder_ "Board name", required_, autofocus_]
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Add Board"))
+  let data := Stencil.Value.object #[("csrfToken", .string ctx.csrfToken)]
+  Loom.Stencil.ActionM.render "kanban/add-board" data
 
 -- Create board
 action kanbanCreateBoard "/kanban/board" POST [HomebaseApp.Middleware.authRequired] do
@@ -367,21 +294,9 @@ view kanbanEditBoardForm "/kanban/board/:boardId/edit" [HomebaseApp.Middleware.a
   match getBoard ctx boardId with
   | none => notFound "Board not found"
   | some board =>
-    html (HtmlM.render do
-      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-        div [class_ "modal-container modal-sm"] do
-          h3 [class_ "modal-title"] (text "Edit Board")
-          form [hx_put s!"/kanban/board/{board.id}", hx_swap "none", modalClearAttr] do
-            csrfField ctx.csrfToken
-            div [class_ "form-stack"] do
-              div [class_ "form-group"] do
-                label [for_ "name", class_ "form-label"] (text "Board Name")
-                input [type_ "text", name_ "name", id_ "name", value_ board.name,
-                       class_ "form-input", placeholder_ "Board name", required_, autofocus_]
-              div [class_ "form-actions"] do
-                button [type_ "button", class_ "btn btn-secondary",
-                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-                button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
+    let data := mergeContext (boardToValue board false)
+      (.object #[("csrfToken", .string ctx.csrfToken)])
+    Loom.Stencil.ActionM.render "kanban/edit-board" data
 
 -- Update board
 action kanbanUpdateBoard "/kanban/board/:boardId" PUT [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
@@ -434,21 +349,11 @@ action kanbanDeleteBoard "/kanban/board/:boardId" DELETE [HomebaseApp.Middleware
 -- Add column form (board-aware)
 view kanbanAddColumnFormForBoard "/kanban/board/:boardId/add-column-form" [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-sm"] do
-        h3 [class_ "modal-title"] (text "Add Column")
-        form [hx_post s!"/kanban/board/{boardId}/column", hx_swap "none", modalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "name", class_ "form-label"] (text "Column Name")
-              input [type_ "text", name_ "name", id_ "name", class_ "form-input",
-                     placeholder_ "Column name", required_, autofocus_]
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Add Column"))
+  let data := Stencil.Value.object #[
+    ("boardId", .int (Int.ofNat boardId)),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
+  Loom.Stencil.ActionM.render "kanban/add-column" data
 
 -- Create column (board-aware)
 action kanbanCreateColumnForBoard "/kanban/board/:boardId/column" POST [HomebaseApp.Middleware.authRequired] (boardId : Nat) do
@@ -468,21 +373,16 @@ action kanbanCreateColumnForBoard "/kanban/board/:boardId/column" POST [Homebase
 -- Add column form (legacy - kept for backward compatibility)
 view kanbanAddColumnForm "/kanban/add-column-form" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-sm"] do
-        h3 [class_ "modal-title"] (text "Add Column")
-        form [hx_post "/kanban/column", hx_swap "none", modalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "name", class_ "form-label"] (text "Column Name")
-              input [type_ "text", name_ "name", id_ "name", class_ "form-input",
-                     placeholder_ "Column name", required_, autofocus_]
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Add Column"))
+  -- Get the first board for legacy route
+  let boards := getBoards ctx
+  let boardId := match boards.head? with
+    | some b => b.id
+    | none => 0
+  let data := Stencil.Value.object #[
+    ("boardId", .int (Int.ofNat boardId)),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
+  Loom.Stencil.ActionM.render "kanban/add-column" data
 
 -- Create column
 action kanbanCreateColumn "/kanban/column" POST [HomebaseApp.Middleware.authRequired] do
@@ -507,7 +407,7 @@ view kanbanGetColumn "/kanban/column/:id" [HomebaseApp.Middleware.authRequired] 
   let ctx ← getCtx
   match getColumn ctx id with
   | none => notFound "Column not found"
-  | some col => html (HtmlM.render (renderColumn ctx col))
+  | some col => Loom.Stencil.ActionM.renderPartial "kanban/_column" (columnToValue col)
 
 -- Edit column form
 view kanbanEditColumnForm "/kanban/column/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -515,21 +415,9 @@ view kanbanEditColumnForm "/kanban/column/:id/edit" [HomebaseApp.Middleware.auth
   match getColumn ctx id with
   | none => notFound "Column not found"
   | some col =>
-    html (HtmlM.render do
-      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-        div [class_ "modal-container modal-sm"] do
-          h3 [class_ "modal-title"] (text "Edit Column")
-          form [hx_put s!"/kanban/column/{col.id}", hx_swap "none", modalClearAttr] do
-            csrfField ctx.csrfToken
-            div [class_ "form-stack"] do
-              div [class_ "form-group"] do
-                label [for_ "name", class_ "form-label"] (text "Column Name")
-                input [type_ "text", name_ "name", id_ "name", value_ col.name,
-                       class_ "form-input", placeholder_ "Column name", required_, autofocus_]
-              div [class_ "form-actions"] do
-                button [type_ "button", class_ "btn btn-secondary",
-                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-                button [type_ "submit", class_ "btn btn-primary"] (text "Save"))
+    let data := mergeContext (columnToValue col)
+      (.object #[("csrfToken", .string ctx.csrfToken)])
+    Loom.Stencil.ActionM.render "kanban/edit-column" data
 
 -- Update column
 action kanbanUpdateColumn "/kanban/column/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -566,30 +454,11 @@ action kanbanDeleteColumn "/kanban/column/:id" DELETE [HomebaseApp.Middleware.au
 -- Add card form
 view kanbanAddCardForm "/kanban/column/:columnId/add-card-form" [HomebaseApp.Middleware.authRequired] (columnId : Nat) do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-md"] do
-        h3 [class_ "modal-title"] (text "Add Card")
-        form [hx_post "/kanban/card", hx_swap "none", modalClearAttr] do
-          csrfField ctx.csrfToken
-          input [type_ "hidden", name_ "column_id", value_ (toString columnId)]
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "title", class_ "form-label"] (text "Title")
-              input [type_ "text", name_ "title", id_ "title", class_ "form-input",
-                     placeholder_ "Card title", required_, autofocus_]
-            div [class_ "form-group"] do
-              label [for_ "description", class_ "form-label"] (text "Description")
-              textarea [name_ "description", id_ "description", rows_ 2, class_ "form-textarea",
-                        placeholder_ "Description (optional)"]
-            div [class_ "form-group"] do
-              label [for_ "labels", class_ "form-label"] (text "Labels")
-              input [type_ "text", name_ "labels", id_ "labels", class_ "form-input",
-                     placeholder_ "bug, feature, urgent (comma-separated)"]
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Add Card"))
+  let data := Stencil.Value.object #[
+    ("columnId", .int (Int.ofNat columnId)),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
+  Loom.Stencil.ActionM.render "kanban/add-card" data
 
 -- Create card
 action kanbanCreateCard "/kanban/card" POST [HomebaseApp.Middleware.authRequired] do
@@ -617,7 +486,7 @@ view kanbanGetCard "/kanban/card/:id" [HomebaseApp.Middleware.authRequired] (id 
   let ctx ← getCtx
   match getCard ctx id with
   | none => notFound "Card not found"
-  | some (card, _) => html (HtmlM.render (renderCard ctx card))
+  | some (card, _) => Loom.Stencil.ActionM.renderPartial "kanban/_card" (cardToValue card)
 
 -- Edit card form
 view kanbanEditCardForm "/kanban/card/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -625,29 +494,9 @@ view kanbanEditCardForm "/kanban/card/:id/edit" [HomebaseApp.Middleware.authRequ
   match getCard ctx id with
   | none => notFound "Card not found"
   | some (card, _) =>
-    html (HtmlM.render do
-      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-        div [class_ "modal-container modal-md"] do
-          h3 [class_ "modal-title"] (text "Edit Card")
-          form [hx_put s!"/kanban/card/{card.id}", hx_swap "none", modalClearAttr] do
-            csrfField ctx.csrfToken
-            div [class_ "form-stack"] do
-              div [class_ "form-group"] do
-                label [for_ "title", class_ "form-label"] (text "Title")
-                input [type_ "text", name_ "title", id_ "title", value_ card.title,
-                       class_ "form-input", placeholder_ "Card title", required_, autofocus_]
-              div [class_ "form-group"] do
-                label [for_ "description", class_ "form-label"] (text "Description")
-                textarea [name_ "description", id_ "description", rows_ 3, class_ "form-textarea",
-                          placeholder_ "Description (optional)"] card.description
-              div [class_ "form-group"] do
-                label [for_ "labels", class_ "form-label"] (text "Labels")
-                input [type_ "text", name_ "labels", id_ "labels", value_ card.labels,
-                       class_ "form-input", placeholder_ "bug, feature, urgent (comma-separated)"]
-              div [class_ "form-actions"] do
-                button [type_ "button", class_ "btn btn-secondary",
-                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-                button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes"))
+    let data := mergeContext (cardToValue card)
+      (.object #[("csrfToken", .string ctx.csrfToken)])
+    Loom.Stencil.ActionM.render "kanban/edit-card" data
 
 -- Update card
 action kanbanUpdateCard "/kanban/card/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -710,7 +559,7 @@ action kanbanMoveCard "/kanban/card/:id/move" POST [HomebaseApp.Middleware.authR
   | none => notFound "Card not found"
   | some (card, _) =>
     let _ ← SSE.publishEvent "kanban" "card-moved" (jsonStr! { "cardId" : id, newColumnId })
-    html (HtmlM.render (renderCard ctx card))
+    Loom.Stencil.ActionM.renderPartial "kanban/_card" (cardToValue card)
 
 -- Reorder card (drag and drop)
 action kanbanReorderCard "/kanban/card/:id/reorder" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do

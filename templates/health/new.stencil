@@ -1,0 +1,41 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-md">
+    <h3 class="modal-title">Log Health Entry</h3>
+    <form hx-post="/health/log" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="entryType" class="form-label">Type</label>
+          <select name="entryType" id="entryType" class="form-select"
+                  onchange="document.getElementById('unit-field').value = this.options[this.selectedIndex].dataset.unit || ''">
+            <option value="weight" data-unit="kg">Weight</option>
+            <option value="exercise" data-unit="minutes">Exercise</option>
+            <option value="medication" data-unit="dose">Medication</option>
+            <option value="note" data-unit="">Note</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="value" class="form-label">Value</label>
+          <input type="text" name="value" id="value"
+                 class="form-input" placeholder="e.g., 70 or 30">
+        </div>
+        <div class="form-group">
+          <label for="unit" class="form-label">Unit</label>
+          <input type="text" name="unit" id="unit-field"
+                 value="kg" class="form-input" placeholder="e.g., kg, minutes">
+        </div>
+        <div class="form-group">
+          <label for="notes" class="form-label">Notes (optional)</label>
+          <textarea name="notes" id="notes" class="form-textarea" rows="3"
+                    placeholder="Any additional notes..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Log Entry</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

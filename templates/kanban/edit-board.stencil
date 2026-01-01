@@ -1,0 +1,21 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-sm">
+    <h3 class="modal-title">Edit Board</h3>
+    <form hx-put="/kanban/board/{{id}}" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="name" class="form-label">Board Name</label>
+          <input type="text" name="name" id="name" value="{{name}}" class="form-input"
+                 placeholder="Board name" required autofocus>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

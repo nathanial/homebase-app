@@ -1,0 +1,84 @@
+<div class="recipes-detail">
+  <!-- Header -->
+  <div class="recipes-detail-header">
+    <a href="/recipes" class="btn btn-secondary btn-sm">Back</a>
+    <div class="recipes-detail-actions">
+      <a href="/recipes/{{id}}/edit" class="btn btn-secondary btn-sm">Edit</a>
+      <button hx-delete="/recipes/{{id}}" hx-swap="none"
+              hx-confirm="Delete this recipe?" class="btn btn-danger btn-sm">Delete</button>
+    </div>
+  </div>
+
+  <!-- Title and category -->
+  <div class="recipes-detail-title-section">
+    <span class="recipes-detail-icon">{{icon}}</span>
+    <div>
+      <h1>{{title}}</h1>
+      <span class="recipes-detail-category">{{category}}</span>
+    </div>
+  </div>
+
+  <!-- Description -->
+  {{#if hasDescription}}
+  <p class="recipes-detail-description">{{description}}</p>
+  {{/if}}
+
+  <!-- Meta info -->
+  <div class="recipes-detail-meta">
+    {{#if hasPrepTime}}
+    <div class="recipes-detail-meta-item">
+      <span class="recipes-detail-meta-label">Prep Time</span>
+      <span class="recipes-detail-meta-value">{{prepTimeFormatted}}</span>
+    </div>
+    {{/if}}
+    {{#if hasCookTime}}
+    <div class="recipes-detail-meta-item">
+      <span class="recipes-detail-meta-label">Cook Time</span>
+      <span class="recipes-detail-meta-value">{{cookTimeFormatted}}</span>
+    </div>
+    {{/if}}
+    {{#if hasTotalTime}}
+    <div class="recipes-detail-meta-item">
+      <span class="recipes-detail-meta-label">Total Time</span>
+      <span class="recipes-detail-meta-value">{{totalTimeFormatted}}</span>
+    </div>
+    {{/if}}
+    {{#if hasServings}}
+    <div class="recipes-detail-meta-item">
+      <span class="recipes-detail-meta-label">Servings</span>
+      <span class="recipes-detail-meta-value">{{servings}}</span>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Content sections -->
+  <div class="recipes-detail-content">
+    <!-- Ingredients -->
+    <div class="recipes-detail-section">
+      <h2>Ingredients</h2>
+      {{#if hasIngredients}}
+      <ul class="recipes-ingredients-list">
+        {{#each ingredientsList}}
+        <li>{{this}}</li>
+        {{/each}}
+      </ul>
+      {{else}}
+      <p class="text-muted">No ingredients listed</p>
+      {{/if}}
+    </div>
+
+    <!-- Instructions -->
+    <div class="recipes-detail-section">
+      <h2>Instructions</h2>
+      {{#if hasInstructions}}
+      <ol class="recipes-steps-list">
+        {{#each instructionsList}}
+        <li>{{this}}</li>
+        {{/each}}
+      </ol>
+      {{else}}
+      <p class="text-muted">No instructions provided</p>
+      {{/if}}
+    </div>
+  </div>
+</div>

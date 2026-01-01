@@ -1,0 +1,26 @@
+<div class="chat-search-results">
+  <h3>Search results for "{{query}}"</h3>
+  {{#if hasResults}}
+    {{#each results}}
+    <div class="chat-search-result"
+         hx-get="/chat/thread/{{thread.id}}"
+         hx-target="#chat-messages-area"
+         hx-swap="innerHTML">
+      <div class="chat-search-thread">in {{thread.title}}</div>
+      <div id="message-{{message.id}}" class="chat-message">
+        <div class="chat-message-header">
+          <span class="chat-message-author">{{message.userName}}</span>
+          <span class="chat-message-time">{{message.relativeTime}}</span>
+        </div>
+        <div class="chat-message-content">
+          {{#each message.contentLines}}
+          <p>{{this}}</p>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+    {{/each}}
+  {{else}}
+    <p class="text-slate-500">No messages found.</p>
+  {{/if}}
+</div>

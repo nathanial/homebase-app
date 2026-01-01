@@ -1,0 +1,80 @@
+<div class="news-container">
+  <!-- Header -->
+  <div class="news-header">
+    <h1>News</h1>
+    <button hx-get="/news/add" hx-target="#modal-container"
+            hx-swap="innerHTML" class="btn btn-primary">+ Add Link</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="news-filters">
+    <a href="/news" class="news-filter-tab{{#if filterAll}} active{{/if}}">All</a>
+    <a href="/news?filter=unread" class="news-filter-tab{{#if filterUnread}} active{{/if}}">
+      Unread{{#if unreadCount}}<span class="news-filter-badge">{{unreadCount}}</span>{{/if}}
+    </a>
+    <a href="/news?filter=saved" class="news-filter-tab{{#if filterSaved}} active{{/if}}">
+      Saved{{#if savedCount}}<span class="news-filter-badge">{{savedCount}}</span>{{/if}}
+    </a>
+    <a href="/news?filter=Tech" class="news-filter-tab{{#if filterTech}} active{{/if}}">Tech</a>
+    <a href="/news?filter=Business" class="news-filter-tab{{#if filterBusiness}} active{{/if}}">Business</a>
+    <a href="/news?filter=Science" class="news-filter-tab{{#if filterScience}} active{{/if}}">Science</a>
+    <a href="/news?filter=Health" class="news-filter-tab{{#if filterHealth}} active{{/if}}">Health</a>
+    <a href="/news?filter=Sports" class="news-filter-tab{{#if filterSports}} active{{/if}}">Sports</a>
+    <a href="/news?filter=Entertainment" class="news-filter-tab{{#if filterEntertainment}} active{{/if}}">Entertainment</a>
+    <a href="/news?filter=General" class="news-filter-tab{{#if filterGeneral}} active{{/if}}">General</a>
+  </div>
+
+  <!-- Items -->
+  <div id="news-items">
+    {{#if hasItems}}
+    <div class="news-items-list">
+      {{#each items}}
+      <div id="item-{{id}}" class="news-item-row{{#if isRead}} read{{/if}}">
+        <!-- Main content -->
+        <div class="news-item-main">
+          <div class="news-item-header">
+            {{#if isSaved}}<span class="news-item-saved-indicator" title="Saved"></span>{{/if}}
+            <a href="{{url}}" target="_blank" class="news-item-title"
+               hx-post="/news/{{id}}/read" hx-swap="none">{{title}}</a>
+          </div>
+          {{#if hasDescription}}
+          <p class="news-item-description">{{shortDescription}}</p>
+          {{/if}}
+          <div class="news-item-meta">
+            <span class="news-item-source">{{displaySource}}</span>
+            <span class="news-item-category">{{category}}</span>
+            <span class="news-item-time">{{relativeTime}}</span>
+          </div>
+        </div>
+        <!-- Actions -->
+        <div class="news-item-actions">
+          <button hx-post="/news/{{id}}/read" hx-swap="none"
+                  class="btn-icon{{#unless isRead}} btn-icon-active{{/unless}}"
+                  title="{{#if isRead}}Mark unread{{else}}Mark read{{/if}}">{{#if isRead}}o{{else}}.{{/if}}</button>
+          <button hx-post="/news/{{id}}/save" hx-swap="none"
+                  class="btn-icon{{#if isSaved}} btn-icon-active{{/if}}"
+                  title="{{#if isSaved}}Unsave{{else}}Save{{/if}}">*</button>
+          <button hx-get="/news/{{id}}/edit" hx-target="#modal-container"
+                  hx-swap="innerHTML" class="btn-icon" title="Edit">e</button>
+          <button hx-delete="/news/{{id}}" hx-swap="none"
+                  hx-confirm="Delete this item?"
+                  class="btn-icon btn-icon-danger" title="Delete">x</button>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="news-empty">
+      <div class="news-empty-icon">📰</div>
+      <p>No news items</p>
+      <p class="text-muted">Add some links to get started!</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- SSE script -->
+  <script src="/js/news.js"></script>
+</div>

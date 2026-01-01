@@ -1,0 +1,42 @@
+<div class="modal-overlay gallery-lightbox"
+     onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="gallery-lightbox-content">
+    <!-- Close button -->
+    <button class="gallery-lightbox-close"
+            onclick="document.getElementById('modal-container').innerHTML = ''">x</button>
+
+    <!-- Image/file preview -->
+    {{#if isImage}}
+    <div class="gallery-lightbox-image">
+      <img src="{{url}}" alt="{{title}}">
+    </div>
+    {{else}}
+    <div class="gallery-lightbox-file">
+      <span class="gallery-file-icon-large">📄</span>
+      <p>{{fileName}}</p>
+    </div>
+    {{/if}}
+
+    <!-- Info panel -->
+    <div class="gallery-lightbox-info">
+      <h3>{{displayTitle}}</h3>
+      {{#if hasDescription}}
+      <p class="gallery-lightbox-description">{{description}}</p>
+      {{/if}}
+      <div class="gallery-lightbox-meta">
+        <p>Size: {{formattedSize}}</p>
+        <p>Type: {{mimeType}}</p>
+        <p>Uploaded: {{relativeTime}}</p>
+      </div>
+      <!-- Actions -->
+      <div class="gallery-lightbox-actions">
+        <a href="{{url}}" download="{{fileName}}" class="btn btn-secondary">Download</a>
+        <button hx-get="/gallery/item/{{id}}/edit" hx-target="#modal-container"
+                hx-swap="innerHTML" class="btn btn-secondary">Edit</button>
+        <button hx-delete="/gallery/item/{{id}}" hx-swap="none"
+                hx-confirm="Delete this item?"
+                class="btn btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>

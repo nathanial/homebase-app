@@ -1,0 +1,93 @@
+<div class="gallery-container">
+  <!-- Header -->
+  <div class="gallery-header">
+    <h1>Gallery</h1>
+    <span class="gallery-count">{{itemCount}} items</span>
+  </div>
+
+  <!-- Upload zone -->
+  <div id="upload-zone" class="gallery-upload-zone">
+    <form id="upload-form" hx-post="/gallery/upload" hx-encoding="multipart/form-data"
+          hx-swap="none" hx-on::after-request="if(event.detail.successful) window.location.reload()">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="gallery-upload-content">
+        <span class="gallery-upload-icon">📤</span>
+        <p class="gallery-upload-text">Drop files here or click to upload</p>
+        <input type="file" name="file" id="file-input" class="gallery-file-input"
+               accept="image/*,.pdf,.txt" onchange="this.form.requestSubmit()">
+      </div>
+    </form>
+  </div>
+
+  <!-- Filters -->
+  <div class="gallery-filters">
+    <a href="/gallery" class="gallery-filter-tab{{#if filterAll}} active{{/if}}">All</a>
+    <a href="/gallery?filter=images" class="gallery-filter-tab{{#if filterImages}} active{{/if}}">Images</a>
+    <a href="/gallery?filter=documents" class="gallery-filter-tab{{#if filterDocuments}} active{{/if}}">Documents</a>
+  </div>
+
+  <!-- Grid -->
+  <div id="gallery-items">
+    {{#if hasItems}}
+    <div class="gallery-grid">
+      {{#each items}}
+      <div id="item-{{id}}" class="gallery-item"
+           hx-get="/gallery/item/{{id}}" hx-target="#modal-container" hx-swap="innerHTML">
+        {{#if isImage}}
+        <div class="gallery-thumbnail">
+          <img src="{{url}}" alt="{{title}}" loading="lazy">
+        </div>
+        {{else}}
+        <div class="gallery-thumbnail gallery-file">
+          <span class="gallery-file-icon">📄</span>
+          <span class="gallery-file-ext">{{extension}}</span>
+        </div>
+        {{/if}}
+        <div class="gallery-item-info">
+          <p class="gallery-item-title">{{displayTitle}}</p>
+          <p class="gallery-item-meta">{{formattedSize}} · {{relativeTime}}</p>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="gallery-empty">
+      <div class="gallery-empty-icon">🖼️</div>
+      <p>No items in your gallery yet.</p>
+      <p class="text-muted">Upload some photos or files to get started!</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- Drag & drop script -->
+  <script type="text/javascript">
+  (function() {
+    const zone = document.getElementById('upload-zone');
+    const input = document.getElementById('file-input');
+    if (!zone || !input) return;
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
+      zone.addEventListener(event, e => { e.preventDefault(); e.stopPropagation(); });
+    });
+    ['dragenter', 'dragover'].forEach(event => {
+      zone.addEventListener(event, () => zone.classList.add('dragover'));
+    });
+    ['dragleave', 'drop'].forEach(event => {
+      zone.addEventListener(event, () => zone.classList.remove('dragover'));
+    });
+    zone.addEventListener('drop', e => {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        input.files = files;
+        document.getElementById('upload-form').requestSubmit();
+      }
+    });
+    zone.addEventListener('click', () => input.click());
+  })();
+  </script>
+
+  <!-- SSE for real-time updates -->
+  <script src="/js/gallery.js"></script>
+</div>

@@ -4,12 +4,15 @@
 import Scribe
 import Loom
 import Loom.SSE
+import Loom.Stencil
+import Stencil
 import Ledger
 import HomebaseApp.Shared
 import HomebaseApp.Models
 import HomebaseApp.Entities
 import HomebaseApp.Helpers
 import HomebaseApp.Middleware
+import HomebaseApp.StencilHelpers
 
 namespace HomebaseApp.Pages
 
@@ -24,6 +27,7 @@ open HomebaseApp.Shared hiding isLoggedIn isAdmin
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers
+open HomebaseApp.StencilHelpers
 
 /-! ## Constants -/
 
@@ -48,13 +52,7 @@ structure RecipeView where
   updatedAt : Nat
   deriving Inhabited
 
-/-! ## Helpers -/
-
-/-- Get current time in milliseconds -/
-def recipesGetNowMs : IO Nat := do
-  let output ← IO.Process.output { cmd := "date", args := #["+%s"] }
-  let seconds := output.stdout.trim.toNat?.getD 0
-  return seconds * 1000
+/-! ## Stencil Value Helpers -/
 
 /-- Format time in minutes -/
 def recipesFormatTime (minutes : Nat) : String :=
@@ -64,16 +62,6 @@ def recipesFormatTime (minutes : Nat) : String :=
     if mins > 0 then s!"{hours}h {mins}m" else s!"{hours}h"
   else if minutes > 0 then s!"{minutes}m"
   else "—"
-
-/-- Get total cooking time -/
-def recipesTotalTime (prepTime cookTime : Nat) : Nat :=
-  prepTime + cookTime
-
-/-- Get current user's EntityId -/
-def recipesGetCurrentUserEid (ctx : Context) : Option EntityId :=
-  match currentUserId ctx with
-  | some idStr => idStr.toNat?.map fun n => ⟨n⟩
-  | none => none
 
 /-- Get category icon -/
 def recipesCategoryIcon (category : String) : String :=
@@ -85,6 +73,67 @@ def recipesCategoryIcon (category : String) : String :=
   | "Snack" => "🍿"
   | "Beverage" => "🥤"
   | _ => "📋"
+
+/-- Parse ingredients/instructions string to list -/
+def recipesParseLines (text : String) : List String :=
+  text.splitOn "\n" |>.filter (!·.isEmpty)
+
+/-- Convert a RecipeView to Stencil.Value -/
+def recipeToValue (recipe : RecipeView) : Stencil.Value :=
+  let totalTime := recipe.prepTime + recipe.cookTime
+  let ingredientsList := recipesParseLines recipe.ingredients
+  let instructionsList := recipesParseLines recipe.instructions
+  .object #[
+    ("id", .int (Int.ofNat recipe.id)),
+    ("title", .string recipe.title),
+    ("description", .string recipe.description),
+    ("shortDescription", .string (recipe.description.take 100)),
+    ("ingredients", .string recipe.ingredients),
+    ("instructions", .string recipe.instructions),
+    ("ingredientsList", .array (ingredientsList.map .string).toArray),
+    ("instructionsList", .array (instructionsList.map .string).toArray),
+    ("prepTime", .int (Int.ofNat recipe.prepTime)),
+    ("cookTime", .int (Int.ofNat recipe.cookTime)),
+    ("servings", .int (Int.ofNat recipe.servings)),
+    ("category", .string recipe.category),
+    ("icon", .string (recipesCategoryIcon recipe.category)),
+    ("hasDescription", .bool (!recipe.description.isEmpty)),
+    ("hasPrepTime", .bool (recipe.prepTime > 0)),
+    ("hasCookTime", .bool (recipe.cookTime > 0)),
+    ("hasTotalTime", .bool (totalTime > 0)),
+    ("hasServings", .bool (recipe.servings > 0)),
+    ("hasIngredients", .bool (!ingredientsList.isEmpty)),
+    ("hasInstructions", .bool (!instructionsList.isEmpty)),
+    ("prepTimeFormatted", .string (recipesFormatTime recipe.prepTime)),
+    ("cookTimeFormatted", .string (recipesFormatTime recipe.cookTime)),
+    ("totalTimeFormatted", .string (recipesFormatTime totalTime)),
+    -- Category flags for edit form
+    ("isBreakfast", .bool (recipe.category == "Breakfast")),
+    ("isLunch", .bool (recipe.category == "Lunch")),
+    ("isDinner", .bool (recipe.category == "Dinner")),
+    ("isDessert", .bool (recipe.category == "Dessert")),
+    ("isSnack", .bool (recipe.category == "Snack")),
+    ("isBeverage", .bool (recipe.category == "Beverage")),
+    ("isOther", .bool (recipe.category == "Other"))
+  ]
+
+/-- Convert a list of recipes to Stencil.Value -/
+def recipesToValue (recipes : List RecipeView) : Stencil.Value :=
+  .array (recipes.map recipeToValue).toArray
+
+/-! ## Helpers -/
+
+/-- Get current time in milliseconds -/
+def recipesGetNowMs : IO Nat := do
+  let output ← IO.Process.output { cmd := "date", args := #["+%s"] }
+  let seconds := output.stdout.trim.toNat?.getD 0
+  return seconds * 1000
+
+/-- Get current user's EntityId -/
+def recipesGetCurrentUserEid (ctx : Context) : Option EntityId :=
+  match currentUserId ctx with
+  | some idStr => idStr.toNat?.map fun n => ⟨n⟩
+  | none => none
 
 /-! ## Database Helpers -/
 
@@ -129,138 +178,6 @@ def searchRecipes (ctx : Context) (query : String) : List RecipeView :=
   let queryLower := query.toLower
   recipes.filter fun r => queryLower.isPrefixOf r.title.toLower || r.title.toLower.startsWith queryLower
 
-/-! ## View Helpers -/
-
-/-- Attribute to clear modal after form submission -/
-def recipesModalClearAttr : Attr :=
-  ⟨"hx-on::after-request", "document.getElementById('modal-container').innerHTML = ''"⟩
-
-/-- Get active class for filter tab -/
-def recipesFilterClass (currentFilter target : String) : String :=
-  if currentFilter == target then "recipes-filter-tab active" else "recipes-filter-tab"
-
-/-- Render category filter tabs -/
-def recipesRenderFilterTabs (currentFilter : String) : HtmlM Unit := do
-  div [class_ "recipes-filters"] do
-    a [href_ "/recipes", class_ (recipesFilterClass currentFilter "all")] (text "All")
-    for cat in recipeCategories do
-      a [href_ s!"/recipes?category={cat}", class_ (recipesFilterClass currentFilter cat)] do
-        span [] (text (recipesCategoryIcon cat))
-        text s!" {cat}"
-
-/-- Render a single recipe card -/
-def recipesRenderCard (recipe : RecipeView) : HtmlM Unit := do
-  a [href_ s!"/recipes/{recipe.id}", class_ "recipes-card"] do
-    div [class_ "recipes-card-header"] do
-      span [class_ "recipes-card-icon"] (text (recipesCategoryIcon recipe.category))
-      span [class_ "recipes-card-category"] (text recipe.category)
-    h3 [class_ "recipes-card-title"] (text recipe.title)
-    if !recipe.description.isEmpty then
-      p [class_ "recipes-card-description"] (text (recipe.description.take 100))
-    div [class_ "recipes-card-meta"] do
-      if recipe.prepTime > 0 || recipe.cookTime > 0 then
-        span [class_ "recipes-card-time"] do
-          text "⏱️ "
-          text (recipesFormatTime (recipesTotalTime recipe.prepTime recipe.cookTime))
-      if recipe.servings > 0 then
-        span [class_ "recipes-card-servings"] do
-          text "👥 "
-          text (toString recipe.servings)
-
-/-- Render recipe grid -/
-def recipesRenderGrid (recipes : List RecipeView) : HtmlM Unit := do
-  if recipes.isEmpty then
-    div [class_ "recipes-empty"] do
-      div [class_ "recipes-empty-icon"] (text "🍳")
-      p [] (text "No recipes yet")
-      p [class_ "text-muted"] (text "Add your first recipe!")
-  else
-    div [class_ "recipes-grid"] do
-      for recipe in recipes do recipesRenderCard recipe
-
-/-- Parse ingredients string to list -/
-def recipesParseIngredients (ingredients : String) : List String :=
-  ingredients.splitOn "\n" |>.filter (!·.isEmpty)
-
-/-- Render recipe detail view -/
-def recipesRenderDetail (recipe : RecipeView) (ctx : Context) : HtmlM Unit := do
-  div [class_ "recipes-detail"] do
-    -- Header
-    div [class_ "recipes-detail-header"] do
-      a [href_ "/recipes", class_ "btn btn-secondary btn-sm"] (text "Back")
-      div [class_ "recipes-detail-actions"] do
-        a [href_ s!"/recipes/{recipe.id}/edit", class_ "btn btn-secondary btn-sm"] (text "Edit")
-        button [hx_delete s!"/recipes/{recipe.id}", hx_swap "none",
-                hx_confirm "Delete this recipe?", class_ "btn btn-danger btn-sm"] (text "Delete")
-    -- Title and category
-    div [class_ "recipes-detail-title-section"] do
-      span [class_ "recipes-detail-icon"] (text (recipesCategoryIcon recipe.category))
-      div [] do
-        h1 [] (text recipe.title)
-        span [class_ "recipes-detail-category"] (text recipe.category)
-    -- Description
-    if !recipe.description.isEmpty then
-      p [class_ "recipes-detail-description"] (text recipe.description)
-    -- Meta info
-    div [class_ "recipes-detail-meta"] do
-      if recipe.prepTime > 0 then
-        div [class_ "recipes-detail-meta-item"] do
-          span [class_ "recipes-detail-meta-label"] (text "Prep Time")
-          span [class_ "recipes-detail-meta-value"] (text (recipesFormatTime recipe.prepTime))
-      if recipe.cookTime > 0 then
-        div [class_ "recipes-detail-meta-item"] do
-          span [class_ "recipes-detail-meta-label"] (text "Cook Time")
-          span [class_ "recipes-detail-meta-value"] (text (recipesFormatTime recipe.cookTime))
-      if recipe.prepTime > 0 || recipe.cookTime > 0 then
-        div [class_ "recipes-detail-meta-item"] do
-          span [class_ "recipes-detail-meta-label"] (text "Total Time")
-          span [class_ "recipes-detail-meta-value"] (text (recipesFormatTime (recipesTotalTime recipe.prepTime recipe.cookTime)))
-      if recipe.servings > 0 then
-        div [class_ "recipes-detail-meta-item"] do
-          span [class_ "recipes-detail-meta-label"] (text "Servings")
-          span [class_ "recipes-detail-meta-value"] (text (toString recipe.servings))
-    -- Content sections
-    div [class_ "recipes-detail-content"] do
-      -- Ingredients
-      div [class_ "recipes-detail-section"] do
-        h2 [] (text "Ingredients")
-        let ingredientsList := recipesParseIngredients recipe.ingredients
-        if ingredientsList.isEmpty then
-          p [class_ "text-muted"] (text "No ingredients listed")
-        else
-          ul [class_ "recipes-ingredients-list"] do
-            for ingredient in ingredientsList do
-              li [] (text ingredient)
-      -- Instructions
-      div [class_ "recipes-detail-section"] do
-        h2 [] (text "Instructions")
-        if recipe.instructions.isEmpty then
-          p [class_ "text-muted"] (text "No instructions provided")
-        else
-          div [class_ "recipes-instructions"] do
-            -- Simple rendering: each line is a step
-            let steps := recipe.instructions.splitOn "\n" |>.filter (!·.isEmpty)
-            ol [class_ "recipes-steps-list"] do
-              for step in steps do
-                li [] (text step)
-
-/-- Main recipes page content -/
-def recipesPageContent (ctx : Context) (recipes : List RecipeView) (filter : String) : HtmlM Unit := do
-  div [class_ "recipes-container"] do
-    -- Header
-    div [class_ "recipes-header"] do
-      h1 [] (text "Recipes")
-      a [href_ "/recipes/new", class_ "btn btn-primary"] (text "+ New Recipe")
-    -- Filters
-    recipesRenderFilterTabs filter
-    -- Grid
-    div [id_ "recipes-grid"] do
-      recipesRenderGrid recipes
-    -- Modal container
-    div [id_ "modal-container"] (pure ())
-    -- SSE script
-    script [src_ "/js/recipes.js"]
-
 /-! ## Pages -/
 
 -- Main recipes page
@@ -268,8 +185,20 @@ view recipesPage "/recipes" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
   let filter := ctx.paramD "category" "all"
   let recipes := if filter == "all" then getRecipes ctx else getRecipesByCategory ctx filter
-  html (Shared.render ctx "Recipes - Homebase" "/recipes"
-    (recipesPageContent ctx recipes filter))
+  let data := pageContext ctx "Recipes" PageId.recipes
+    (.object #[
+      ("recipes", recipesToValue recipes),
+      ("hasRecipes", .bool (!recipes.isEmpty)),
+      ("filterAll", .bool (filter == "all")),
+      ("filterBreakfast", .bool (filter == "Breakfast")),
+      ("filterLunch", .bool (filter == "Lunch")),
+      ("filterDinner", .bool (filter == "Dinner")),
+      ("filterDessert", .bool (filter == "Dessert")),
+      ("filterSnack", .bool (filter == "Snack")),
+      ("filterBeverage", .bool (filter == "Beverage")),
+      ("filterOther", .bool (filter == "Other"))
+    ])
+  Loom.Stencil.ActionM.renderWithLayout "app" "recipes/index" data
 
 -- View single recipe
 view recipeView "/recipes/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -277,56 +206,15 @@ view recipeView "/recipes/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) 
   match getRecipe ctx id with
   | none => notFound "Recipe not found"
   | some recipe =>
-    html (Shared.render ctx s!"{recipe.title} - Recipes" "/recipes"
-      (recipesRenderDetail recipe ctx))
+    let data := pageContext ctx s!"{recipe.title}" PageId.recipes (recipeToValue recipe)
+    Loom.Stencil.ActionM.renderWithLayout "app" "recipes/show" data
 
 -- New recipe form
 view recipesNewForm "/recipes/new" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  html (Shared.render ctx "New Recipe - Recipes" "/recipes" do
-    div [class_ "recipes-form-container"] do
-      div [class_ "recipes-form-header"] do
-        a [href_ "/recipes", class_ "btn btn-secondary btn-sm"] (text "Cancel")
-        h1 [] (text "New Recipe")
-      form [action_ "/recipes/create", method_ "POST", class_ "recipes-form"] do
-        csrfField ctx.csrfToken
-        div [class_ "form-row"] do
-          div [class_ "form-group form-group-wide"] do
-            label [for_ "title", class_ "form-label"] (text "Title")
-            input [type_ "text", name_ "title", id_ "title", class_ "form-input", required_]
-          div [class_ "form-group"] do
-            label [for_ "category", class_ "form-label"] (text "Category")
-            select [name_ "category", id_ "category", class_ "form-select"] do
-              for cat in recipeCategories do
-                option [value_ cat] cat
-        div [class_ "form-group"] do
-          label [for_ "description", class_ "form-label"] (text "Description")
-          textarea [name_ "description", id_ "description", class_ "form-textarea", rows_ 2,
-                    placeholder_ "Brief description of the dish..."] ""
-        div [class_ "form-row"] do
-          div [class_ "form-group"] do
-            label [for_ "prepTime", class_ "form-label"] (text "Prep Time (minutes)")
-            input [type_ "number", name_ "prepTime", id_ "prepTime", class_ "form-input",
-                   value_ "0", attr_ "min" "0"]
-          div [class_ "form-group"] do
-            label [for_ "cookTime", class_ "form-label"] (text "Cook Time (minutes)")
-            input [type_ "number", name_ "cookTime", id_ "cookTime", class_ "form-input",
-                   value_ "0", attr_ "min" "0"]
-          div [class_ "form-group"] do
-            label [for_ "servings", class_ "form-label"] (text "Servings")
-            input [type_ "number", name_ "servings", id_ "servings", class_ "form-input",
-                   value_ "4", attr_ "min" "1"]
-        div [class_ "form-group"] do
-          label [for_ "ingredients", class_ "form-label"] (text "Ingredients (one per line)")
-          textarea [name_ "ingredients", id_ "ingredients", class_ "form-textarea", rows_ 8,
-                    placeholder_ "1 cup flour\n2 eggs\n1/2 cup sugar\n..."] ""
-        div [class_ "form-group"] do
-          label [for_ "instructions", class_ "form-label"] (text "Instructions (one step per line)")
-          textarea [name_ "instructions", id_ "instructions", class_ "form-textarea", rows_ 10,
-                    placeholder_ "Preheat oven to 350°F\nMix dry ingredients\nAdd wet ingredients\n..."] ""
-        div [class_ "form-actions"] do
-          a [href_ "/recipes", class_ "btn btn-secondary"] (text "Cancel")
-          button [type_ "submit", class_ "btn btn-primary"] (text "Create Recipe"))
+  let data := pageContext ctx "New Recipe" PageId.recipes
+    (.object #[("csrfToken", .string ctx.csrfToken)])
+  Loom.Stencil.ActionM.renderWithLayout "app" "recipes/new" data
 
 -- Edit recipe form
 view recipesEditForm "/recipes/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -334,52 +222,9 @@ view recipesEditForm "/recipes/:id/edit" [HomebaseApp.Middleware.authRequired] (
   match getRecipe ctx id with
   | none => notFound "Recipe not found"
   | some recipe =>
-    html (Shared.render ctx s!"Edit {recipe.title} - Recipes" "/recipes" do
-      div [class_ "recipes-form-container"] do
-        div [class_ "recipes-form-header"] do
-          a [href_ s!"/recipes/{id}", class_ "btn btn-secondary btn-sm"] (text "Cancel")
-          h1 [] (text "Edit Recipe")
-        form [action_ s!"/recipes/{id}", method_ "POST", class_ "recipes-form"] do
-          input [type_ "hidden", name_ "_method", value_ "PUT"]
-          csrfField ctx.csrfToken
-          div [class_ "form-row"] do
-            div [class_ "form-group form-group-wide"] do
-              label [for_ "title", class_ "form-label"] (text "Title")
-              input [type_ "text", name_ "title", id_ "title", class_ "form-input",
-                     value_ recipe.title, required_]
-            div [class_ "form-group"] do
-              label [for_ "category", class_ "form-label"] (text "Category")
-              select [name_ "category", id_ "category", class_ "form-select"] do
-                for cat in recipeCategories do
-                  if cat == recipe.category then
-                    option [value_ cat, selected_] cat
-                  else
-                    option [value_ cat] cat
-          div [class_ "form-group"] do
-            label [for_ "description", class_ "form-label"] (text "Description")
-            textarea [name_ "description", id_ "description", class_ "form-textarea", rows_ 2] recipe.description
-          div [class_ "form-row"] do
-            div [class_ "form-group"] do
-              label [for_ "prepTime", class_ "form-label"] (text "Prep Time (minutes)")
-              input [type_ "number", name_ "prepTime", id_ "prepTime", class_ "form-input",
-                     value_ (toString recipe.prepTime), attr_ "min" "0"]
-            div [class_ "form-group"] do
-              label [for_ "cookTime", class_ "form-label"] (text "Cook Time (minutes)")
-              input [type_ "number", name_ "cookTime", id_ "cookTime", class_ "form-input",
-                     value_ (toString recipe.cookTime), attr_ "min" "0"]
-            div [class_ "form-group"] do
-              label [for_ "servings", class_ "form-label"] (text "Servings")
-              input [type_ "number", name_ "servings", id_ "servings", class_ "form-input",
-                     value_ (toString recipe.servings), attr_ "min" "1"]
-          div [class_ "form-group"] do
-            label [for_ "ingredients", class_ "form-label"] (text "Ingredients (one per line)")
-            textarea [name_ "ingredients", id_ "ingredients", class_ "form-textarea", rows_ 8] recipe.ingredients
-          div [class_ "form-group"] do
-            label [for_ "instructions", class_ "form-label"] (text "Instructions (one step per line)")
-            textarea [name_ "instructions", id_ "instructions", class_ "form-textarea", rows_ 10] recipe.instructions
-          div [class_ "form-actions"] do
-            a [href_ s!"/recipes/{id}", class_ "btn btn-secondary"] (text "Cancel")
-            button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes"))
+    let data := mergeContext (recipeToValue recipe)
+      (.object #[("csrfToken", .string ctx.csrfToken)])
+    Loom.Stencil.ActionM.renderWithLayout "app" "recipes/edit" (pageContext ctx s!"Edit {recipe.title}" PageId.recipes data)
 
 /-! ## Actions -/
 

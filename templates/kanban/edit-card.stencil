@@ -1,0 +1,31 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-md">
+    <h3 class="modal-title">Edit Card</h3>
+    <form hx-put="/kanban/card/{{id}}" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="title" class="form-label">Title</label>
+          <input type="text" name="title" id="title" value="{{title}}" class="form-input"
+                 placeholder="Card title" required autofocus>
+        </div>
+        <div class="form-group">
+          <label for="description" class="form-label">Description</label>
+          <textarea name="description" id="description" rows="3" class="form-textarea"
+                    placeholder="Description (optional)">{{description}}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="labels" class="form-label">Labels</label>
+          <input type="text" name="labels" id="labels" value="{{labelsStr}}" class="form-input"
+                 placeholder="bug, feature, urgent (comma-separated)">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

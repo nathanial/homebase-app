@@ -1,0 +1,20 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-sm">
+    <h3 class="modal-title">Edit Notebook</h3>
+    <form hx-put="/notebook/{{id}}" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="title" class="form-label">Title</label>
+          <input type="text" name="title" id="title" value="{{title}}" class="form-input" required>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

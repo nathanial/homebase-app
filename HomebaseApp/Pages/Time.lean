@@ -4,12 +4,15 @@
 import Scribe
 import Loom
 import Loom.SSE
+import Loom.Stencil
+import Stencil
 import Ledger
 import HomebaseApp.Shared
 import HomebaseApp.Models
 import HomebaseApp.Entities
 import HomebaseApp.Helpers
 import HomebaseApp.Middleware
+import HomebaseApp.StencilHelpers
 
 namespace HomebaseApp.Pages
 
@@ -24,6 +27,7 @@ open HomebaseApp.Shared hiding isLoggedIn isAdmin
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers
+open HomebaseApp.StencilHelpers
 
 /-! ## Data Structures -/
 
@@ -176,14 +180,10 @@ def groupByCategory (entries : List TimeEntry) : List (String × Nat) :=
   ) []
   grouped.toArray.qsort (fun a b => a.2 > b.2) |>.toList  -- sort by duration descending
 
-/-! ## View Helpers -/
+/-! ## Stencil Value Helpers -/
 
-/-- Attribute to clear modal after form submission -/
-def timeModalClearAttr : Attr :=
-  ⟨"hx-on::after-request", "document.getElementById('modal-container').innerHTML = ''"⟩
-
-/-- Get category badge color class -/
-def categoryClass (category : String) : String :=
+/-- Get category class for styling -/
+def timeCategoryClass (category : String) : String :=
   match category.toLower with
   | "work" => "category-work"
   | "personal" => "category-personal"
@@ -191,148 +191,81 @@ def categoryClass (category : String) : String :=
   | "health" => "category-health"
   | _ => "category-other"
 
-/-- Render category badge -/
-def renderCategory (category : String) : HtmlM Unit := do
-  span [class_ s!"time-category {categoryClass category}"] (text category)
+/-- Convert a time entry to Stencil.Value -/
+def timeEntryToValue (entry : TimeEntry) : Stencil.Value :=
+  .object #[
+    ("id", .int (Int.ofNat entry.id)),
+    ("description", .string entry.description),
+    ("category", .string entry.category),
+    ("categoryClass", .string (timeCategoryClass entry.category)),
+    ("timeRange", .string s!"{formatTimeOfDay entry.startTime} - {formatTimeOfDay entry.endTime}"),
+    ("durationFormatted", .string (formatDurationShort entry.duration)),
+    ("duration", .int (Int.ofNat entry.duration))
+  ]
 
-/-- Render the active timer section -/
-def renderTimer (timer : Option Timer) (nowMs : Nat) : HtmlM Unit := do
-  div [class_ "time-timer-section"] do
-    match timer with
-    | some t =>
-      let elapsed := (nowMs - t.startTime) / 1000
-      div [class_ "time-timer-active"] do
-        div [class_ "time-timer-display running"] do
-          span [id_ "timer-value", data_ "start" (toString t.startTime)] (text (formatDuration elapsed))
-        div [class_ "time-timer-info"] do
-          p [class_ "time-timer-description"] (text t.description)
-          renderCategory t.category
-        form [hx_post "/time/stop", hx_swap "none", class_ "time-timer-form",
-              attr_ "hx-on::after-request" "if(event.detail.successful) window.location.reload()"] do
-          button [type_ "submit", class_ "btn btn-danger"] (text "Stop Timer")
-    | none =>
-      div [class_ "time-timer-inactive"] do
-        div [class_ "time-timer-display"] do
-          span [id_ "timer-value"] (text "00:00:00")
-        form [hx_post "/time/start", hx_swap "none", class_ "time-timer-form",
-              attr_ "hx-on::after-request" "if(event.detail.successful) window.location.reload()"] do
-          div [class_ "form-row"] do
-            input [type_ "text", name_ "description", placeholder_ "What are you working on?",
-                   class_ "form-input", required_]
-            select [name_ "category", class_ "form-select"] do
-              for categ in defaultCategories do
-                option [value_ categ] categ
-            button [type_ "submit", class_ "btn btn-primary"] (text "Start")
+/-- Convert timer to Stencil.Value -/
+def timerToValue (timer : Timer) (nowMs : Nat) : Stencil.Value :=
+  let elapsed := (nowMs - timer.startTime) / 1000
+  .object #[
+    ("id", .int (Int.ofNat timer.id)),
+    ("description", .string timer.description),
+    ("category", .string timer.category),
+    ("categoryClass", .string (timeCategoryClass timer.category)),
+    ("startTime", .int (Int.ofNat timer.startTime)),
+    ("elapsed", .string (formatDuration elapsed))
+  ]
 
-/-- Render a time entry row -/
-def renderEntryRow (entry : TimeEntry) : HtmlM Unit := do
-  tr [id_ s!"entry-{entry.id}", class_ "time-entry-row"] do
-    td [class_ "time-entry-time"] do
-      text s!"{formatTimeOfDay entry.startTime} - {formatTimeOfDay entry.endTime}"
-    td [class_ "time-entry-description"] (text entry.description)
-    td [class_ "time-entry-category"] (renderCategory entry.category)
-    td [class_ "time-entry-duration"] (text (formatDurationShort entry.duration))
-    td [class_ "time-entry-actions"] do
-      button [hx_get s!"/time/entry/{entry.id}/edit", hx_target "#modal-container",
-              hx_swap "innerHTML", class_ "btn-icon", title_ "Edit"] (text "e")
-      button [hx_delete s!"/time/entry/{entry.id}", hx_swap "none",
-              hx_confirm "Delete this time entry?",
-              class_ "btn-icon btn-icon-danger", title_ "Delete"] (text "x")
+/-- Convert category summary to Stencil.Value -/
+def categorySummaryToValue (categories : List (String × Nat)) (total : Nat) : Stencil.Value :=
+  .array (categories.map fun (cat, dur) =>
+    let pct := if total > 0 then (dur * 100) / total else 0
+    .object #[
+      ("category", .string cat),
+      ("categoryClass", .string (timeCategoryClass cat)),
+      ("duration", .string (formatDurationShort dur)),
+      ("percentage", .int (Int.ofNat pct))
+    ]
+  ).toArray
 
-/-- Render time entries table -/
-def renderEntriesTable (entries : List TimeEntry) : HtmlM Unit := do
-  if entries.isEmpty then
-    div [class_ "time-empty"] do
-      p [] (text "No time entries for today. Start tracking!")
-  else
-    table [class_ "time-entries-table"] do
-      thead [] do
-        tr [] do
-          th [] (text "Time")
-          th [] (text "Description")
-          th [] (text "Category")
-          th [] (text "Duration")
-          th [] (text "Actions")
-      tbody [] do
-        for entry in entries do renderEntryRow entry
-
-/-- Render category summary bar -/
-def renderCategorySummary (categories : List (String × Nat)) (total : Nat) : HtmlM Unit := do
-  if categories.isEmpty then pure ()
-  else
-    div [class_ "time-summary-bar"] do
-      for (cat, dur) in categories do
-        let pct := if total > 0 then (dur * 100) / total else 0
-        div [class_ s!"time-summary-segment {categoryClass cat}",
-             style_ s!"flex-basis: {pct}%", title_ s!"{cat}: {formatDurationShort dur}"] (pure ())
-
-/-- Render today's summary -/
-def renderTodaySummary (entries : List TimeEntry) : HtmlM Unit := do
+/-- Build time page data for Stencil -/
+def timePageData (ctx : Context) (timer : Option Timer) (entries : List TimeEntry) (nowMs : Nat) : Stencil.Value :=
   let total := totalDuration entries
   let categories := groupByCategory entries
-  div [class_ "time-today-summary"] do
-    div [class_ "time-summary-header"] do
-      h2 [] (text "Today")
-      span [class_ "time-summary-total"] (text (formatDurationShort total))
-    renderCategorySummary categories total
+  .object #[
+    ("hasActiveTimer", .bool timer.isSome),
+    ("timer", match timer with | some t => timerToValue t nowMs | none => .null),
+    ("timerElapsed", .string (match timer with
+      | some t => formatDuration ((nowMs - t.startTime) / 1000)
+      | none => "00:00:00")),
+    ("categories", .array (defaultCategories.map .string).toArray),
+    ("hasEntries", .bool (!entries.isEmpty)),
+    ("entries", .array (entries.map timeEntryToValue).toArray),
+    ("totalDuration", .string (formatDurationShort total)),
+    ("hasCategorySummary", .bool (!categories.isEmpty)),
+    ("categorySummary", categorySummaryToValue categories total),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
 
-/-- Main time page content -/
-def timePageContent (ctx : Context) (timer : Option Timer) (todayEntries : List TimeEntry) (nowMs : Nat) : HtmlM Unit := do
-  div [class_ "time-container"] do
-    -- Timer section
-    renderTimer timer nowMs
-    -- Today's summary
-    renderTodaySummary todayEntries
-    -- Today's entries
-    div [class_ "time-entries-section"] do
-      div [class_ "time-entries-header"] do
-        h3 [] (text "Time Entries")
-        div [class_ "time-entries-actions"] do
-          button [hx_get "/time/entry/add", hx_target "#modal-container",
-                  hx_swap "innerHTML", class_ "btn btn-secondary btn-sm"] (text "+ Manual Entry")
-          a [href_ "/time/week", class_ "btn btn-secondary btn-sm"] (text "Weekly Report")
-      div [id_ "entries-container"] do
-        renderEntriesTable todayEntries
-    -- Modal container
-    div [id_ "modal-container"] (pure ())
-    -- Timer update script
-    script [type_ "text/javascript"] "(function() { const timerEl = document.getElementById('timer-value'); if (!timerEl || !timerEl.dataset.start) return; const startTime = parseInt(timerEl.dataset.start); function update() { const elapsed = Math.floor((Date.now() - startTime) / 1000); const h = Math.floor(elapsed / 3600); const m = Math.floor((elapsed % 3600) / 60); const s = elapsed % 60; const pad = n => n.toString().padStart(2, '0'); timerEl.textContent = pad(h) + ':' + pad(m) + ':' + pad(s); } update(); setInterval(update, 1000); })();"
-    -- SSE for real-time updates across tabs
-    script [src_ "/js/time.js"]
-
-/-- Weekly summary content -/
-def weekSummaryContent (_ctx : Context) (entries : List TimeEntry) (weekStartMs : Nat) : HtmlM Unit := do
+/-- Build week page data for Stencil -/
+def weekPageData (entries : List TimeEntry) (weekStartMs : Nat) : Stencil.Value :=
   let total := totalDuration entries
   let categories := groupByCategory entries
   let msPerDay := 24 * 60 * 60 * 1000
-  div [class_ "time-container"] do
-    div [class_ "time-week-header"] do
-      h1 [] (text "Weekly Summary")
-      a [href_ "/time", class_ "btn btn-secondary"] (text "Back to Today")
-    -- Total time card
-    div [class_ "time-week-total"] do
-      h2 [] (text "Total Time")
-      span [class_ "time-week-total-value"] (text (formatDurationShort total))
-    -- Category breakdown
-    div [class_ "time-week-categories"] do
-      h3 [] (text "By Category")
-      renderCategorySummary categories total
-      div [class_ "time-category-list"] do
-        for (cat, dur) in categories do
-          div [class_ "time-category-item"] do
-            renderCategory cat
-            span [class_ "time-category-duration"] (text (formatDurationShort dur))
-    -- Day-by-day breakdown
-    div [class_ "time-week-days"] do
-      h3 [] (text "By Day")
-      for i in [0:7] do
-        let dayStart := weekStartMs + i * msPerDay
-        let dayEntries := entries.filter fun e => e.startTime >= dayStart && e.startTime < dayStart + msPerDay
-        let dayTotal := totalDuration dayEntries
-        if dayTotal > 0 then
-          div [class_ "time-day-row"] do
-            span [class_ "time-day-label"] (text s!"Day {i + 1}")
-            span [class_ "time-day-duration"] (text (formatDurationShort dayTotal))
+  let days := (List.range 7).map fun i =>
+    let dayStart := weekStartMs + i * msPerDay
+    let dayEntries := entries.filter fun e => e.startTime >= dayStart && e.startTime < dayStart + msPerDay
+    let dayTotal := totalDuration dayEntries
+    .object #[
+      ("label", .string s!"Day {i + 1}"),
+      ("hasTime", .bool (dayTotal > 0)),
+      ("duration", .string (formatDurationShort dayTotal))
+    ]
+  .object #[
+    ("totalDuration", .string (formatDurationShort total)),
+    ("hasCategorySummary", .bool (!categories.isEmpty)),
+    ("categorySummary", categorySummaryToValue categories total),
+    ("days", .array days.toArray)
+  ]
 
 /-! ## Pages -/
 
@@ -343,7 +276,8 @@ view timePage "/time" [HomebaseApp.Middleware.authRequired] do
   let todayStart := getStartOfToday nowMs
   let timer := getActiveTimer ctx
   let todayEntries := getTimeEntriesForDay ctx todayStart
-  html (Shared.render ctx "Time - Homebase" "/time" (timePageContent ctx timer todayEntries nowMs))
+  let data := pageContext ctx "Time" PageId.time (timePageData ctx timer todayEntries nowMs)
+  Loom.Stencil.ActionM.renderWithLayout "app" "time/index" data
 
 -- Weekly summary page
 view timeWeek "/time/week" [HomebaseApp.Middleware.authRequired] do
@@ -351,7 +285,8 @@ view timeWeek "/time/week" [HomebaseApp.Middleware.authRequired] do
   let nowMs ← timeGetNowMs
   let weekStart := getStartOfWeek nowMs
   let entries := getTimeEntriesInRange ctx weekStart (weekStart + 7 * 24 * 60 * 60 * 1000)
-  html (Shared.render ctx "Weekly Summary - Homebase" "/time" (weekSummaryContent ctx entries weekStart))
+  let data := pageContext ctx "Weekly Summary" PageId.time (weekPageData entries weekStart)
+  Loom.Stencil.ActionM.renderWithLayout "app" "time/week" data
 
 -- Entries table refresh (for HTMX)
 view timeEntries "/time/entries" [HomebaseApp.Middleware.authRequired] do
@@ -359,7 +294,11 @@ view timeEntries "/time/entries" [HomebaseApp.Middleware.authRequired] do
   let nowMs ← timeGetNowMs
   let todayStart := getStartOfToday nowMs
   let todayEntries := getTimeEntriesForDay ctx todayStart
-  html (HtmlM.render (renderEntriesTable todayEntries))
+  let data : Stencil.Value := .object #[
+    ("hasEntries", .bool (!todayEntries.isEmpty)),
+    ("entries", .array (todayEntries.map timeEntryToValue).toArray)
+  ]
+  Loom.Stencil.ActionM.render "time/entries" data
 
 -- Start timer
 action timeStart "/time/start" POST [HomebaseApp.Middleware.authRequired] do
@@ -410,32 +349,11 @@ action timeStop "/time/stop" POST [HomebaseApp.Middleware.authRequired] do
 -- Add manual entry form
 view timeAddEntryForm "/time/entry/add" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
-  html (HtmlM.render do
-    div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-      div [class_ "modal-container modal-md"] do
-        h3 [class_ "modal-title"] (text "Add Time Entry")
-        form [hx_post "/time/entry", hx_swap "none", timeModalClearAttr] do
-          csrfField ctx.csrfToken
-          div [class_ "form-stack"] do
-            div [class_ "form-group"] do
-              label [for_ "description", class_ "form-label"] (text "Description")
-              input [type_ "text", name_ "description", id_ "description",
-                     class_ "form-input", required_, autofocus_]
-            div [class_ "form-group"] do
-              label [for_ "startTime", class_ "form-label"] (text "Start Time")
-              input [type_ "time", name_ "startTime", id_ "startTime", class_ "form-input", required_]
-            div [class_ "form-group"] do
-              label [for_ "endTime", class_ "form-label"] (text "End Time")
-              input [type_ "time", name_ "endTime", id_ "endTime", class_ "form-input", required_]
-            div [class_ "form-group"] do
-              label [for_ "category", class_ "form-label"] (text "Category")
-              select [name_ "category", id_ "category", class_ "form-select"] do
-                for categ in defaultCategories do
-                  option [value_ categ] categ
-            div [class_ "form-actions"] do
-              button [type_ "button", class_ "btn btn-secondary",
-                      attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-              button [type_ "submit", class_ "btn btn-primary"] (text "Add Entry"))
+  let data : Stencil.Value := .object #[
+    ("categories", .array (defaultCategories.map .string).toArray),
+    ("csrfToken", .string ctx.csrfToken)
+  ]
+  Loom.Stencil.ActionM.render "time/add" data
 
 -- Create manual entry
 action timeCreateEntry "/time/entry" POST [HomebaseApp.Middleware.authRequired] do
@@ -480,29 +398,15 @@ view timeEditEntryForm "/time/entry/:id/edit" [HomebaseApp.Middleware.authRequir
   match getTimeEntry ctx id with
   | none => notFound "Entry not found"
   | some entry =>
-    html (HtmlM.render do
-      div [class_ "modal-overlay", attr_ "onclick" "if(event.target === this) this.parentElement.innerHTML = ''"] do
-        div [class_ "modal-container modal-md"] do
-          h3 [class_ "modal-title"] (text "Edit Time Entry")
-          form [hx_put s!"/time/entry/{id}", hx_swap "none", timeModalClearAttr] do
-            csrfField ctx.csrfToken
-            div [class_ "form-stack"] do
-              div [class_ "form-group"] do
-                label [for_ "description", class_ "form-label"] (text "Description")
-                input [type_ "text", name_ "description", id_ "description",
-                       value_ entry.description, class_ "form-input", required_]
-              div [class_ "form-group"] do
-                label [for_ "category", class_ "form-label"] (text "Category")
-                select [name_ "category", id_ "category", class_ "form-select"] do
-                  for categ in defaultCategories do
-                    if categ == entry.category then
-                      option [value_ categ, selected_] categ
-                    else
-                      option [value_ categ] categ
-              div [class_ "form-actions"] do
-                button [type_ "button", class_ "btn btn-secondary",
-                        attr_ "onclick" "document.getElementById('modal-container').innerHTML = ''"] (text "Cancel")
-                button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes"))
+    let categories := defaultCategories.map fun cat =>
+      .object #[("name", .string cat), ("isSelected", .bool (cat == entry.category))]
+    let data : Stencil.Value := .object #[
+      ("id", .int (Int.ofNat id)),
+      ("description", .string entry.description),
+      ("categories", .array categories.toArray),
+      ("csrfToken", .string ctx.csrfToken)
+    ]
+    Loom.Stencil.ActionM.render "time/edit" data
 
 -- Update entry
 action timeUpdateEntry "/time/entry/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do

@@ -1,0 +1,69 @@
+<div class="recipes-form-container">
+  <div class="recipes-form-header">
+    <a href="/recipes" class="btn btn-secondary btn-sm">Cancel</a>
+    <h1>New Recipe</h1>
+  </div>
+  <form action="/recipes/create" method="POST" class="recipes-form">
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="form-row">
+      <div class="form-group form-group-wide">
+        <label for="title" class="form-label">Title</label>
+        <input type="text" name="title" id="title" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label for="category" class="form-label">Category</label>
+        <select name="category" id="category" class="form-select">
+          <option value="Breakfast">Breakfast</option>
+          <option value="Lunch">Lunch</option>
+          <option value="Dinner">Dinner</option>
+          <option value="Dessert">Dessert</option>
+          <option value="Snack">Snack</option>
+          <option value="Beverage">Beverage</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="description" class="form-label">Description</label>
+      <textarea name="description" id="description" class="form-textarea" rows="2"
+                placeholder="Brief description of the dish..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="prepTime" class="form-label">Prep Time (minutes)</label>
+        <input type="number" name="prepTime" id="prepTime" class="form-input"
+               value="0" min="0">
+      </div>
+      <div class="form-group">
+        <label for="cookTime" class="form-label">Cook Time (minutes)</label>
+        <input type="number" name="cookTime" id="cookTime" class="form-input"
+               value="0" min="0">
+      </div>
+      <div class="form-group">
+        <label for="servings" class="form-label">Servings</label>
+        <input type="number" name="servings" id="servings" class="form-input"
+               value="4" min="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="ingredients" class="form-label">Ingredients (one per line)</label>
+      <textarea name="ingredients" id="ingredients" class="form-textarea" rows="8"
+                placeholder="1 cup flour
+2 eggs
+1/2 cup sugar
+..."></textarea>
+    </div>
+    <div class="form-group">
+      <label for="instructions" class="form-label">Instructions (one step per line)</label>
+      <textarea name="instructions" id="instructions" class="form-textarea" rows="10"
+                placeholder="Preheat oven to 350°F
+Mix dry ingredients
+Add wet ingredients
+..."></textarea>
+    </div>
+    <div class="form-actions">
+      <a href="/recipes" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Create Recipe</button>
+    </div>
+  </form>
+</div>

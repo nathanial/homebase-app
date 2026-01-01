@@ -1,18 +1,19 @@
 /-
   HomebaseApp.Pages.Admin - Admin panel for user management
 -/
-import Scribe
 import Loom
+import Loom.Stencil
+import Stencil
 import Ledger
 import HomebaseApp.Shared
 import HomebaseApp.Models
 import HomebaseApp.Entities
 import HomebaseApp.Helpers
 import HomebaseApp.Middleware
+import HomebaseApp.StencilHelpers
 
 namespace HomebaseApp.Pages
 
-open Scribe
 open Loom hiding Action
 open Loom.Page
 open Loom.ActionM
@@ -22,6 +23,7 @@ open HomebaseApp.Shared hiding isLoggedIn isAdmin
 open HomebaseApp.Models
 open HomebaseApp.Entities
 open HomebaseApp.Helpers hiding isLoggedIn isAdmin
+open HomebaseApp.StencilHelpers
 
 /-! ## Database Helpers -/
 
@@ -46,129 +48,20 @@ def findUserByEmail' (ctx : Context) (email : String) : Option EntityId :=
   ctx.database.bind fun db =>
     db.findOneByAttrValue DbUser.attr_email (.string email)
 
-/-! ## View Helpers -/
+/-! ## Stencil Value Helpers -/
 
-def userListContent (_ctx : Context) (users : List (EntityId × DbUser)) : HtmlM Unit := do
-  div [class_ "admin-container"] do
-    div [class_ "admin-header"] do
-      h1 [class_ "admin-title"] (text "User Management")
-      a [href_ "/admin/user/new", class_ "btn btn-primary"] (text "+ Add User")
-    div [class_ "table-container"] do
-      table [class_ "table"] do
-        thead [] do
-          tr [] do
-            th [] (text "ID")
-            th [] (text "Name")
-            th [] (text "Email")
-            th [] (text "Admin")
-            th [] (text "Actions")
-        tbody [] do
-          for (eid, user) in users do
-            tr [] do
-              td [] (text (toString eid.id.toNat))
-              td [] (text user.name)
-              td [] (text user.email)
-              td [] do
-                if user.isAdmin then
-                  span [class_ "badge badge-success"] (text "Yes")
-                else
-                  span [class_ "badge badge-secondary"] (text "No")
-              td [class_ "table-actions"] do
-                a [href_ s!"/admin/user/{eid.id.toNat}", class_ "btn btn-sm btn-secondary"]
-                  (text "View")
-                a [href_ s!"/admin/user/{eid.id.toNat}/edit", class_ "btn btn-sm btn-primary"]
-                  (text "Edit")
-                button [class_ "btn btn-sm btn-danger",
-                        attr_ "hx-delete" s!"/admin/user/{eid.id.toNat}",
-                        attr_ "hx-confirm" "Are you sure you want to delete this user?",
-                        attr_ "hx-target" "body"]
-                  (text "Delete")
+/-- Convert a DbUser to Stencil.Value -/
+def userToValue (uid : Nat) (user : DbUser) : Stencil.Value :=
+  .object #[
+    ("id", .int (Int.ofNat uid)),
+    ("name", .string user.name),
+    ("email", .string user.email),
+    ("isAdmin", .bool user.isAdmin)
+  ]
 
-def userDetailContent (_ctx : Context) (userId : Nat) (user : DbUser) : HtmlM Unit := do
-  div [class_ "admin-container"] do
-    div [class_ "admin-header"] do
-      h1 [class_ "admin-title"] (text s!"User: {user.name}")
-      div [class_ "admin-actions"] do
-        a [href_ s!"/admin/user/{userId}/edit", class_ "btn btn-primary"] (text "Edit")
-        a [href_ "/admin", class_ "btn btn-secondary"] (text "Back to List")
-    div [class_ "card"] do
-      dl [class_ "detail-list"] do
-        dt [] (text "ID")
-        dd [] (text (toString userId))
-        dt [] (text "Name")
-        dd [] (text user.name)
-        dt [] (text "Email")
-        dd [] (text user.email)
-        dt [] (text "Admin")
-        dd [] do
-          if user.isAdmin then
-            span [class_ "badge badge-success"] (text "Yes")
-          else
-            span [class_ "badge badge-secondary"] (text "No")
-
-def createUserContent (ctx : Context) : HtmlM Unit := do
-  div [class_ "admin-container"] do
-    div [class_ "admin-header"] do
-      h1 [class_ "admin-title"] (text "Create User")
-      a [href_ "/admin", class_ "btn btn-secondary"] (text "Back to List")
-    div [class_ "card"] do
-      form [method_ "POST", action_ "/admin/user"] do
-        csrfField ctx.csrfToken
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "name", class_ "form-label"] (text "Name")
-            input [type_ "text", name_ "name", id_ "name",
-                   class_ "form-input", required_, autofocus_,
-                   placeholder_ "User's name"]
-          div [class_ "form-group"] do
-            label [for_ "email", class_ "form-label"] (text "Email")
-            input [type_ "email", name_ "email", id_ "email",
-                   class_ "form-input", required_,
-                   placeholder_ "user@example.com"]
-          div [class_ "form-group"] do
-            label [for_ "password", class_ "form-label"] (text "Password")
-            input [type_ "password", name_ "password", id_ "password",
-                   class_ "form-input", required_,
-                   placeholder_ "Choose a password"]
-          div [class_ "form-group form-checkbox"] do
-            input [type_ "checkbox", name_ "is_admin", id_ "is_admin"]
-            label [for_ "is_admin", class_ "form-label"] (text "Grant admin privileges")
-          div [class_ "form-actions"] do
-            button [type_ "submit", class_ "btn btn-primary"] (text "Create User")
-            a [href_ "/admin", class_ "btn btn-secondary"] (text "Cancel")
-
-def editUserContent (ctx : Context) (userId : Nat) (user : DbUser) : HtmlM Unit := do
-  div [class_ "admin-container"] do
-    div [class_ "admin-header"] do
-      h1 [class_ "admin-title"] (text s!"Edit User: {user.name}")
-      a [href_ "/admin", class_ "btn btn-secondary"] (text "Back to List")
-    div [class_ "card"] do
-      form [method_ "POST", action_ s!"/admin/user/{userId}"] do
-        input [type_ "hidden", name_ "_method", value_ "PUT"]
-        csrfField ctx.csrfToken
-        div [class_ "form-stack"] do
-          div [class_ "form-group"] do
-            label [for_ "name", class_ "form-label"] (text "Name")
-            input [type_ "text", name_ "name", id_ "name", value_ user.name,
-                   class_ "form-input", required_]
-          div [class_ "form-group"] do
-            label [for_ "email", class_ "form-label"] (text "Email")
-            input [type_ "email", name_ "email", id_ "email", value_ user.email,
-                   class_ "form-input", required_]
-          div [class_ "form-group"] do
-            label [for_ "password", class_ "form-label"] (text "Password (leave blank to keep current)")
-            input [type_ "password", name_ "password", id_ "password",
-                   class_ "form-input",
-                   placeholder_ "Leave blank to keep current password"]
-          div [class_ "form-group form-checkbox"] do
-            if user.isAdmin then
-              input [type_ "checkbox", name_ "is_admin", id_ "is_admin", checked_]
-            else
-              input [type_ "checkbox", name_ "is_admin", id_ "is_admin"]
-            label [for_ "is_admin", class_ "form-label"] (text "Admin privileges")
-          div [class_ "form-actions"] do
-            button [type_ "submit", class_ "btn btn-primary"] (text "Save Changes")
-            a [href_ "/admin", class_ "btn btn-secondary"] (text "Cancel")
+/-- Convert a list of users to Stencil.Value -/
+def usersToValue (users : List (EntityId × DbUser)) : Stencil.Value :=
+  .array (users.map fun (eid, user) => userToValue eid.id.toNat user).toArray
 
 /-! ## Pages -/
 
@@ -176,20 +69,25 @@ def editUserContent (ctx : Context) (userId : Nat) (user : DbUser) : HtmlM Unit 
 view admin "/admin" [HomebaseApp.Middleware.authRequired, HomebaseApp.Middleware.adminRequired] do
   let ctx ← getCtx
   let users := getUsers ctx
-  html (Shared.render ctx "Admin - Users" "/admin" (userListContent ctx users))
+  let data := pageContext ctx "User Management" PageId.admin
+    (.object #[("users", usersToValue users)])
+  Loom.Stencil.ActionM.renderWithLayout "app" "admin/index" data
 
 -- View user
 view adminUser "/admin/user/:id" [HomebaseApp.Middleware.authRequired, HomebaseApp.Middleware.adminRequired] (id : Nat) do
   let ctx ← getCtx
   match getUser ctx id with
   | some user =>
-    html (Shared.render ctx s!"User: {user.name}" "/admin" (userDetailContent ctx id user))
+    let data := pageContext ctx s!"User: {user.name}" PageId.admin
+      (.object #[("user", userToValue id user)])
+    Loom.Stencil.ActionM.renderWithLayout "app" "admin/show" data
   | none => notFound "User not found"
 
 -- Create user form
 view adminCreateUser "/admin/user/new" [HomebaseApp.Middleware.authRequired, HomebaseApp.Middleware.adminRequired] do
   let ctx ← getCtx
-  html (Shared.render ctx "Create User" "/admin" (createUserContent ctx))
+  let data := pageContext ctx "Create User" PageId.admin
+  Loom.Stencil.ActionM.renderWithLayout "app" "admin/new" data
 
 -- Store user
 action adminStoreUser "/admin/user" POST [HomebaseApp.Middleware.authRequired, HomebaseApp.Middleware.adminRequired] do
@@ -227,7 +125,9 @@ view adminEditUser "/admin/user/:id/edit" [HomebaseApp.Middleware.authRequired, 
   let ctx ← getCtx
   match getUser ctx id with
   | some user =>
-    html (Shared.render ctx s!"Edit User: {user.name}" "/admin" (editUserContent ctx id user))
+    let data := pageContext ctx s!"Edit User: {user.name}" PageId.admin
+      (.object #[("user", userToValue id user)])
+    Loom.Stencil.ActionM.renderWithLayout "app" "admin/edit" data
   | none => notFound "User not found"
 
 -- Update user

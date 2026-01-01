@@ -178,28 +178,28 @@ test "groupByCategory multiple categories" := do
 
 /-! ## Category Class Tests -/
 
-test "categoryClass work" := do
-  categoryClass "Work" ≡ "category-work"
+test "timeCategoryClass work" := do
+  timeCategoryClass "Work" ≡ "category-work"
 
-test "categoryClass personal" := do
-  categoryClass "Personal" ≡ "category-personal"
+test "timeCategoryClass personal" := do
+  timeCategoryClass "Personal" ≡ "category-personal"
 
-test "categoryClass learning" := do
-  categoryClass "Learning" ≡ "category-learning"
+test "timeCategoryClass learning" := do
+  timeCategoryClass "Learning" ≡ "category-learning"
 
-test "categoryClass health" := do
-  categoryClass "Health" ≡ "category-health"
+test "timeCategoryClass health" := do
+  timeCategoryClass "Health" ≡ "category-health"
 
-test "categoryClass case insensitive" := do
-  categoryClass "WORK" ≡ "category-work"
-  categoryClass "work" ≡ "category-work"
-  categoryClass "WoRk" ≡ "category-work"
+test "timeCategoryClass case insensitive" := do
+  timeCategoryClass "WORK" ≡ "category-work"
+  timeCategoryClass "work" ≡ "category-work"
+  timeCategoryClass "WoRk" ≡ "category-work"
 
-test "categoryClass unknown returns other" := do
-  categoryClass "Unknown" ≡ "category-other"
+test "timeCategoryClass unknown returns other" := do
+  timeCategoryClass "Unknown" ≡ "category-other"
 
-test "categoryClass empty string returns other" := do
-  categoryClass "" ≡ "category-other"
+test "timeCategoryClass empty string returns other" := do
+  timeCategoryClass "" ≡ "category-other"
 
 /-! ## Default Categories Tests -/
 

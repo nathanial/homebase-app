@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}} - Homebase</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/chat.css">
+  <link rel="stylesheet" href="/css/kanban.css">
+  <link rel="stylesheet" href="/css/time.css">
+  <link rel="stylesheet" href="/css/gallery.css">
+  <link rel="stylesheet" href="/css/notebook.css">
+  <link rel="stylesheet" href="/css/health.css">
+  <link rel="stylesheet" href="/css/recipes.css">
+  <link rel="stylesheet" href="/css/news.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="/js/confirm-modal.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-header-icon">🏠</span>
+        Homebase
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/chat" class="sidebar-link{{#if isChat}} active{{/if}}">
+          <span class="sidebar-link-icon">💬</span>
+          <span>Chat</span>
+        </a>
+        <a href="/notebook" class="sidebar-link{{#if isNotebook}} active{{/if}}">
+          <span class="sidebar-link-icon">📓</span>
+          <span>Notebook</span>
+        </a>
+        <a href="/time" class="sidebar-link{{#if isTime}} active{{/if}}">
+          <span class="sidebar-link-icon">⏰</span>
+          <span>Time</span>
+        </a>
+        <a href="/health" class="sidebar-link{{#if isHealth}} active{{/if}}">
+          <span class="sidebar-link-icon">🏥</span>
+          <span>Health</span>
+        </a>
+        <a href="/recipes" class="sidebar-link{{#if isRecipes}} active{{/if}}">
+          <span class="sidebar-link-icon">🍳</span>
+          <span>Recipes</span>
+        </a>
+        <a href="/kanban" class="sidebar-link{{#if isKanban}} active{{/if}}">
+          <span class="sidebar-link-icon">📋</span>
+          <span>Kanban</span>
+        </a>
+        <a href="/gallery" class="sidebar-link{{#if isGallery}} active{{/if}}">
+          <span class="sidebar-link-icon">🖼️</span>
+          <span>Gallery</span>
+        </a>
+        <a href="/news" class="sidebar-link{{#if isNews}} active{{/if}}">
+          <span class="sidebar-link-icon">📰</span>
+          <span>News</span>
+        </a>
+        {{#if showAdmin}}
+        <div class="sidebar-divider"></div>
+        <a href="/admin" class="sidebar-link{{#if isAdmin}} active{{/if}}">
+          <span class="sidebar-link-icon">⚙️</span>
+          <span>Admin</span>
+        </a>
+        {{/if}}
+      </nav>
+    </aside>
+
+    <!-- Main area -->
+    <div class="main-area">
+      <!-- Navbar -->
+      <nav class="navbar">
+        {{#if userName}}
+        <div class="navbar-user">
+          <span class="navbar-username">Hello, {{userName}}</span>
+          <a href="/logout" class="navbar-link">Logout</a>
+        </div>
+        {{else}}
+        <div class="navbar-user">
+          <a href="/login" class="navbar-link">Login</a>
+          <a href="/register" class="navbar-link navbar-link-primary">Register</a>
+        </div>
+        {{/if}}
+      </nav>
+
+      <!-- Main content -->
+      <div class="main-content">
+        {{#if flash.success}}
+        <div class="flash flash-success">{{flash.success}}</div>
+        {{/if}}
+        {{#if flash.error}}
+        <div class="flash flash-error">{{flash.error}}</div>
+        {{/if}}
+        {{#if flash.info}}
+        <div class="flash flash-info">{{flash.info}}</div>
+        {{/if}}
+
+        {{> content}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

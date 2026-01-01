@@ -1,0 +1,25 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-md">
+    <h3 class="modal-title">New Note</h3>
+    <form hx-post="/notebook/{{notebookId}}/note/create" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="title" class="form-label">Title</label>
+          <input type="text" name="title" id="title" class="form-input" required autofocus>
+        </div>
+        <div class="form-group">
+          <label for="content" class="form-label">Content</label>
+          <textarea name="content" id="content" class="form-textarea" rows="8"
+                    placeholder="Write your note in markdown..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,4 @@
+<div class="chat-empty-state">
+  <div class="text-6xl mb-4">Select a thread</div>
+  <p>Choose a thread from the sidebar or create a new one.</p>
+</div>

@@ -1,0 +1,16 @@
+<div id="thread-{{id}}" class="chat-thread-item{{#if isActive}} chat-thread-active{{/if}}"
+     hx-get="/chat/thread/{{id}}"
+     hx-target="#chat-messages-area"
+     hx-swap="innerHTML"
+     hx-push-url="true">
+  <div class="chat-thread-header">
+    <h4 class="chat-thread-title">{{title}}</h4>
+    <span class="chat-thread-time">{{relativeTime}}</span>
+  </div>
+  {{#if hasLastMessage}}
+  <p class="chat-thread-preview">{{lastMessagePreview}}</p>
+  {{/if}}
+  <div class="chat-thread-meta">
+    <span class="chat-thread-count">{{messageCount}} messages</span>
+  </div>
+</div>

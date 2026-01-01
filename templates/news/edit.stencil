@@ -1,0 +1,49 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-md">
+    <h3 class="modal-title">Edit Link</h3>
+    <form hx-put="/news/{{id}}" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="url" class="form-label">URL</label>
+          <input type="url" name="url" id="url" class="form-input"
+                 value="{{url}}" required>
+        </div>
+        <div class="form-group">
+          <label for="title" class="form-label">Title</label>
+          <input type="text" name="title" id="title" class="form-input"
+                 value="{{title}}" required>
+        </div>
+        <div class="form-group">
+          <label for="description" class="form-label">Description</label>
+          <textarea name="description" id="description" class="form-textarea" rows="2">{{description}}</textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="source" class="form-label">Source</label>
+            <input type="text" name="source" id="source" class="form-input"
+                   value="{{source}}">
+          </div>
+          <div class="form-group">
+            <label for="category" class="form-label">Category</label>
+            <select name="category" id="category" class="form-select">
+              <option value="Tech"{{#if isTech}} selected{{/if}}>Tech</option>
+              <option value="Business"{{#if isBusiness}} selected{{/if}}>Business</option>
+              <option value="Science"{{#if isScience}} selected{{/if}}>Science</option>
+              <option value="Health"{{#if isHealth}} selected{{/if}}>Health</option>
+              <option value="Sports"{{#if isSports}} selected{{/if}}>Sports</option>
+              <option value="Entertainment"{{#if isEntertainment}} selected{{/if}}>Entertainment</option>
+              <option value="General"{{#if isGeneral}} selected{{/if}}>General</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,8 +1,9 @@
 /-
   HomebaseApp.Pages.Auth - Authentication pages (login, register, logout)
 -/
-import Scribe
 import Loom
+import Loom.Stencil
+import Stencil
 import Ledger
 import Crypt
 import HomebaseApp.Shared
@@ -10,7 +11,6 @@ import HomebaseApp.Models
 
 namespace HomebaseApp.Pages
 
-open Scribe
 open Loom
 open Loom.Page
 open Loom.ActionM
@@ -61,62 +61,14 @@ def hasAnyUsers (ctx : Context) : Bool :=
   | none => false
   | some db => !(db.entitiesWithAttr userEmail).isEmpty
 
-/-! ## Login Views -/
-
-def loginContent (ctx : Context) : HtmlM Unit := do
-  div [class_ "auth-card"] do
-    h1 [class_ "auth-title"] (text "Login")
-    form [method_ "post", action_ "/login"] do
-      csrfField ctx.csrfToken
-      div [class_ "form-group-lg"] do
-        label [for_ "email", class_ "form-label"] (text "Email")
-        input [type_ "email", name_ "email", id_ "email", required_,
-               placeholder_ "you@example.com",
-               class_ "form-input"]
-      div [class_ "form-group-lg"] do
-        label [for_ "password", class_ "form-label"] (text "Password")
-        input [type_ "password", name_ "password", id_ "password", required_,
-               placeholder_ "Your password",
-               class_ "form-input"]
-      button [type_ "submit", class_ "btn btn-primary btn-block"] (text "Login")
-    p [class_ "auth-footer"] do
-      text "Don't have an account? "
-      a [href_ "/register"] (text "Register here")
-
-/-! ## Register Views -/
-
-def registerContent (ctx : Context) : HtmlM Unit := do
-  div [class_ "auth-card"] do
-    h1 [class_ "auth-title"] (text "Create Account")
-    form [method_ "post", action_ "/register"] do
-      csrfField ctx.csrfToken
-      div [class_ "form-group-lg"] do
-        label [for_ "name", class_ "form-label"] (text "Name")
-        input [type_ "text", name_ "name", id_ "name", required_,
-               placeholder_ "Your name",
-               class_ "form-input"]
-      div [class_ "form-group-lg"] do
-        label [for_ "email", class_ "form-label"] (text "Email")
-        input [type_ "email", name_ "email", id_ "email", required_,
-               placeholder_ "you@example.com",
-               class_ "form-input"]
-      div [class_ "form-group-lg"] do
-        label [for_ "password", class_ "form-label"] (text "Password")
-        input [type_ "password", name_ "password", id_ "password", required_,
-               placeholder_ "Choose a password",
-               class_ "form-input"]
-      button [type_ "submit", class_ "btn btn-primary btn-block"] (text "Create Account")
-    p [class_ "auth-footer"] do
-      text "Already have an account? "
-      a [href_ "/login"] (text "Login here")
-
 /-! ## Auth Pages -/
 
 page loginForm "/login" GET do
   let ctx ← getCtx
   if isLoggedIn ctx then
     return ← redirect "/"
-  html (Shared.renderSimple ctx "Login - Homebase" (loginContent ctx))
+  let data : Stencil.Value := .object #[("title", .string "Login")]
+  Loom.Stencil.ActionM.renderWithLayout "auth" "auth/login" data
 
 page loginSubmit "/login" POST do
   let ctx ← getCtx
@@ -156,7 +108,8 @@ page registerForm "/register" GET do
   let ctx ← getCtx
   if isLoggedIn ctx then
     return ← redirect "/"
-  html (Shared.renderSimple ctx "Register - Homebase" (registerContent ctx))
+  let data : Stencil.Value := .object #[("title", .string "Register")]
+  Loom.Stencil.ActionM.renderWithLayout "auth" "auth/register" data
 
 page registerSubmit "/register" POST do
   let ctx ← getCtx

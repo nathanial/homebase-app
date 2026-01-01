@@ -1,0 +1,39 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="modal-container modal-md">
+    <h3 class="modal-title">Edit Health Entry</h3>
+    <form hx-put="/health/entry/{{id}}" hx-swap="none"
+          hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-stack">
+        <div class="form-group">
+          <label for="entryType" class="form-label">Type</label>
+          <select name="entryType" id="entryType" class="form-select">
+            <option value="weight"{{#if isWeight}} selected{{/if}}>Weight</option>
+            <option value="exercise"{{#if isExercise}} selected{{/if}}>Exercise</option>
+            <option value="medication"{{#if isMedication}} selected{{/if}}>Medication</option>
+            <option value="note"{{#if isNote}} selected{{/if}}>Note</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="value" class="form-label">Value</label>
+          <input type="text" name="value" id="value"
+                 value="{{value}}" class="form-input">
+        </div>
+        <div class="form-group">
+          <label for="unit" class="form-label">Unit</label>
+          <input type="text" name="unit" id="unit"
+                 value="{{unit}}" class="form-input">
+        </div>
+        <div class="form-group">
+          <label for="notes" class="form-label">Notes</label>
+          <textarea name="notes" id="notes" class="form-textarea" rows="3">{{notes}}</textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
