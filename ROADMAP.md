@@ -1,198 +1,130 @@
-# Homebase App Roadmap
+# Roadmap - Homebase App
 
-This document outlines feature opportunities, code improvements, and cleanup tasks for the Homebase personal dashboard application.
-
-## Table of Contents
-
-- [Feature Proposals](#feature-proposals)
-- [Code Improvements](#code-improvements)
-- [Code Cleanup](#code-cleanup)
-- [Security Considerations](#security-considerations)
-- [Performance Improvements](#performance-improvements)
-- [UX/UI Improvements](#uxui-improvements)
+This document tracks proposed improvements, new features, and code cleanup opportunities for the Homebase App codebase.
 
 ---
 
 ## Feature Proposals
 
-### [COMPLETED] Implement Dashboard Sections
+### [Priority: High] User Profile and Settings Page
+**Description:** Add a user profile page where users can update their name, email, password, and preferences.
+**Rationale:** Currently users can only be managed through the admin panel. Users should be able to manage their own account settings.
+**Affected Files:**
+- `HomebaseApp/Pages/Profile.lean` (new)
+- `HomebaseApp/StencilHelpers.lean` (add PageId.profile)
+- `HomebaseApp/Shared.lean` (add profile link to navbar)
+- `templates/profile/` (new directory)
+**Estimated Effort:** Medium
+**Dependencies:** None
 
-All six dashboard sections are now fully implemented with SSE support:
-
-- **Notebook:** Markdown notes with notebook organization (`Pages/Notebook.lean`)
-- **Time:** Time tracking with timers and duration reports (`Pages/Time.lean`)
-- **Health:** Weight, exercise, medication, notes tracking (`Pages/Health.lean`)
-- **Recipes:** Recipe storage with ingredients, instructions, categories (`Pages/Recipes.lean`)
-- **Gallery:** Photo/file gallery with upload support (`Pages/Gallery.lean`)
-- **News:** Link aggregator with read/save tracking (`Pages/News.lean`)
-
----
-
-### [Priority: High] Password Reset and Email Verification
-
-**Description:** The authentication system lacks password reset functionality and email verification for new accounts.
-
-**Rationale:** Users cannot recover access if they forget their password. Email verification would prevent account creation with fake emails.
-
+### [Priority: High] Password Reset / Forgot Password Flow
+**Description:** Implement a password reset flow with email verification or security questions.
+**Rationale:** Users who forget their password currently have no way to recover their account. This is a critical security and UX feature.
 **Affected Files:**
 - `HomebaseApp/Pages/Auth.lean`
-- `HomebaseApp/Models.lean`
-- New email sending infrastructure
-
+- `HomebaseApp/Models.lean` (add password reset token entity)
+- `templates/auth/forgot-password.html.hbs` (new)
+- `templates/auth/reset-password.html.hbs` (new)
 **Estimated Effort:** Large
-**Dependencies:** Email sending capability (would require SMTP integration or external service)
+**Dependencies:** Email sending capability (would need SMTP integration or similar)
 
----
-
-### [Priority: High] User Profile and Settings Page
-
-**Description:** Users have no way to view or update their own profile information (name, password) after registration.
-
-**Rationale:** Standard feature for any user-authenticated application. Currently only admins can modify user data.
-
+### [Priority: High] Search Across All Modules
+**Description:** Add a global search feature that searches across notes, recipes, kanban cards, chat messages, and news items.
+**Rationale:** As data grows, users need a quick way to find information across all modules. Currently only chat has search.
 **Affected Files:**
-- `HomebaseApp/Pages/` (new `Profile.lean` file)
-- `HomebaseApp/Shared.lean` (add profile link to navbar)
-
-**Estimated Effort:** Medium
-**Dependencies:** None
-
----
-
-### [Priority: Medium] Kanban Board Sharing and Collaboration
-
-**Description:** Kanban boards are currently accessible to all authenticated users with no ownership or permission model.
-
-**Rationale:** For a personal dashboard, users may want private boards. For team use, explicit sharing would be valuable.
-
-**Affected Files:**
-- `HomebaseApp/Models.lean`
-- `HomebaseApp/Pages/Kanban.lean`
-
+- `HomebaseApp/Pages/Search.lean` (new)
+- `HomebaseApp/Shared.lean` (add search bar to layout)
+- `templates/search/` (new directory)
 **Estimated Effort:** Large
-**Dependencies:** User profile system
-
----
-
-### [Priority: Medium] Chat Thread Participants and Mentions
-
-**Description:** Chat threads have no concept of participants or user mentions.
-
-**Rationale:** For multi-user scenarios, knowing who is in a conversation and being able to @mention users would improve communication.
-
-**Affected Files:**
-- `HomebaseApp/Models.lean`
-- `HomebaseApp/Pages/Chat.lean`
-
-**Estimated Effort:** Medium
 **Dependencies:** None
 
----
-
-### [Priority: Medium] Kanban Card Due Dates and Reminders
-
-**Description:** Kanban cards lack due dates, start dates, or any time-based attributes.
-
-**Rationale:** Due dates are a fundamental feature for task management boards.
-
+### [Priority: Medium] Data Export/Backup Feature
+**Description:** Allow users to export their data (notes, recipes, time entries, etc.) in JSON or other formats.
+**Rationale:** Users should be able to backup and migrate their personal data. Supports data portability.
 **Affected Files:**
-- `HomebaseApp/Models.lean` (add `dueDate` to `DbCard`)
-- `HomebaseApp/Pages/Kanban.lean` (card forms and display)
-- `public/css/kanban.css`
-
+- `HomebaseApp/Pages/Admin.lean` (for admin-level export)
+- `HomebaseApp/Pages/Profile.lean` (for user-level export)
 **Estimated Effort:** Medium
-**Dependencies:** None
+**Dependencies:** User Profile page (for user-level export)
 
----
-
-### [Priority: Medium] Kanban Card Checklists
-
-**Description:** Cards cannot contain subtasks or checklists.
-
-**Rationale:** Checklists are valuable for breaking down cards into smaller actionable items.
-
+### [Priority: Medium] Recurring Time Entries
+**Description:** Add support for recurring/scheduled time entries in the time tracker.
+**Rationale:** Many users track regular activities (daily standup, weekly meetings). Automating this would save time.
 **Affected Files:**
-- `HomebaseApp/Models.lean` (new `DbCardChecklist` entity)
+- `HomebaseApp/Models.lean` (add DbRecurringEntry)
+- `HomebaseApp/Entities.lean`
+- `HomebaseApp/Pages/Time.lean`
+- `templates/time/` (add recurring entry forms)
+**Estimated Effort:** Large
+**Dependencies:** Proper wall clock time implementation (see Code Improvements section)
+
+### [Priority: Medium] Kanban Board Sharing/Collaboration
+**Description:** Allow users to share kanban boards with other users for collaboration.
+**Rationale:** Multi-user collaboration is a natural extension for a household dashboard app.
+**Affected Files:**
+- `HomebaseApp/Models.lean` (add DbBoardMember for board sharing)
 - `HomebaseApp/Pages/Kanban.lean`
-
-**Estimated Effort:** Medium
+- `templates/kanban/share.html.hbs` (new)
+**Estimated Effort:** Large
 **Dependencies:** None
 
----
-
-### [Priority: Medium] Kanban Card Comments
-
-**Description:** Cards have no comment/discussion functionality.
-
-**Rationale:** Comments allow for conversation and context around tasks.
-
+### [Priority: Medium] Recipe Import from URL
+**Description:** Auto-populate recipe fields by scraping recipe websites.
+**Rationale:** Most users find recipes online. Importing saves manual data entry.
 **Affected Files:**
-- `HomebaseApp/Models.lean` (new `DbCardComment` entity)
-- `HomebaseApp/Pages/Kanban.lean`
-
+- `HomebaseApp/Pages/Recipes.lean`
+- `HomebaseApp/Embeds.lean` (reuse URL fetching logic)
+- `templates/recipes/import.html.hbs` (new)
 **Estimated Effort:** Medium
 **Dependencies:** None
 
----
+### [Priority: Medium] Calendar View for Time Tracking
+**Description:** Add a calendar/heatmap view showing time logged per day.
+**Rationale:** Visual representation helps users understand their time allocation patterns.
+**Affected Files:**
+- `HomebaseApp/Pages/Time.lean`
+- `templates/time/calendar.html.hbs` (new)
+- `public/css/time.css`
+- `public/js/time.js`
+**Estimated Effort:** Medium
+**Dependencies:** None
+
+### [Priority: Medium] Health Data Visualization/Charts
+**Description:** Add charts showing weight trends, exercise patterns over time.
+**Rationale:** Health tracking is most valuable with trend visualization.
+**Affected Files:**
+- `HomebaseApp/Pages/Health.lean`
+- `templates/health/charts.html.hbs` (new)
+- `public/js/health.js` (add charting library integration)
+**Estimated Effort:** Medium
+**Dependencies:** None
+
+### [Priority: Low] Markdown Preview in Notebook
+**Description:** Add live markdown preview when editing notes.
+**Rationale:** Users write in markdown but cannot see formatted output until saving.
+**Affected Files:**
+- `templates/notebook/` (add preview pane)
+- `public/js/notebook.js` (add markdown rendering)
+**Estimated Effort:** Small
+**Dependencies:** Markdown rendering library (client-side)
 
 ### [Priority: Low] Dark Mode Theme
-
-**Description:** The application only supports a light theme.
-
-**Rationale:** Many users prefer dark mode, especially for extended use.
-
+**Description:** Add a dark mode toggle for the UI.
+**Rationale:** Many users prefer dark mode, especially for evening use.
 **Affected Files:**
-- `public/css/app.css`
-- `public/css/kanban.css`
-- `public/css/chat.css`
+- `public/css/app.css` (add dark theme variables)
+- `public/css/*.css` (update all CSS files)
 - `HomebaseApp/Shared.lean` (add theme toggle)
-
-**Estimated Effort:** Medium
-**Dependencies:** User profile/settings page (to persist preference)
-
----
-
-### [Priority: Low] Kanban Card Attachments
-
-**Description:** Cards cannot have file attachments (unlike chat messages).
-
-**Rationale:** Attaching files to tasks is useful for documentation and reference.
-
-**Affected Files:**
-- `HomebaseApp/Models.lean`
-- `HomebaseApp/Pages/Kanban.lean`
-- Reuse existing upload infrastructure from Chat/Gallery
-
+- `public/js/theme.js` (new)
 **Estimated Effort:** Medium
 **Dependencies:** None
-
----
-
-### [Priority: Low] Activity/Audit Log UI
-
-**Description:** While audit logging exists in the backend, there's no UI to view activity history.
-
-**Rationale:** Users and admins may want to see who changed what and when.
-
-**Affected Files:**
-- New page in `HomebaseApp/Pages/`
-- May need to query Chronicle logs or add a separate audit trail entity
-
-**Estimated Effort:** Medium
-**Dependencies:** None
-
----
 
 ### [Priority: Low] Keyboard Shortcuts
-
-**Description:** No keyboard shortcuts for common actions.
-
-**Rationale:** Power users benefit from keyboard navigation (e.g., `n` for new card, `?` for help).
-
+**Description:** Add keyboard shortcuts for common actions (new note, start timer, etc.).
+**Rationale:** Power users expect keyboard navigation for efficiency.
 **Affected Files:**
-- `public/js/kanban.js`
-- `public/js/chat.js`
-
+- `public/js/*.js` (add keyboard event handlers)
+- `templates/layouts/` (add shortcut documentation)
 **Estimated Effort:** Small
 **Dependencies:** None
 
@@ -200,431 +132,219 @@ All six dashboard sections are now fully implemented with SSE support:
 
 ## Code Improvements
 
-### [COMPLETED] Consolidate Duplicate Password Hashing Implementation
-
-Both `Helpers.lean` and `Auth.lean` now use `Crypt.Password` from the `crypt` library. The duplicate implementations have been replaced with a single, secure approach.
-
----
-
-### [Priority: High] Consolidate Duplicate isLoggedIn and isAdmin Implementations
-
-**Current State:** These helper functions are defined in three places:
-1. `HomebaseApp/Helpers.lean`
-2. `HomebaseApp/Shared.lean`
-3. `HomebaseApp/Middleware.lean`
-
-The implementations differ slightly (`Shared.lean` checks session for `is_admin`, while `Helpers.lean` queries the database).
-
-**Proposed Change:** Consolidate to a single implementation with consistent behavior. The database-based check in `Helpers.lean` is more secure (reflects current DB state).
-
-**Benefits:** Consistent behavior, reduced maintenance burden, clearer code.
-
+### [Priority: Critical] Fix Wall Clock Time Implementation
+**Current State:** Multiple pages use different time-getting methods:
+- `Chat.lean` uses `IO.monoNanosNow / 1000000` (monotonic time - incorrect for timestamps)
+- `Time.lean` uses shell `date +%s` command (correct but inefficient)
+- `Gallery.lean` uses `IO.monoMsNow` (monotonic time - incorrect)
+- `Notebook.lean`, `Health.lean`, `Recipes.lean`, `News.lean` all use shell `date +%s`
+**Proposed Change:** Create a centralized `HomebaseApp.Time` module with a proper wall clock time function. All pages should use this single implementation.
+**Benefits:** Correctness (timestamps represent actual dates), consistency, maintainability, performance (reduce shell spawning).
 **Affected Files:**
-- `HomebaseApp/Helpers.lean`
+- `HomebaseApp/Time.lean` (new module)
+- All Pages/*.lean files
+**Estimated Effort:** Medium
+**Note:** The test file `Tests/Time.lean` explicitly documents this bug at line 222-239.
+
+### [Priority: High] Extract Duplicated Helper Functions
+**Current State:** Multiple helper functions are duplicated across pages:
+- `getCurrentUserEid` is defined in Time.lean, Gallery.lean, Notebook.lean, Health.lean, Recipes.lean, News.lean
+- `formatRelativeTime` is defined in Chat.lean, Gallery.lean, Notebook.lean, Health.lean, News.lean (with slight variations)
+- `getNowMs`/`getTimeMs` equivalents exist in every page
+**Proposed Change:** Create `HomebaseApp.Utils.lean` module with shared helper functions.
+**Benefits:** DRY principle, consistent behavior, easier maintenance.
+**Affected Files:**
+- `HomebaseApp/Utils.lean` (new)
+- All Pages/*.lean files
+**Estimated Effort:** Medium
+**Dependencies:** None
+
+### [Priority: High] Consolidate isLoggedIn and isAdmin Functions
+**Current State:** `isLoggedIn` and `isAdmin` are defined in multiple places:
+- `HomebaseApp/Shared.lean` (lines 18-25)
+- `HomebaseApp/Middleware.lean` (lines 11-16)
+- `HomebaseApp/Helpers.lean` (lines 49-66)
+Many pages use `hiding isLoggedIn isAdmin` to avoid conflicts.
+**Proposed Change:** Define these functions in a single authoritative location and import consistently.
+**Benefits:** Eliminates confusion, reduces `hiding` directives, cleaner imports.
+**Affected Files:**
+- `HomebaseApp/Auth.lean` (new, centralized auth functions)
 - `HomebaseApp/Shared.lean`
 - `HomebaseApp/Middleware.lean`
-
-**Estimated Effort:** Small
-
----
-
-### [Priority: High] Standardize Route Authentication Pattern
-
-**Current State:** Some pages check authentication manually (`if !isLoggedIn ctx then return <- redirect "/login"`) while others use middleware (`[HomebaseApp.Middleware.authRequired]`).
-
-**Proposed Change:** Consistently use the middleware pattern for all protected routes, removing inline authentication checks.
-
-**Benefits:** Cleaner code, consistent behavior, easier to add features like "remember me" later.
-
-**Affected Files:**
-- `HomebaseApp/Pages/Home.lean`
-- Various section pages
-
-**Estimated Effort:** Small
-
----
-
-### [Priority: Medium] Add Database Error Handling
-
-**Current State:** Many database operations use pattern matching on `ctx.database` returning empty lists or `none` for errors, with no user feedback.
-
-**Proposed Change:** Add proper error handling and user-facing error messages when the database is unavailable.
-
-**Benefits:** Better user experience, easier debugging.
-
-**Affected Files:**
-- `HomebaseApp/Pages/Kanban.lean`
-- `HomebaseApp/Pages/Chat.lean`
-- `HomebaseApp/Pages/Admin.lean`
-
+- `HomebaseApp/Helpers.lean`
+- All Pages/*.lean files
 **Estimated Effort:** Medium
+**Dependencies:** None
 
----
-
-### [Priority: Medium] Extract View Rendering to Separate Module
-
-**Current State:** View rendering functions (e.g., `renderCard`, `renderColumn`, `renderMessage`) are mixed with database queries and action handlers in page files.
-
-**Proposed Change:** Create separate view modules (e.g., `Views/Kanban.lean`, `Views/Chat.lean`) for HTML rendering logic.
-
-**Benefits:** Better separation of concerns, easier testing, smaller file sizes.
-
+### [Priority: High] Add Input Validation
+**Current State:** Input validation is minimal. For example:
+- Email format is not validated during registration
+- Password strength is not enforced
+- URL format validation in News and Embeds is basic
+**Proposed Change:** Add comprehensive input validation with proper error messages.
+**Benefits:** Security, data integrity, better UX.
 **Affected Files:**
-- `HomebaseApp/Pages/Kanban.lean`
-- `HomebaseApp/Pages/Chat.lean`
-- New `Views/` directory
-
+- `HomebaseApp/Validation.lean` (new module)
+- `HomebaseApp/Pages/Auth.lean`
+- `HomebaseApp/Pages/News.lean`
+- Other pages as needed
 **Estimated Effort:** Medium
+**Dependencies:** None
 
----
+### [Priority: Medium] Improve Error Handling in Embeds Module
+**Current State:** `Embeds.lean` contains extensive debug logging with `IO.println` statements (lines 280-323) that should not be in production code.
+**Proposed Change:** Replace `IO.println` debug statements with proper logging via Chronicle, or remove them entirely. Add structured error handling.
+**Benefits:** Cleaner logs, better observability, production-ready code.
+**Affected Files:**
+- `HomebaseApp/Embeds.lean`
+**Estimated Effort:** Small
+**Dependencies:** None
+
+### [Priority: Medium] Optimize Database Queries
+**Current State:** Several database access patterns could be optimized:
+- `getBoards`, `getColumnsWithCards`, etc. often fetch all entities then filter
+- No pagination support for large datasets
+- Multiple queries where a single query could suffice
+**Proposed Change:** Add pagination support to list views. Optimize query patterns where possible.
+**Benefits:** Better performance with large datasets, improved scalability.
+**Affected Files:**
+- All Pages/*.lean files with list views
+- Template files (add pagination controls)
+**Estimated Effort:** Large
+**Dependencies:** None
 
 ### [Priority: Medium] Type-Safe Route Parameters
-
-**Current State:** Route parameters are parsed from strings manually (e.g., `ctx.paramD "column_id" ""` then `columnIdStr.toNat?`).
-
-**Proposed Change:** Use the page macro's parameter type declarations consistently and add better validation.
-
-**Benefits:** Compile-time safety where possible, consistent error handling.
-
+**Current State:** Route parameters are extracted as strings and manually parsed to Nat (e.g., `idStr.toNat?`). This pattern is repeated in many places.
+**Proposed Change:** Use the existing `withId` helper from Helpers.lean more consistently, or enhance the routing system to support typed parameters.
+**Benefits:** Less boilerplate, consistent error handling, type safety.
 **Affected Files:**
-- `HomebaseApp/Pages/Kanban.lean`
-- `HomebaseApp/Pages/Chat.lean`
-
+- All Pages/*.lean files
 **Estimated Effort:** Medium
+**Dependencies:** None
 
----
+### [Priority: Medium] Standardize Stencil Value Conversion
+**Current State:** Each page has its own `*ToValue` functions (e.g., `cardToValue`, `messageToValue`, `recipeToValue`) with similar patterns.
+**Proposed Change:** Create a generic conversion mechanism or use Lean's deriving for JSON/Stencil serialization.
+**Benefits:** Less boilerplate, consistency, easier maintenance.
+**Affected Files:**
+- All Pages/*.lean files
+**Estimated Effort:** Large
+**Dependencies:** May require Ledger/Stencil library enhancements
 
 ### [Priority: Low] Add Request Rate Limiting
-
-**Current State:** No rate limiting on any endpoints.
-
-**Proposed Change:** Add middleware-based rate limiting for login attempts and form submissions.
-
-**Benefits:** Protection against brute-force attacks and abuse.
-
+**Current State:** No rate limiting on authentication endpoints or API calls.
+**Proposed Change:** Add rate limiting middleware, especially for login/register endpoints.
+**Benefits:** Security against brute force attacks.
 **Affected Files:**
 - `HomebaseApp/Middleware.lean`
 - `HomebaseApp/Main.lean`
-
 **Estimated Effort:** Medium
-**Dependencies:** May require Loom framework changes
+**Dependencies:** May require Loom library enhancement
+
+### [Priority: Low] Add CSRF Protection
+**Current State:** CSRF protection is disabled in config (line 23 of Main.lean: `csrfEnabled := false`).
+**Proposed Change:** Enable and properly configure CSRF protection.
+**Benefits:** Security against cross-site request forgery attacks.
+**Affected Files:**
+- `HomebaseApp/Main.lean`
+- All forms in templates
+**Estimated Effort:** Small
+**Dependencies:** None
 
 ---
 
 ## Code Cleanup
 
-### [Priority: High] Remove Unused Legacy Backward Compatibility Code
-
-**Issue:** The Kanban module contains legacy code for backward compatibility (e.g., `boardContent` function, `kanbanAddColumnForm`, `kanbanCreateColumn` routes).
-
-**Location:**
-- `HomebaseApp/Pages/Kanban.lean`
-
-**Action Required:** Verify if legacy routes are still needed. If not, remove them to reduce code size.
-
+### [Priority: High] Remove Hardcoded Secret Key
+**Issue:** `Main.lean` line 20-21 contains a hardcoded secret key: `secretKey := "homebase-app-secret-key-min-32-chars!!".toUTF8`
+**Location:** `/Users/Shared/Projects/lean-workspace/apps/homebase-app/HomebaseApp/Main.lean:20-21`
+**Action Required:** Move secret key to environment variable or configuration file.
 **Estimated Effort:** Small
 
----
-
-### [Priority: Medium] Consolidate Database Helper Patterns
-
-**Issue:** Similar helper functions exist for each entity type with slightly different patterns. For example, `getBoard`, `getColumn`, `getCard` in Kanban, and `getChatThread`, `getMessagesForThread` in Chat.
-
-**Location:**
-- `HomebaseApp/Pages/Kanban.lean`
-- `HomebaseApp/Pages/Chat.lean`
-
-**Action Required:** Consider creating a generic pattern or extracting to a shared module.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Medium] Remove Inline JavaScript Event Handlers
-
-**Issue:** Several places use inline JavaScript in HTML attributes (e.g., `attr_ "onclick"`, `attr_ "ondragover"`).
-
-**Location:**
-- `HomebaseApp/Pages/Kanban.lean` (modal close handlers)
-- `HomebaseApp/Pages/Chat.lean` (upload zone handlers)
-
-**Action Required:** Move event handlers to JavaScript files for better separation and CSP compliance.
-
+### [Priority: High] Remove Debug Print Statements
+**Issue:** `Embeds.lean` contains many debug print statements that should not be in production.
+**Location:** `/Users/Shared/Projects/lean-workspace/apps/homebase-app/HomebaseApp/Embeds.lean:280-323`
+**Action Required:** Remove or replace with proper logging.
 **Estimated Effort:** Small
 
----
+### [Priority: Medium] Consolidate Password Hashing Functions
+**Issue:** `hashPassword` and `verifyPassword` are defined in both `Helpers.lean` (lines 17-28) and `Auth.lean` (lines 23-33).
+**Location:**
+- `/Users/Shared/Projects/lean-workspace/apps/homebase-app/HomebaseApp/Helpers.lean:17-28`
+- `/Users/Shared/Projects/lean-workspace/apps/homebase-app/HomebaseApp/Pages/Auth.lean:23-33`
+**Action Required:** Keep only one implementation, preferably in Helpers.lean, and remove the duplicate.
+**Estimated Effort:** Small
+
+### [Priority: Medium] Clean Up Unused Legacy Code
+**Issue:** `Kanban.lean` contains legacy compatibility functions like `getColumns` (line 93-101) and `getColumnsWithCards` (line 126-134) that may no longer be needed after board migration.
+**Location:** `/Users/Shared/Projects/lean-workspace/apps/homebase-app/HomebaseApp/Pages/Kanban.lean:93-134`
+**Action Required:** Verify if these functions are still needed; if not, remove them.
+**Estimated Effort:** Small
+
+### [Priority: Medium] Standardize File Naming Conventions
+**Issue:** Test file `Tests/Stencil.lean` is imported in `Tests/Main.lean` but the file path structure differs from other test files (other tests are in `HomebaseApp/Tests/`).
+**Location:** `/Users/Shared/Projects/lean-workspace/apps/homebase-app/Tests/Main.lean`
+**Action Required:** Either move `Stencil.lean` tests to `HomebaseApp/Tests/Stencil.lean` or document the different conventions.
+**Estimated Effort:** Small
 
 ### [Priority: Low] Add Missing Test Coverage
-
-**Issue:** Tests exist for Kanban card operations, Time tracking, and EntityPull. Still missing tests for:
-- Authentication flows
-- Chat operations
-- Admin operations
-- Upload functionality
-- Gallery, Notebook, Health, Recipes, News modules
-
-**Location:**
-- `HomebaseApp/Tests/`
-
-**Action Required:** Add test suites for each major feature area.
-
+**Issue:** Several modules lack test coverage:
+- `Auth.lean` - no authentication flow tests
+- `Admin.lean` - no admin CRUD tests
+- `Gallery.lean` - no tests
+- `Notebook.lean` - no tests
+- `Health.lean` - no tests
+- `Recipes.lean` - no tests
+- `News.lean` - no tests
+- `Chat.lean` - no tests
+- `Embeds.lean` - no tests
+**Location:** `/Users/Shared/Projects/lean-workspace/apps/homebase-app/HomebaseApp/Tests/`
+**Action Required:** Add unit tests for pure functions and integration tests for page handlers.
 **Estimated Effort:** Large
 
----
-
-### [Priority: Low] Improve Code Documentation
-
-**Issue:** While the code has some doc comments, many functions lack documentation, especially in the larger files.
-
-**Location:** All source files
-
-**Action Required:** Add doc comments to public functions explaining purpose, parameters, and return values.
-
+### [Priority: Low] Document API Endpoints
+**Issue:** No API documentation exists. The CLAUDE.md provides route information but not request/response formats.
+**Location:** Project root
+**Action Required:** Add API documentation, either in CLAUDE.md or a separate API.md file.
 **Estimated Effort:** Medium
 
----
+### [Priority: Low] Clean Up CSS Duplication
+**Issue:** Similar styles are repeated across multiple CSS files (e.g., card styles, button styles, form styles).
+**Location:** `/Users/Shared/Projects/lean-workspace/apps/homebase-app/public/css/`
+**Action Required:** Extract common styles into `app.css` or create a shared components CSS file.
+**Estimated Effort:** Medium
 
-## Security Considerations
-
-### [COMPLETED] Replace Weak Password Hashing Algorithm
-
-Password hashing now uses Argon2id via the `crypt` library (libsodium FFI bindings).
-
-**Changes Made:**
-- Added `crypt` dependency to lakefile.lean
-- Updated `HomebaseApp/Helpers.lean` to use `Crypt.Password.hashStr` and `Crypt.Password.verify`
-- Updated `HomebaseApp/Pages/Auth.lean` to use secure password hashing
-- Updated `HomebaseApp/Pages/Admin.lean` to use secure password hashing
-
-**Note:** Existing user passwords in the old polynomial hash format will need to be reset, as they cannot be verified against the new Argon2id format.
-
----
-
-### [Priority: High] Enable CSRF Protection
-
-**Issue:** CSRF protection is explicitly disabled in the configuration (`csrfEnabled := false` in `Main.lean`).
-
-**Location:**
-- `HomebaseApp/Main.lean`
-
-**Action Required:** Enable CSRF protection. The CSRF token field is already present in forms (`csrfField ctx.csrfToken`), so enabling should work.
-
+### [Priority: Low] Remove Unused Imports
+**Issue:** Some files import modules that may not be fully used (e.g., `Scribe` in files that primarily use Stencil).
+**Location:** Various Pages/*.lean files
+**Action Required:** Audit imports and remove unused ones.
 **Estimated Effort:** Small
 
 ---
 
-### [Priority: High] Secure Session Secret Key
-
-**Issue:** The session secret key is hardcoded in source code (`secretKey := "homebase-app-secret-key-min-32-chars!!".toUTF8` in `Main.lean`).
-
-**Location:**
-- `HomebaseApp/Main.lean`
-
-**Action Required:** Load secret key from environment variable or secure configuration file.
-
-**Estimated Effort:** Small
-
----
-
-### [Priority: Medium] Add Input Validation for Form Fields
-
-**Issue:** Limited validation on form inputs. For example, email format is not validated server-side, password strength is not enforced.
-
-**Location:**
-- `HomebaseApp/Pages/Auth.lean`
-- `HomebaseApp/Pages/Admin.lean`
-
-**Action Required:** Add server-side validation for email format, password strength, and other user inputs.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Medium] Add Session Timeout
-
-**Issue:** Sessions appear to have no expiration. Users stay logged in indefinitely.
-
-**Location:**
-- `HomebaseApp/Main.lean`
-
-**Action Required:** Configure session expiration and implement session renewal on activity.
-
-**Estimated Effort:** Small
-**Dependencies:** May require Loom framework changes
-
----
-
-### [Priority: Low] Add Content Security Policy Headers
-
-**Issue:** While security headers middleware exists, CSP headers are not configured.
-
-**Location:**
-- `HomebaseApp/Middleware.lean`
-
-**Action Required:** Add appropriate CSP headers, though this may require changes to inline scripts.
-
-**Estimated Effort:** Medium
-
----
-
-## Performance Improvements
-
-### [Priority: Medium] Add Database Query Pagination
-
-**Issue:** All list queries (boards, columns, cards, threads, messages) load all results without pagination.
-
-**Location:**
-- `HomebaseApp/Pages/Kanban.lean`
-- `HomebaseApp/Pages/Chat.lean`
-- `HomebaseApp/Pages/Admin.lean`
-
-**Action Required:** Add pagination for admin user list, chat messages, and potentially large card lists.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Medium] Optimize SSE Event Broadcasting
-
-**Issue:** SSE events trigger full section reloads even when partial updates would suffice.
-
-**Location:**
-- `public/js/kanban.js`
-- `public/js/chat.js`
-
-**Action Required:** Use SSE event data to perform targeted DOM updates instead of full HTMX reloads.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Low] Add Static Asset Caching Headers
-
-**Issue:** CSS and JS files are served without explicit cache headers (only uploads have caching).
-
-**Location:**
-- Static file serving (likely in Loom framework)
-
-**Action Required:** Configure appropriate cache headers for static assets.
-
-**Estimated Effort:** Small
-
----
-
-### [Priority: Low] Bundle and Minify JavaScript
-
-**Issue:** JavaScript files are served as-is without minification or bundling.
-
-**Location:**
-- `public/js/`
-
-**Action Required:** Add build step to bundle and minify JS (consider esbuild or similar).
-
-**Estimated Effort:** Small
-
----
-
-## UX/UI Improvements
-
-### [Priority: High] Add Loading States and Feedback
-
-**Issue:** HTMX operations show no loading indicators. Users don't know if an action is processing.
-
-**Location:**
-- `public/css/app.css`
-- `public/js/kanban.js`
-- `public/js/chat.js`
-
-**Action Required:** Add loading spinners, button disable states, and skeleton loaders.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Medium] Improve Mobile Responsiveness
-
-**Issue:** The sidebar-based layout may not work well on mobile devices.
-
-**Location:**
-- `public/css/app.css`
-- `public/css/kanban.css`
-- `public/css/chat.css`
-
-**Action Required:** Add responsive breakpoints for tablet and mobile layouts, consider collapsible sidebar.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Medium] Add Toast Notifications
-
-**Issue:** Flash messages only appear on page load/redirect. HTMX operations don't show feedback.
-
-**Location:**
-- `HomebaseApp/Shared.lean`
-- `public/js/` (new file)
-
-**Action Required:** Add a toast notification system for real-time feedback.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Medium] Improve Form Validation UX
-
-**Issue:** Form errors redirect to the same page with flash messages. No inline validation.
-
-**Location:**
-- `HomebaseApp/Pages/Auth.lean`
-- `HomebaseApp/Pages/Admin.lean`
-
-**Action Required:** Add client-side validation and inline error messages.
-
-**Estimated Effort:** Medium
-
----
-
-### [Priority: Low] Add Confirmation for Destructive Actions
-
-**Issue:** While `hx-confirm` is used for deletes, other destructive actions (logout, clear) have no confirmation.
-
-**Location:** Various page files
-
-**Action Required:** Review all destructive actions and add appropriate confirmations.
-
-**Estimated Effort:** Small
-
----
-
-### [Priority: Low] Add Favicon and PWA Support
-
-**Issue:** No favicon is configured, and the app is not installable as a PWA.
-
-**Location:**
-- `public/` (new assets)
-- `HomebaseApp/Shared.lean` (head section)
-
-**Action Required:** Add favicon, web manifest, and service worker for PWA capabilities.
-
-**Estimated Effort:** Medium
-
----
-
-## Summary
-
-| Category | Critical | High | Medium | Low |
-|----------|----------|------|--------|-----|
-| Features | 0 | 2 | 5 | 4 |
-| Improvements | 0 | 2 | 4 | 1 |
-| Cleanup | 0 | 1 | 2 | 2 |
-| Security | 0 | 2 | 2 | 1 |
-| Performance | 0 | 0 | 2 | 2 |
-| UX/UI | 0 | 1 | 4 | 2 |
-| **Total** | **0** | **8** | **19** | **12** |
-
-**Recommended Priority Order:**
-1. Enable CSRF protection (High Security)
-2. Secure session secret key (High Security)
-3. Consolidate duplicate isLoggedIn/isAdmin code (High Improvement)
-4. Add user profile page (High Feature)
-5. Add loading states (High UX)
+## Architecture Considerations
+
+### Database Schema Evolution
+The app uses Ledger (a fact-based database) which is append-only. Consider:
+- Adding schema versioning mechanism
+- Migration strategy for attribute name changes
+- Cleanup strategy for retracted facts
+
+### Separation of Concerns
+Consider splitting the monolithic page files into:
+- **Controllers:** Route handlers and request/response logic
+- **Services:** Business logic and database operations
+- **Views:** Stencil value conversion and template rendering
+
+### SSE Event Standardization
+Different pages publish events with varying payload structures. Consider:
+- Standardizing event payload format
+- Creating typed event structures
+- Centralizing event publishing logic
+
+### Security Audit Needed
+Areas requiring security review:
+- File upload handling in `Upload.lean`
+- URL fetching in `Embeds.lean` (SSRF potential)
+- Session management
+- Path traversal protection in `isSafePath`
