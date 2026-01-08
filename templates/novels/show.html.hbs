@@ -39,12 +39,22 @@
     {{> novels/_page-editor currentPage}}
     {{else}}
     <div class="no-page-selected">
-      <div class="empty-icon">📄</div>
+      <svg class="empty-icon-svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M3 9h18M9 21V9"/>
+      </svg>
       <p>No pages yet.</p>
       <p class="empty-hint">Add a page to start creating your novel!</p>
     </div>
     {{/if}}
   </main>
 </div>
+
+<style>
+.no-page-selected .empty-icon-svg {
+  opacity: 0.15;
+  margin-bottom: 1.5rem;
+}
+</style>
 
 <script src="/js/novels.js"></script>

@@ -4,7 +4,12 @@
       <span class="kanban-sidebar-title">Boards</span>
       <button hx-get="/kanban/add-board-form"
               hx-target="#modal-container" hx-swap="innerHTML"
-              class="btn-icon text-muted" title="Add board">+</button>
+              class="btn-icon" title="Add board">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
     </div>
     <div class="kanban-sidebar-list">
       {{#each boards}}
@@ -15,11 +20,21 @@
           <button hx-get="/kanban/board/{{id}}/edit"
                   hx-target="#modal-container" hx-swap="innerHTML"
                   class="btn-icon" title="Edit board"
-                  onclick="event.preventDefault(); event.stopPropagation();">e</button>
+                  onclick="event.preventDefault(); event.stopPropagation();">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
           <button hx-delete="/kanban/board/{{id}}"
                   hx-swap="none" hx-confirm="Delete board '{{name}}' and all its columns/cards?"
                   class="btn-icon btn-icon-danger" title="Delete board"
-                  onclick="event.preventDefault(); event.stopPropagation();">x</button>
+                  onclick="event.preventDefault(); event.stopPropagation();">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
         {{/if}}
       </a>
@@ -31,9 +46,14 @@
       <h1 class="kanban-title">{{activeBoard.name}}</h1>
       <button hx-get="/kanban/board/{{activeBoard.id}}/add-column-form"
               hx-target="#modal-container" hx-swap="innerHTML"
-              class="btn-icon text-muted" title="Add column">+</button>
+              class="btn-icon" title="Add column">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
       <div class="kanban-meta">
-        <span id="sse-status" class="status-indicator">* Live</span>
+        <span id="sse-status" class="status-indicator">Live</span>
         <span class="kanban-count">{{columnCount}} columns</span>
       </div>
     </div>

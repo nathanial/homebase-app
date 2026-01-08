@@ -1,30 +1,36 @@
 <div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-md">
-    <h3 class="modal-title">Edit Card</h3>
+  <div class="kanban-modal kanban-modal-md">
+    <div class="kanban-modal-header">
+      <h3>Edit Card</h3>
+      <button type="button" class="kanban-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-put="/kanban/card/{{id}}" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="title" class="form-label">Title</label>
-          <input type="text" name="title" id="title" value="{{title}}" class="form-input"
-                 placeholder="Card title" required autofocus>
+      <div class="kanban-modal-body">
+        <div class="kanban-form-group">
+          <label for="title">Title</label>
+          <input type="text" name="title" id="title" value="{{title}}" placeholder="Card title" required autofocus>
         </div>
-        <div class="form-group">
-          <label for="description" class="form-label">Description</label>
-          <textarea name="description" id="description" rows="3" class="form-textarea"
-                    placeholder="Description (optional)">{{description}}</textarea>
+        <div class="kanban-form-group">
+          <label for="description">Description</label>
+          <textarea name="description" id="description" rows="3" placeholder="Add more details...">{{description}}</textarea>
         </div>
-        <div class="form-group">
-          <label for="labels" class="form-label">Labels</label>
-          <input type="text" name="labels" id="labels" value="{{labelsStr}}" class="form-input"
-                 placeholder="bug, feature, urgent (comma-separated)">
+        <div class="kanban-form-group">
+          <label for="labels">Labels</label>
+          <input type="text" name="labels" id="labels" value="{{labelsStr}}" placeholder="bug, feature, urgent">
+          <p class="kanban-form-hint">Comma-separated labels</p>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Changes</button>
-        </div>
+      </div>
+      <div class="kanban-modal-footer">
+        <button type="button" class="kanban-modal-btn kanban-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="kanban-modal-btn kanban-modal-btn-primary">Save Changes</button>
       </div>
     </form>
   </div>

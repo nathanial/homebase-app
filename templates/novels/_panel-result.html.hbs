@@ -1,7 +1,7 @@
 {{#if hasImage}}
 <img src="{{imageUrl}}" alt="Panel {{panelIndex}}" class="panel-image">
 <div class="panel-overlay">
-  <button class="btn btn-small btn-secondary regenerate-btn"
+  <button class="btn regenerate-btn"
           onclick="this.closest('.panel').querySelector('.panel-prompt-form').style.display = 'block'; this.closest('.panel-overlay').style.display = 'none';">
     Regenerate
   </button>
@@ -11,14 +11,16 @@
   <button type="submit" class="btn btn-small">Save</button>
 </form>
 <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-      class="panel-prompt-form" style="display: none;">
-  <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input">{{prompt}}</textarea>
-  <div class="panel-prompt-actions">
-    <button type="button" class="btn btn-small btn-secondary"
-            onclick="this.closest('.panel-prompt-form').style.display = 'none'; this.closest('.panel').querySelector('.panel-overlay').style.display = 'flex';">
-      Cancel
-    </button>
-    <button type="submit" class="btn btn-small btn-primary">Generate</button>
+      class="panel-prompt-form" style="display: none; position: absolute; inset: 0; background: rgba(13,13,13,0.95); padding: 2rem; z-index: 20;">
+  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+    <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input" style="max-width: 320px;">{{prompt}}</textarea>
+    <div class="panel-prompt-actions">
+      <button type="button" class="btn btn-small btn-secondary"
+              onclick="this.closest('.panel-prompt-form').style.display = 'none'; this.closest('.panel').querySelector('.panel-overlay').style.display = 'flex';">
+        Cancel
+      </button>
+      <button type="submit" class="btn btn-small btn-primary">Generate</button>
+    </div>
   </div>
 </form>
 {{else if isGenerating}}
@@ -56,7 +58,7 @@
 <div class="panel-empty">
   <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
         class="panel-prompt-form">
-    <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input"></textarea>
+    <textarea name="prompt" placeholder="Describe what happens in this panel..." class="panel-prompt-input"></textarea>
     <button type="submit" class="btn btn-small btn-primary">Generate</button>
   </form>
 </div>

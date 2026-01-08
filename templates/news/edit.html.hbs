@@ -1,33 +1,38 @@
 <div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-md">
-    <h3 class="modal-title">Edit Link</h3>
+  <div class="news-modal">
+    <div class="news-modal-header">
+      <h3>Edit Link</h3>
+      <button type="button" class="news-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-put="/news/{{id}}" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="url" class="form-label">URL</label>
-          <input type="url" name="url" id="url" class="form-input"
-                 value="{{url}}" required>
+      <div class="news-modal-body">
+        <div class="news-form-group">
+          <label for="url">URL</label>
+          <input type="url" name="url" id="url" value="{{url}}" required>
         </div>
-        <div class="form-group">
-          <label for="title" class="form-label">Title</label>
-          <input type="text" name="title" id="title" class="form-input"
-                 value="{{title}}" required>
+        <div class="news-form-group">
+          <label for="title">Title</label>
+          <input type="text" name="title" id="title" value="{{title}}" required>
         </div>
-        <div class="form-group">
-          <label for="description" class="form-label">Description</label>
-          <textarea name="description" id="description" class="form-textarea" rows="2">{{description}}</textarea>
+        <div class="news-form-group">
+          <label for="description">Description</label>
+          <textarea name="description" id="description" rows="2">{{description}}</textarea>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="source" class="form-label">Source</label>
-            <input type="text" name="source" id="source" class="form-input"
-                   value="{{source}}">
+        <div class="news-form-row">
+          <div class="news-form-group">
+            <label for="source">Source</label>
+            <input type="text" name="source" id="source" value="{{source}}">
           </div>
-          <div class="form-group">
-            <label for="category" class="form-label">Category</label>
-            <select name="category" id="category" class="form-select">
+          <div class="news-form-group">
+            <label for="category">Category</label>
+            <select name="category" id="category">
               <option value="Tech"{{#if isTech}} selected{{/if}}>Tech</option>
               <option value="Business"{{#if isBusiness}} selected{{/if}}>Business</option>
               <option value="Science"{{#if isScience}} selected{{/if}}>Science</option>
@@ -38,12 +43,200 @@
             </select>
           </div>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
+      </div>
+      <div class="news-modal-footer">
+        <button type="button" class="news-modal-btn news-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="news-modal-btn news-modal-btn-primary">Save Changes</button>
       </div>
     </form>
   </div>
 </div>
+
+<style>
+.news-modal {
+  background: var(--paper-cream);
+  border: 3px solid var(--ink-black);
+  box-shadow: 12px 12px 0 var(--ink-black);
+  width: 100%;
+  max-width: 480px;
+  animation: newsModalIn 0.2s ease;
+}
+
+@keyframes newsModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.news-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--accent-coral);
+  border-bottom: 3px solid var(--ink-black);
+}
+
+.news-modal-header h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--ink-black);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.news-modal-close {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--ink-black);
+  opacity: 0.7;
+  transition: all 0.15s ease;
+}
+
+.news-modal-close:hover {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+.news-modal-body {
+  padding: 1.5rem;
+}
+
+.news-form-group {
+  margin-bottom: 1.25rem;
+}
+
+.news-form-group:last-child {
+  margin-bottom: 0;
+}
+
+.news-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--ink-black);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.news-form-group input,
+.news-form-group textarea,
+.news-form-group select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--paper-white);
+  border: 2px solid var(--ink-black);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ink-black);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.news-form-group input:focus,
+.news-form-group textarea:focus,
+.news-form-group select:focus {
+  outline: none;
+  border-color: var(--accent-coral);
+  box-shadow: 4px 4px 0 rgba(255, 107, 74, 0.15);
+}
+
+.news-form-group input::placeholder,
+.news-form-group textarea::placeholder {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.news-form-group textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.news-form-group select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230d0d0d' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+.news-form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.news-form-row .news-form-group {
+  flex: 1;
+}
+
+.news-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  background: var(--paper-aged);
+  border-top: 1px dashed var(--ink-muted);
+}
+
+.news-modal-btn {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid var(--ink-black);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.news-modal-btn-secondary {
+  background: var(--paper-white);
+  color: var(--ink-black);
+}
+
+.news-modal-btn-secondary:hover {
+  background: var(--ink-black);
+  color: var(--paper-white);
+}
+
+.news-modal-btn-primary {
+  background: var(--accent-coral);
+  color: var(--ink-black);
+  box-shadow: 4px 4px 0 var(--ink-black);
+}
+
+.news-modal-btn-primary:hover {
+  background: var(--accent-coral-bright);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--ink-black);
+}
+
+.news-modal-btn-primary:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--ink-black);
+}
+
+@media (max-width: 540px) {
+  .news-modal {
+    margin: 1rem;
+    box-shadow: 8px 8px 0 var(--ink-black);
+  }
+
+  .news-form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+</style>

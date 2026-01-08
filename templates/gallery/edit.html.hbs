@@ -1,26 +1,33 @@
 <div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-md">
-    <h3 class="modal-title">Edit Item</h3>
+  <div class="gallery-modal">
+    <div class="gallery-modal-header">
+      <h3>Edit Item</h3>
+      <button type="button" class="gallery-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-put="/gallery/item/{{id}}" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="title" class="form-label">Title</label>
+      <div class="gallery-modal-body">
+        <div class="gallery-form-group">
+          <label for="title">Title</label>
           <input type="text" name="title" id="title"
-                 value="{{title}}" placeholder="{{fileName}}"
-                 class="form-input">
+                 value="{{title}}" placeholder="{{fileName}}">
         </div>
-        <div class="form-group">
-          <label for="description" class="form-label">Description</label>
-          <textarea name="description" id="description"
-                    class="form-textarea" rows="3">{{description}}</textarea>
+        <div class="gallery-form-group">
+          <label for="description">Description</label>
+          <textarea name="description" id="description" rows="3"
+                    placeholder="Add a description...">{{description}}</textarea>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Changes</button>
-        </div>
+      </div>
+      <div class="gallery-modal-footer">
+        <button type="button" class="gallery-modal-btn gallery-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="gallery-modal-btn gallery-modal-btn-primary">Save Changes</button>
       </div>
     </form>
   </div>

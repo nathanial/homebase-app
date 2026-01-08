@@ -1,20 +1,27 @@
 <div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-sm">
-    <h3 class="modal-title">Add Board</h3>
+  <div class="kanban-modal">
+    <div class="kanban-modal-header">
+      <h3>Add Board</h3>
+      <button type="button" class="kanban-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-post="/kanban/board" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="name" class="form-label">Board Name</label>
-          <input type="text" name="name" id="name" class="form-input"
-                 placeholder="Board name" required autofocus>
+      <div class="kanban-modal-body">
+        <div class="kanban-form-group">
+          <label for="name">Board Name</label>
+          <input type="text" name="name" id="name" placeholder="e.g., Project Alpha" required autofocus>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Board</button>
-        </div>
+      </div>
+      <div class="kanban-modal-footer">
+        <button type="button" class="kanban-modal-btn kanban-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="kanban-modal-btn kanban-modal-btn-primary">Add Board</button>
       </div>
     </form>
   </div>
