@@ -1,0 +1,53 @@
+<div class="novel-editor">
+  <!-- Sidebar: page list -->
+  <aside class="novel-pages-sidebar">
+    <div class="novel-title-section">
+      <h2>{{title}}</h2>
+      <div class="novel-actions">
+        <button class="btn btn-small btn-secondary" hx-get="/novels/{{id}}/edit" hx-target="#modal-container">Edit</button>
+        <button class="btn btn-small btn-danger" hx-delete="/novels/{{id}}" hx-swap="none"
+                hx-confirm="Delete this novel and all its pages?"
+                hx-on::after-request="if(event.detail.successful) window.location.href='/novels'">Delete</button>
+      </div>
+    </div>
+
+    <div class="page-list">
+      {{#each pages}}
+      <a href="/novels/{{../id}}/page/{{pageNumber}}" class="page-thumb{{#if isActive}} active{{/if}}">
+        <span class="page-number">Page {{pageNumber}}</span>
+        <span class="page-layout">{{layoutTemplate}}</span>
+      </a>
+      {{/each}}
+
+      <form hx-post="/novels/{{id}}/pages" hx-swap="none"
+            hx-on::after-request="if(event.detail.successful) window.location.reload()"
+            class="add-page-form">
+        <select name="layout" class="page-layout-select">
+          <option value="full">Full Page</option>
+          <option value="two-panel">Two Panels</option>
+          <option value="three-panel">Three Panels</option>
+          <option value="four-grid">Four Grid</option>
+          <option value="six-grid">Six Grid</option>
+        </select>
+        <button type="submit" class="btn btn-small btn-primary">+ Add Page</button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Main: current page editor -->
+  <main class="page-editor">
+    {{#if hasCurrentPage}}
+    {{> novels/_page-editor currentPage}}
+    {{else}}
+    <div class="no-page-selected">
+      <div class="empty-icon">📄</div>
+      <p>No pages yet.</p>
+      <p class="empty-hint">Add a page to start creating your novel!</p>
+    </div>
+    {{/if}}
+  </main>
+</div>
+
+<div id="modal-container"></div>
+
+<script src="/js/novels.js"></script>

@@ -1,0 +1,23 @@
+<div class="modal-overlay" onclick="if(event.target === this) this.remove()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>New Graphic Novel</h2>
+      <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+    </div>
+    <form hx-post="/novels" hx-swap="none"
+          hx-on::after-request="if(event.detail.successful) window.location.href = event.detail.xhr.getResponseHeader('Location') || '/novels'">
+      <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" required placeholder="My Graphic Novel" class="form-input">
+      </div>
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="A story about..." class="form-input"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Novel</button>
+      </div>
+    </form>
+  </div>
+</div>

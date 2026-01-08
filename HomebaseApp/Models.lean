@@ -217,4 +217,39 @@ structure DbNewsItem where
   user : EntityId        -- Reference to owner
   deriving Inhabited
 
+-- ============================================================================
+-- Graphic Novel Entity Structures
+-- ============================================================================
+
+/-- Graphic novel (container for pages). -/
+structure DbGraphicNovel where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  title : String
+  description : String
+  coverImagePath : String  -- Path to cover image in uploads
+  createdAt : Nat        -- milliseconds since epoch
+  updatedAt : Nat
+  user : EntityId        -- Reference to owner
+  deriving Inhabited
+
+/-- Page in a graphic novel. -/
+structure DbNovelPage where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  pageNumber : Nat       -- 1-indexed page number
+  layoutTemplate : String -- "full", "two-panel", "three-panel", "four-grid", "six-grid"
+  novel : EntityId       -- Reference to parent novel
+  createdAt : Nat
+  deriving Inhabited
+
+/-- Panel on a page (an image slot). -/
+structure DbNovelPanel where
+  id : Nat               -- Derived from EntityId, skipped in attributes
+  panelIndex : Nat       -- Position within page layout (0-indexed)
+  prompt : String        -- AI prompt used to generate image
+  imagePath : String     -- Path to generated image in uploads
+  caption : String       -- Optional caption/dialogue
+  generationStatus : String  -- "pending", "generating", "complete", "error"
+  pageRef : EntityId     -- Reference to parent page
+  deriving Inhabited
+
 end HomebaseApp.Models

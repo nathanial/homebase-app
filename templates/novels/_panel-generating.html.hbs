@@ -1,0 +1,7 @@
+<div class="panel-generating"
+     hx-get="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/status"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
+  <div class="spinner"></div>
+  <span>Generating...</span>
+</div>

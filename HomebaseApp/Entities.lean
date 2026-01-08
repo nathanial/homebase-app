@@ -29,6 +29,9 @@ makeLedgerEntity DbNote (attrPrefix := "note")
 makeLedgerEntity DbHealthEntry (attrPrefix := "health-entry")
 makeLedgerEntity DbRecipe (attrPrefix := "recipe")
 makeLedgerEntity DbNewsItem (attrPrefix := "news-item")
+makeLedgerEntity DbGraphicNovel (attrPrefix := "graphic-novel")
+makeLedgerEntity DbNovelPage (attrPrefix := "novel-page")
+makeLedgerEntity DbNovelPanel (attrPrefix := "novel-panel")
 
 namespace HomebaseApp.Entities
 -- Re-export for convenience

@@ -7,6 +7,11 @@ import Ledger
 import Chronicle
 import HomebaseApp.Models
 import HomebaseApp.Pages
+import HomebaseApp.TemplateValidation
+
+-- Validate all templates at compile time
+-- This will fail the build if any template has a parse error
+#validate_stencil_templates
 
 namespace HomebaseApp
 
@@ -47,6 +52,7 @@ def buildApp (logger : Chronicle.MultiLogger) : App :=
     |>.sseEndpoint "/events/health" "health"
     |>.sseEndpoint "/events/recipes" "recipes"
     |>.sseEndpoint "/events/news" "news"
+    |>.sseEndpoint "/events/novels" "novels"
     |>.sseEndpoint "/events/hot-reload" "hot-reload"
     |> registerPages
     |>.withPersistentDatabase journalPath

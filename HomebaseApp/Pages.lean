@@ -16,6 +16,7 @@ import HomebaseApp.Pages.Notebook
 import HomebaseApp.Pages.Health
 import HomebaseApp.Pages.Recipes
 import HomebaseApp.Pages.News
+import HomebaseApp.Pages.GraphicNovel
 import HomebaseApp.Middleware
 
 namespace HomebaseApp.Pages

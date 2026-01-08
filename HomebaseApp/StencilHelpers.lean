@@ -13,7 +13,7 @@ open HomebaseApp.Shared (isLoggedIn isAdmin)
 
 /-- Page identifiers for sidebar active state -/
 inductive PageId where
-  | home | chat | notebook | time | health | recipes | kanban | gallery | news | admin
+  | home | chat | notebook | time | health | recipes | kanban | gallery | news | novels | admin
   deriving BEq
 
 /-- Build common layout context data -/
@@ -34,6 +34,7 @@ def layoutContext (ctx : Context) (title : String) (currentPage : PageId) : Sten
     ("isKanban", .bool (currentPage == .kanban)),
     ("isGallery", .bool (currentPage == .gallery)),
     ("isNews", .bool (currentPage == .news)),
+    ("isNovels", .bool (currentPage == .novels)),
     ("isAdmin", .bool (currentPage == .admin))
   ]
 

@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/health.css">
   <link rel="stylesheet" href="/css/recipes.css">
   <link rel="stylesheet" href="/css/news.css">
+  <link rel="stylesheet" href="/css/novels.css">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script src="/js/confirm-modal.js"></script>
@@ -57,6 +58,10 @@
         <a href="/news" class="sidebar-link{{#if isNews}} active{{/if}}">
           <span class="sidebar-link-icon">📰</span>
           <span>News</span>
+        </a>
+        <a href="/novels" class="sidebar-link{{#if isNovels}} active{{/if}}">
+          <span class="sidebar-link-icon">📚</span>
+          <span>Novels</span>
         </a>
         {{#if showAdmin}}
         <div class="sidebar-divider"></div>

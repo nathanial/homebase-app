@@ -1,0 +1,38 @@
+<div class="novels-container">
+  <div class="novels-header">
+    <h1>Graphic Novels</h1>
+    <button class="btn btn-primary" hx-get="/novels/new" hx-target="#modal-container" hx-swap="innerHTML">
+      + New Novel
+    </button>
+  </div>
+
+  {{#if hasNovels}}
+  <div class="novels-grid">
+    {{#each novels}}
+    <a href="/novels/{{id}}" class="novel-card">
+      {{#if hasCover}}
+      <img src="{{coverUrl}}" class="novel-cover" alt="{{title}}">
+      {{else}}
+      <div class="novel-cover novel-cover-placeholder">
+        <span class="placeholder-icon">📚</span>
+      </div>
+      {{/if}}
+      <div class="novel-info">
+        <h3>{{title}}</h3>
+        <p class="novel-meta">{{pageCount}} page{{#unless (eq pageCount 1)}}s{{/unless}}</p>
+      </div>
+    </a>
+    {{/each}}
+  </div>
+  {{else}}
+  <div class="novels-empty">
+    <div class="empty-icon">📚</div>
+    <p>No graphic novels yet.</p>
+    <p class="empty-hint">Create your first novel to get started!</p>
+  </div>
+  {{/if}}
+</div>
+
+<div id="modal-container"></div>
+
+<script src="/js/novels.js"></script>
