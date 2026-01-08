@@ -1,19 +1,40 @@
-<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-sm">
-    <h3 class="modal-title">New Notebook</h3>
+<div class="nb-modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="nb-modal">
+    <div class="nb-modal-header">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        New Notebook
+      </h3>
+      <button type="button" class="nb-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-post="/notebook/create" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="title" class="form-label">Title</label>
-          <input type="text" name="title" id="title" class="form-input" required autofocus>
+      <div class="nb-modal-body">
+        <div class="nb-form-group">
+          <label for="title" class="nb-form-label">Title</label>
+          <input type="text" name="title" id="title" class="nb-form-input" required autofocus
+                 placeholder="My Notebook">
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create</button>
-        </div>
+      </div>
+      <div class="nb-modal-footer">
+        <button type="button" class="nb-modal-btn nb-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="nb-modal-btn nb-modal-btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Create
+        </button>
       </div>
     </form>
   </div>

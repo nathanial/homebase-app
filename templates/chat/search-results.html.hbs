@@ -1,12 +1,25 @@
 <div class="chat-search-results">
-  <h3>Search results for "{{query}}"</h3>
+  <h3>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;">
+      <circle cx="11" cy="11" r="8"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    Results for "{{query}}"
+  </h3>
   {{#if hasResults}}
     {{#each results}}
     <div class="chat-search-result"
          hx-get="/chat/thread/{{thread.id}}"
          hx-target="#chat-messages-area"
          hx-swap="innerHTML">
-      <div class="chat-search-thread">in {{thread.title}}</div>
+      <div class="chat-search-thread">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 0.25rem;">
+          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
+          <circle cx="12" cy="12" r="2"/>
+          <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
+        </svg>
+        {{thread.title}}
+      </div>
       <div id="message-{{message.id}}" class="chat-message">
         <div class="chat-message-header">
           <span class="chat-message-author">{{message.userName}}</span>
@@ -21,6 +34,13 @@
     </div>
     {{/each}}
   {{else}}
-    <p class="text-slate-500">No messages found.</p>
+    <p class="chat-search-no-results">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      No transmissions found
+    </p>
   {{/if}}
 </div>

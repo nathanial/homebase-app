@@ -1,17 +1,87 @@
 <div class="recipes-detail">
   <!-- Header -->
   <div class="recipes-detail-header">
-    <a href="/recipes" class="btn btn-secondary btn-sm">Back</a>
+    <a href="/recipes" class="btn btn-secondary btn-sm">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+      Back
+    </a>
     <div class="recipes-detail-actions">
-      <a href="/recipes/{{id}}/edit" class="btn btn-secondary btn-sm">Edit</a>
+      <a href="/recipes/{{id}}/edit" class="btn btn-secondary btn-sm">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        Edit
+      </a>
       <button hx-delete="/recipes/{{id}}" hx-swap="none"
-              hx-confirm="Delete this recipe?" class="btn btn-danger btn-sm">Delete</button>
+              hx-confirm="Delete this recipe?" class="btn btn-danger btn-sm">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/>
+          <line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+        Delete
+      </button>
     </div>
   </div>
 
   <!-- Title and category -->
   <div class="recipes-detail-title-section">
-    <span class="recipes-detail-icon">{{icon}}</span>
+    <span class="recipes-detail-icon">
+      {{#eq category "Breakfast"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+      </svg>
+      {{/eq}}
+      {{#eq category "Lunch"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 11h18M5 11V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/>
+        <ellipse cx="12" cy="17" rx="9" ry="4"/>
+      </svg>
+      {{/eq}}
+      {{#eq category "Dinner"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+        <path d="M7 2v20"/>
+        <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+      </svg>
+      {{/eq}}
+      {{#eq category "Dessert"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 2h8l2 8H6l2-8z"/>
+        <path d="M6 10c0 4.4 3.6 8 6 10 2.4-2 6-5.6 6-10"/>
+        <line x1="12" y1="14" x2="12" y2="16"/>
+      </svg>
+      {{/eq}}
+      {{#eq category "Snack"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 8h14M5 12h14M5 16h14"/>
+        <rect x="3" y="4" width="18" height="16" rx="2"/>
+      </svg>
+      {{/eq}}
+      {{#eq category "Beverage"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+        <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/>
+        <line x1="6" y1="1" x2="6" y2="4"/>
+        <line x1="10" y1="1" x2="10" y2="4"/>
+        <line x1="14" y1="1" x2="14" y2="4"/>
+      </svg>
+      {{/eq}}
+      {{#eq category "Other"}}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <line x1="8" y1="8" x2="16" y2="8"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+        <line x1="8" y1="16" x2="12" y2="16"/>
+      </svg>
+      {{/eq}}
+    </span>
     <div>
       <h1>{{title}}</h1>
       <span class="recipes-detail-category">{{category}}</span>
@@ -27,25 +97,50 @@
   <div class="recipes-detail-meta">
     {{#if hasPrepTime}}
     <div class="recipes-detail-meta-item">
-      <span class="recipes-detail-meta-label">Prep Time</span>
+      <span class="recipes-detail-meta-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+        Prep Time
+      </span>
       <span class="recipes-detail-meta-value">{{prepTimeFormatted}}</span>
     </div>
     {{/if}}
     {{#if hasCookTime}}
     <div class="recipes-detail-meta-item">
-      <span class="recipes-detail-meta-label">Cook Time</span>
+      <span class="recipes-detail-meta-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v4M6.34 6.34l2.83 2.83M2 12h4M6.34 17.66l2.83-2.83M12 18v4M17.66 17.66l-2.83-2.83M22 12h-4M17.66 6.34l-2.83 2.83"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+        Cook Time
+      </span>
       <span class="recipes-detail-meta-value">{{cookTimeFormatted}}</span>
     </div>
     {{/if}}
     {{#if hasTotalTime}}
     <div class="recipes-detail-meta-item">
-      <span class="recipes-detail-meta-label">Total Time</span>
+      <span class="recipes-detail-meta-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Total Time
+      </span>
       <span class="recipes-detail-meta-value">{{totalTimeFormatted}}</span>
     </div>
     {{/if}}
     {{#if hasServings}}
     <div class="recipes-detail-meta-item">
-      <span class="recipes-detail-meta-label">Servings</span>
+      <span class="recipes-detail-meta-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        Servings
+      </span>
       <span class="recipes-detail-meta-value">{{servings}}</span>
     </div>
     {{/if}}
@@ -55,7 +150,15 @@
   <div class="recipes-detail-content">
     <!-- Ingredients -->
     <div class="recipes-detail-section">
-      <h2>Ingredients</h2>
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="2"/>
+          <line x1="9" y1="12" x2="15" y2="12"/>
+          <line x1="9" y1="16" x2="15" y2="16"/>
+        </svg>
+        Ingredients
+      </h2>
       {{#if hasIngredients}}
       <ul class="recipes-ingredients-list">
         {{#each ingredientsList}}
@@ -69,7 +172,17 @@
 
     <!-- Instructions -->
     <div class="recipes-detail-section">
-      <h2>Instructions</h2>
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"/>
+          <line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6" x2="3.01" y2="6"/>
+          <line x1="3" y1="12" x2="3.01" y2="12"/>
+          <line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        Instructions
+      </h2>
       {{#if hasInstructions}}
       <ol class="recipes-steps-list">
         {{#each instructionsList}}

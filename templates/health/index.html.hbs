@@ -3,27 +3,44 @@
   <div class="health-header">
     <h1>Health</h1>
     <button hx-get="/health/log/new" hx-target="#modal-container"
-            hx-swap="innerHTML" class="btn btn-primary">+ Log Entry</button>
+            hx-swap="innerHTML" class="btn btn-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Log Entry
+    </button>
   </div>
 
   <!-- Stats -->
   <div class="health-stats">
     <!-- Latest weight card -->
     <div class="health-stat-card">
-      <div class="health-stat-icon">⚖️</div>
+      <div class="health-stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 3a9 9 0 1 0 9 9"/>
+          <path d="M12 7v5l3 3"/>
+          <circle cx="12" cy="12" r="1"/>
+        </svg>
+      </div>
       <div class="health-stat-content">
         {{#if hasLatestWeight}}
         <div class="health-stat-value">{{latestWeight.value}} {{latestWeight.unit}}</div>
         <div class="health-stat-label">Current Weight</div>
         {{else}}
-        <div class="health-stat-value">—</div>
+        <div class="health-stat-value">--</div>
         <div class="health-stat-label">No weight logged</div>
         {{/if}}
       </div>
     </div>
     <!-- Total entries card -->
     <div class="health-stat-card">
-      <div class="health-stat-icon">📊</div>
+      <div class="health-stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"/>
+          <path d="M18 9l-5 5-4-4-3 3"/>
+        </svg>
+      </div>
       <div class="health-stat-content">
         <div class="health-stat-value">{{totalEntries}}</div>
         <div class="health-stat-label">Total Entries</div>
@@ -31,7 +48,13 @@
     </div>
     <!-- Exercise count card -->
     <div class="health-stat-card">
-      <div class="health-stat-icon">🏃</div>
+      <div class="health-stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="5" r="2"/>
+          <path d="M4 17l4-4 4 4 4-4 4 4"/>
+          <path d="M12 7v4"/>
+        </svg>
+      </div>
       <div class="health-stat-content">
         <div class="health-stat-value">{{exerciseCount}}</div>
         <div class="health-stat-label">Exercise Logs</div>
@@ -43,16 +66,36 @@
   <div class="health-filters">
     <a href="/health" class="health-filter-tab{{#if filterAll}} active{{/if}}">All</a>
     <a href="/health?type=weight" class="health-filter-tab{{#if filterWeight}} active{{/if}}">
-      <span>⚖️</span> Weight
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 3a9 9 0 1 0 9 9"/>
+        <path d="M12 7v5l3 3"/>
+        <circle cx="12" cy="12" r="1"/>
+      </svg>
+      Weight
     </a>
     <a href="/health?type=exercise" class="health-filter-tab{{#if filterExercise}} active{{/if}}">
-      <span>🏃</span> Exercise
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="5" r="2"/>
+        <path d="M4 17l4-4 4 4 4-4 4 4"/>
+        <path d="M12 7v4"/>
+      </svg>
+      Exercise
     </a>
     <a href="/health?type=medication" class="health-filter-tab{{#if filterMedication}} active{{/if}}">
-      <span>💊</span> Medication
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.5 20.5L3.5 13.5a4.95 4.95 0 1 1 7-7l7 7a4.95 4.95 0 0 1-7 7z"/>
+        <path d="M8.5 8.5l7 7"/>
+      </svg>
+      Medication
     </a>
     <a href="/health?type=note" class="health-filter-tab{{#if filterNote}} active{{/if}}">
-      <span>📝</span> Notes
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      Notes
     </a>
   </div>
 
@@ -62,7 +105,36 @@
     <div class="health-entries-list">
       {{#each entries}}
       <div id="entry-{{id}}" class="health-entry-row health-entry-{{entryType}}">
-        <div class="health-entry-icon">{{icon}}</div>
+        <div class="health-entry-icon">
+          {{#eq entryType "weight"}}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3a9 9 0 1 0 9 9"/>
+            <path d="M12 7v5l3 3"/>
+            <circle cx="12" cy="12" r="1"/>
+          </svg>
+          {{/eq}}
+          {{#eq entryType "exercise"}}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="5" r="2"/>
+            <path d="M4 17l4-4 4 4 4-4 4 4"/>
+            <path d="M12 7v4"/>
+          </svg>
+          {{/eq}}
+          {{#eq entryType "medication"}}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.5 20.5L3.5 13.5a4.95 4.95 0 1 1 7-7l7 7a4.95 4.95 0 0 1-7 7z"/>
+            <path d="M8.5 8.5l7 7"/>
+          </svg>
+          {{/eq}}
+          {{#eq entryType "note"}}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          {{/eq}}
+        </div>
         <div class="health-entry-main">
           <div class="health-entry-header">
             <span class="health-entry-type">{{typeLabel}}</span>
@@ -72,7 +144,7 @@
             {{#if hasValue}}
             {{value}}{{#if hasUnit}}<span class="health-entry-unit"> {{unit}}</span>{{/if}}
             {{else}}
-            —
+            --
             {{/if}}
           </div>
           {{#if hasNotes}}
@@ -81,17 +153,33 @@
         </div>
         <div class="health-entry-actions">
           <button hx-get="/health/entry/{{id}}/edit" hx-target="#modal-container"
-                  hx-swap="innerHTML" class="btn-icon" title="Edit">e</button>
+                  hx-swap="innerHTML" class="btn-icon" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
           <button hx-delete="/health/entry/{{id}}" hx-swap="none"
                   hx-confirm="Delete this entry?"
-                  class="btn-icon btn-icon-danger" title="Delete">x</button>
+                  class="btn-icon btn-icon-danger" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
         </div>
       </div>
       {{/each}}
     </div>
     {{else}}
     <div class="health-empty">
-      <div class="health-empty-icon">🏥</div>
+      <div class="health-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </div>
       <p>No health entries yet</p>
       <p class="text-muted">Start tracking your health!</p>
     </div>

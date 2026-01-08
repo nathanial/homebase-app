@@ -1,13 +1,21 @@
-<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-md">
-    <h3 class="modal-title">Log Health Entry</h3>
+<div class="health-modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="health-modal">
+    <div class="health-modal-header">
+      <h3>Log Health Entry</h3>
+      <button type="button" class="health-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-post="/health/log" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="entryType" class="form-label">Type</label>
-          <select name="entryType" id="entryType" class="form-select"
+      <div class="health-modal-body">
+        <div class="health-form-group">
+          <label for="entryType" class="health-form-label">Type</label>
+          <select name="entryType" id="entryType" class="health-form-select"
                   onchange="document.getElementById('unit-field').value = this.options[this.selectedIndex].dataset.unit || ''">
             <option value="weight" data-unit="kg">Weight</option>
             <option value="exercise" data-unit="minutes">Exercise</option>
@@ -15,26 +23,32 @@
             <option value="note" data-unit="">Note</option>
           </select>
         </div>
-        <div class="form-group">
-          <label for="value" class="form-label">Value</label>
+        <div class="health-form-group">
+          <label for="value" class="health-form-label">Value</label>
           <input type="text" name="value" id="value"
-                 class="form-input" placeholder="e.g., 70 or 30">
+                 class="health-form-input" placeholder="e.g., 70 or 30">
         </div>
-        <div class="form-group">
-          <label for="unit" class="form-label">Unit</label>
+        <div class="health-form-group">
+          <label for="unit" class="health-form-label">Unit</label>
           <input type="text" name="unit" id="unit-field"
-                 value="kg" class="form-input" placeholder="e.g., kg, minutes">
+                 value="kg" class="health-form-input" placeholder="e.g., kg, minutes">
         </div>
-        <div class="form-group">
-          <label for="notes" class="form-label">Notes (optional)</label>
-          <textarea name="notes" id="notes" class="form-textarea" rows="3"
+        <div class="health-form-group">
+          <label for="notes" class="health-form-label">Notes (optional)</label>
+          <textarea name="notes" id="notes" class="health-form-textarea" rows="3"
                     placeholder="Any additional notes..."></textarea>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Log Entry</button>
-        </div>
+      </div>
+      <div class="health-modal-footer">
+        <button type="button" class="health-modal-btn health-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="health-modal-btn health-modal-btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Log Entry
+        </button>
       </div>
     </form>
   </div>

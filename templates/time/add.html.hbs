@@ -1,35 +1,57 @@
-<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-md">
-    <h3 class="modal-title">Add Time Entry</h3>
+<div class="time-modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="time-modal">
+    <div class="time-modal-header">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Add Time Entry
+      </h3>
+      <button type="button" class="time-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-post="/time/entry" hx-swap="none"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="description" class="form-label">Description</label>
-          <input type="text" name="description" id="description" class="form-input" required autofocus>
+      <div class="time-modal-body">
+        <div class="time-form-group">
+          <label for="description" class="time-form-label">Description</label>
+          <input type="text" name="description" id="description" class="time-form-input" required autofocus>
         </div>
-        <div class="form-group">
-          <label for="startTime" class="form-label">Start Time</label>
-          <input type="time" name="startTime" id="startTime" class="form-input" required>
+        <div class="time-form-row">
+          <div class="time-form-group">
+            <label for="startTime" class="time-form-label">Start Time</label>
+            <input type="time" name="startTime" id="startTime" class="time-form-input" required>
+          </div>
+          <div class="time-form-group">
+            <label for="endTime" class="time-form-label">End Time</label>
+            <input type="time" name="endTime" id="endTime" class="time-form-input" required>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="endTime" class="form-label">End Time</label>
-          <input type="time" name="endTime" id="endTime" class="form-input" required>
-        </div>
-        <div class="form-group">
-          <label for="category" class="form-label">Category</label>
-          <select name="category" id="category" class="form-select">
+        <div class="time-form-group">
+          <label for="category" class="time-form-label">Category</label>
+          <select name="category" id="category" class="time-form-select">
             {{#each categories}}
             <option value="{{this}}">{{this}}</option>
             {{/each}}
           </select>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Entry</button>
-        </div>
+      </div>
+      <div class="time-modal-footer">
+        <button type="button" class="time-modal-btn time-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="time-modal-btn time-modal-btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Add Entry
+        </button>
       </div>
     </form>
   </div>

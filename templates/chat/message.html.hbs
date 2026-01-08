@@ -16,7 +16,11 @@
       <a href="{{url}}" target="_blank" class="chat-embed-youtube-link">
         <div class="chat-embed-youtube-thumb">
           <img src="{{thumbnailUrl}}" alt="{{title}}">
-          <div class="chat-embed-play-icon">▶</div>
+          <div class="chat-embed-play-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
         </div>
         {{#if hasTitle}}
         <div class="chat-embed-youtube-info">
@@ -28,7 +32,11 @@
       {{#if isTwitter}}
       <a href="{{url}}" target="_blank" class="chat-embed-twitter-link">
         <div class="chat-embed-twitter-header">
-          <span class="chat-embed-twitter-icon">𝕏</span>
+          <span class="chat-embed-twitter-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+          </span>
           {{#if hasAuthor}}<span class="chat-embed-twitter-author">{{authorName}}</span>{{/if}}
         </div>
         {{#if hasDescription}}<div class="chat-embed-twitter-text">{{description}}</div>{{/if}}
@@ -57,7 +65,11 @@
     </a>
     {{else}}
     <a href="{{url}}" download="{{fileName}}" class="chat-attachment-file">
-      <span class="chat-attachment-icon">📎</span>
+      <span class="chat-attachment-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </span>
       <span class="chat-attachment-name">{{fileName}}</span>
       <span class="chat-attachment-size">{{fileSizeFormatted}}</span>
     </a>

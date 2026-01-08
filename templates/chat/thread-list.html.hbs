@@ -1,10 +1,25 @@
 <div id="chat-threads" class="chat-threads">
   <div class="chat-threads-header">
-    <h2>Threads</h2>
-    <button class="btn btn-primary btn-sm"
+    <h2>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
+        <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/>
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/>
+        <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
+      </svg>
+      Channels
+    </h2>
+    <button class="chat-new-thread-btn"
             hx-get="/chat/thread/new"
             hx-target="#modal-container"
-            hx-swap="innerHTML">+ New Thread</button>
+            hx-swap="innerHTML">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New
+    </button>
   </div>
   <div id="threads-list" class="chat-threads-list">
     {{#each threads}}
@@ -21,7 +36,12 @@
       <p class="chat-thread-preview">{{lastMessagePreview}}</p>
       {{/if}}
       <div class="chat-thread-meta">
-        <span class="chat-thread-count">{{messageCount}} messages</span>
+        <span class="chat-thread-count">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          {{messageCount}}
+        </span>
       </div>
     </div>
     {{/each}}

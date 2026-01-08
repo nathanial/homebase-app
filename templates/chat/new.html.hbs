@@ -1,22 +1,45 @@
-<div class="modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
-  <div class="modal-container modal-sm">
-    <h3 class="modal-title">New Thread</h3>
+<div class="chat-modal-overlay" onclick="if(event.target === this) this.parentElement.innerHTML = ''">
+  <div class="chat-modal">
+    <div class="chat-modal-header">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
+          <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/>
+          <circle cx="12" cy="12" r="2"/>
+          <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/>
+          <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
+        </svg>
+        New Channel
+      </h3>
+      <button type="button" class="chat-modal-close" onclick="document.getElementById('modal-container').innerHTML = ''">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
     <form hx-post="/chat/thread"
           hx-target="#threads-list"
           hx-swap="afterbegin"
           hx-on::after-request="document.getElementById('modal-container').innerHTML = ''">
       <input type="hidden" name="_csrf" value="{{csrfToken}}">
-      <div class="form-stack">
-        <div class="form-group">
-          <label for="title" class="form-label">Thread Title</label>
-          <input type="text" name="title" id="title" class="form-input"
-                 placeholder="Enter thread title" required autofocus>
+      <div class="chat-modal-body">
+        <div class="chat-form-group">
+          <label for="title" class="chat-form-label">Channel Name</label>
+          <input type="text" name="title" id="title" class="chat-form-input"
+                 placeholder="Enter channel name" required autofocus>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary"
-                  onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create Thread</button>
-        </div>
+      </div>
+      <div class="chat-modal-footer">
+        <button type="button" class="chat-modal-btn chat-modal-btn-secondary"
+                onclick="document.getElementById('modal-container').innerHTML = ''">Cancel</button>
+        <button type="submit" class="chat-modal-btn chat-modal-btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Create
+        </button>
       </div>
     </form>
   </div>

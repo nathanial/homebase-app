@@ -12,7 +12,12 @@
       </div>
       <form hx-post="/time/stop" hx-swap="none" class="time-timer-form"
             hx-on::after-request="if(event.detail.successful) window.location.reload()">
-        <button type="submit" class="btn btn-danger">Stop Timer</button>
+        <button type="submit" class="btn btn-danger">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="6" width="12" height="12"/>
+          </svg>
+          Stop Timer
+        </button>
       </form>
     </div>
     {{else}}
@@ -30,7 +35,12 @@
             <option value="{{this}}">{{this}}</option>
             {{/each}}
           </select>
-          <button type="submit" class="btn btn-primary">Start</button>
+          <button type="submit" class="btn btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Start
+          </button>
         </div>
       </form>
     </div>
@@ -40,7 +50,13 @@
   <!-- Today's summary -->
   <div class="time-today-summary">
     <div class="time-summary-header">
-      <h2>Today</h2>
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Today
+      </h2>
       <span class="time-summary-total">{{totalDuration}}</span>
     </div>
     {{#if hasCategorySummary}}
@@ -56,11 +72,35 @@
   <!-- Today's entries -->
   <div class="time-entries-section">
     <div class="time-entries-header">
-      <h3>Time Entries</h3>
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"/>
+          <line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6" x2="3.01" y2="6"/>
+          <line x1="3" y1="12" x2="3.01" y2="12"/>
+          <line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        Time Entries
+      </h3>
       <div class="time-entries-actions">
         <button hx-get="/time/entry/add" hx-target="#modal-container"
-                hx-swap="innerHTML" class="btn btn-secondary btn-sm">+ Manual Entry</button>
-        <a href="/time/week" class="btn btn-secondary btn-sm">Weekly Report</a>
+                hx-swap="innerHTML" class="btn btn-secondary btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Manual Entry
+        </button>
+        <a href="/time/week" class="btn btn-secondary btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          Weekly Report
+        </a>
       </div>
     </div>
     <div id="entries-container">
@@ -86,10 +126,22 @@
             <td class="time-entry-duration">{{durationFormatted}}</td>
             <td class="time-entry-actions">
               <button hx-get="/time/entry/{{id}}/edit" hx-target="#modal-container"
-                      hx-swap="innerHTML" class="btn-icon" title="Edit">e</button>
+                      hx-swap="innerHTML" class="btn-icon" title="Edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
               <button hx-delete="/time/entry/{{id}}" hx-swap="none"
                       hx-confirm="Delete this time entry?"
-                      class="btn-icon btn-icon-danger" title="Delete">x</button>
+                      class="btn-icon btn-icon-danger" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  <line x1="10" y1="11" x2="10" y2="17"/>
+                  <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+              </button>
             </td>
           </tr>
           {{/each}}
@@ -97,6 +149,10 @@
       </table>
       {{else}}
       <div class="time-empty">
+        <svg class="time-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
         <p>No time entries for today. Start tracking!</p>
       </div>
       {{/if}}
