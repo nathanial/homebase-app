@@ -1,9 +1,7 @@
 <div class="novels-container">
   <div class="novels-header">
     <h1>Graphic Novels</h1>
-    <button class="btn btn-primary" hx-get="/novels/new" hx-target="#modal-container" hx-swap="innerHTML">
-      + New Novel
-    </button>
+    <a href="/novels/new" class="btn btn-primary">+ New Novel</a>
   </div>
 
   {{#if hasNovels}}
@@ -32,7 +30,5 @@
   </div>
   {{/if}}
 </div>
-
-<div id="modal-container"></div>
 
 <script src="/js/novels.js"></script>

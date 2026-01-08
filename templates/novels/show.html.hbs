@@ -4,10 +4,11 @@
     <div class="novel-title-section">
       <h2>{{title}}</h2>
       <div class="novel-actions">
-        <button class="btn btn-small btn-secondary" hx-get="/novels/{{id}}/edit" hx-target="#modal-container">Edit</button>
-        <button class="btn btn-small btn-danger" hx-delete="/novels/{{id}}" hx-swap="none"
-                hx-confirm="Delete this novel and all its pages?"
-                hx-on::after-request="if(event.detail.successful) window.location.href='/novels'">Delete</button>
+        <a href="/novels/{{id}}/edit" class="btn btn-small btn-secondary">Edit</a>
+        <form method="POST" action="/novels/{{id}}/delete" style="display: inline;"
+              onsubmit="return confirm('Delete this novel and all its pages?')">
+          <button type="submit" class="btn btn-small btn-danger">Delete</button>
+        </form>
       </div>
     </div>
 
@@ -19,9 +20,7 @@
       </a>
       {{/each}}
 
-      <form hx-post="/novels/{{id}}/pages" hx-swap="none"
-            hx-on::after-request="if(event.detail.successful) window.location.reload()"
-            class="add-page-form">
+      <form method="POST" action="/novels/{{id}}/pages" class="add-page-form">
         <select name="layout" class="page-layout-select">
           <option value="full">Full Page</option>
           <option value="two-panel">Two Panels</option>
@@ -47,7 +46,5 @@
     {{/if}}
   </main>
 </div>
-
-<div id="modal-container"></div>
 
 <script src="/js/novels.js"></script>

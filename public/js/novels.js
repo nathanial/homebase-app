@@ -49,16 +49,15 @@
   });
 
   eventSource.addEventListener('panel-generating', function(e) {
-    // Panel generation started - the HTMX polling will handle updates
+    // Panel generation started - JS polling in the template will handle updates
   });
 
   eventSource.addEventListener('panel-generated', function(e) {
     var data = JSON.parse(e.data);
-    // Refresh the specific panel via HTMX if we're on the right page
+    // Refresh page if we're on the right page and panel
     var panelEl = document.getElementById('panel-' + data.panelIndex);
     if (panelEl) {
-      htmx.ajax('GET', '/novels/' + data.novelId + '/page/' + data.pageNum + '/panel/' + data.panelIndex + '/status',
-        {target: panelEl, swap: 'innerHTML'});
+      window.location.reload();
     }
   });
 

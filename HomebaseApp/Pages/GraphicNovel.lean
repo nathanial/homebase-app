@@ -270,11 +270,11 @@ view novelsPage "/novels" [HomebaseApp.Middleware.authRequired] do
     ])
   Loom.Stencil.ActionM.renderWithLayout "app" "novels/index" data
 
--- New novel form
+-- New novel form (full page)
 view novelNewForm "/novels/new" [HomebaseApp.Middleware.authRequired] do
   let ctx ← getCtx
   let data := pageContext ctx "New Novel" PageId.novels (.object #[])
-  Loom.Stencil.ActionM.render "novels/new" data
+  Loom.Stencil.ActionM.renderWithLayout "app" "novels/new" data
 
 -- Create novel
 action novelCreate "/novels" POST [HomebaseApp.Middleware.authRequired] do
@@ -301,6 +301,20 @@ action novelCreate "/novels" POST [HomebaseApp.Middleware.authRequired] do
     let novelId := novelEid.id.toNat
     let _ ← SSE.publishEvent "novels" "novel-created" (jsonStr! { novelId, title })
     redirect s!"/novels/{novelId}"
+
+-- Edit novel form (full page)
+view novelEditForm "/novels/:id/edit" [HomebaseApp.Middleware.authRequired] (id : Nat) do
+  let ctx ← getCtx
+  match getNovel ctx id with
+  | none => notFound "Novel not found"
+  | some novel =>
+    let data := pageContext ctx "Edit Novel" PageId.novels
+      (.object #[
+        ("id", .int (Int.ofNat novel.id)),
+        ("title", .string novel.title),
+        ("description", .string novel.description)
+      ])
+    Loom.Stencil.ActionM.renderWithLayout "app" "novels/edit" data
 
 -- View/edit novel
 view novelView "/novels/:id" [HomebaseApp.Middleware.authRequired] (id : Nat) do
@@ -348,8 +362,8 @@ action novelAddPage "/novels/:id/pages" POST [HomebaseApp.Middleware.authRequire
     let _ ← SSE.publishEvent "novels" "page-added" (jsonStr! { novelId, "pageNum" : newPageNum })
     redirect s!"/novels/{id}/page/{newPageNum}"
 
--- Delete page
-action novelDeletePage "/novels/:id/page/:pageNum" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) do
+-- Delete page (POST for form compatibility)
+action novelDeletePage "/novels/:id/page/:pageNum/delete" POST [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) do
   let ctx ← getCtx
   match ctx.database with
   | none => redirect s!"/novels/{id}"
@@ -371,8 +385,8 @@ action novelDeletePage "/novels/:id/page/:pageNum" DELETE [HomebaseApp.Middlewar
       let _ ← SSE.publishEvent "novels" "page-deleted" (jsonStr! { novelId, pageNum })
       redirect s!"/novels/{id}"
 
--- Change page layout
-action novelPageLayout "/novels/:id/page/:pageNum/layout" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) do
+-- Change page layout (POST for form compatibility)
+action novelPageLayout "/novels/:id/page/:pageNum/layout" POST [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) do
   let ctx ← getCtx
   match ctx.database with
   | none => redirect s!"/novels/{id}/page/{pageNum}"
@@ -399,23 +413,23 @@ action novelPageLayout "/novels/:id/page/:pageNum/layout" PUT [HomebaseApp.Middl
       let _ ← SSE.publishEvent "novels" "page-layout-changed" (jsonStr! { novelId, pageNum, layout })
       redirect s!"/novels/{id}/page/{pageNum}"
 
--- Update panel caption
-action novelPanelCaption "/novels/:id/page/:pageNum/panel/:idx/caption" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) (idx : Nat) do
+-- Update panel caption (POST for form compatibility)
+action novelPanelCaption "/novels/:id/page/:pageNum/panel/:idx/caption" POST [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) (idx : Nat) do
   let ctx ← getCtx
   match ctx.database with
-  | none => return ← html ""
+  | none => redirect s!"/novels/{id}/page/{pageNum}"
   | some db =>
     let novelEid : EntityId := ⟨id⟩
     match getPageByNumber db novelEid pageNum with
-    | none => return ← html ""
+    | none => redirect s!"/novels/{id}/page/{pageNum}"
     | some (pageEid, _) =>
       match getPanelByIndex db pageEid idx with
-      | none => return ← html ""
+      | none => redirect s!"/novels/{id}/page/{pageNum}"
       | some (panelEid, _) =>
         let caption := ctx.paramD "caption" ""
         runAuditTx! do
           DbNovelPanel.TxM.setCaption panelEid caption
-        html ""
+        redirect s!"/novels/{id}/page/{pageNum}"
 
 -- Update panel prompt (for regeneration)
 action novelPanelPrompt "/novels/:id/page/:pageNum/panel/:idx/prompt" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) (pageNum : Nat) (idx : Nat) do
@@ -537,8 +551,8 @@ view novelPanelStatus "/novels/:id/page/:pageNum/panel/:idx/status" [HomebaseApp
         ]
         Loom.Stencil.ActionM.render "novels/_panel-result" data
 
--- Update novel metadata
-action novelUpdate "/novels/:id" PUT [HomebaseApp.Middleware.authRequired] (id : Nat) do
+-- Update novel metadata (POST for form compatibility)
+action novelUpdate "/novels/:id" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   let title := ctx.paramD "title" ""
   let description := ctx.paramD "description" ""
@@ -554,8 +568,8 @@ action novelUpdate "/novels/:id" PUT [HomebaseApp.Middleware.authRequired] (id :
   let _ ← SSE.publishEvent "novels" "novel-updated" (jsonStr! { novelId, title })
   redirect s!"/novels/{id}"
 
--- Delete novel
-action novelDelete "/novels/:id" DELETE [HomebaseApp.Middleware.authRequired] (id : Nat) do
+-- Delete novel (POST for form compatibility)
+action novelDelete "/novels/:id/delete" POST [HomebaseApp.Middleware.authRequired] (id : Nat) do
   let ctx ← getCtx
   match ctx.database with
   | none => redirect "/novels"

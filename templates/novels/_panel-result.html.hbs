@@ -6,19 +6,12 @@
     Regenerate
   </button>
 </div>
-<div class="panel-caption-container">
-  <input type="text" value="{{caption}}"
-         hx-put="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/caption"
-         hx-trigger="blur, keyup[key=='Enter']"
-         hx-swap="none"
-         name="caption"
-         placeholder="Add caption..."
-         class="panel-caption-input">
-</div>
-<form class="panel-prompt-form" style="display: none;"
-      hx-post="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-      hx-target="#panel-{{panelIndex}}"
-      hx-swap="innerHTML">
+<form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/caption" class="panel-caption-form">
+  <input type="text" name="caption" value="{{caption}}" placeholder="Add caption..." class="panel-caption-input">
+  <button type="submit" class="btn btn-small">Save</button>
+</form>
+<form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
+      class="panel-prompt-form" style="display: none;">
   <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input">{{prompt}}</textarea>
   <div class="panel-prompt-actions">
     <button type="button" class="btn btn-small btn-secondary"
@@ -29,20 +22,31 @@
   </div>
 </form>
 {{else if isGenerating}}
-<div class="panel-generating"
-     hx-get="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/status"
-     hx-trigger="every 3s"
-     hx-swap="outerHTML">
+<div class="panel-generating" id="generating-{{panelIndex}}"
+     data-status-url="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/status">
   <div class="spinner"></div>
   <span>Generating...</span>
 </div>
+<script>
+(function() {
+  var el = document.getElementById('generating-{{panelIndex}}');
+  if (!el) return;
+  var url = el.dataset.statusUrl;
+  var interval = setInterval(function() {
+    fetch(url).then(function(r) { return r.text(); }).then(function(html) {
+      el.outerHTML = html;
+      if (html.indexOf('panel-generating') === -1) clearInterval(interval);
+    }).catch(function() {
+      clearInterval(interval);
+    });
+  }, 3000);
+})();
+</script>
 {{else if isError}}
 <div class="panel-error">
   <span class="error-icon">!</span>
   <p>Generation failed</p>
-  <form hx-post="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-        hx-target="#panel-{{panelIndex}}"
-        hx-swap="innerHTML"
+  <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
         class="panel-prompt-form">
     <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input">{{prompt}}</textarea>
     <button type="submit" class="btn btn-small btn-primary">Retry</button>
@@ -50,9 +54,7 @@
 </div>
 {{else}}
 <div class="panel-empty">
-  <form hx-post="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-        hx-target="#panel-{{panelIndex}}"
-        hx-swap="innerHTML"
+  <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
         class="panel-prompt-form">
     <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input"></textarea>
     <button type="submit" class="btn btn-small btn-primary">Generate</button>

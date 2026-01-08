@@ -3,28 +3,22 @@
     <span class="page-title">Page {{pageNumber}}</span>
   </div>
 
-  <div class="page-layout-control">
+  <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/layout" class="page-layout-control">
     <label>Layout:</label>
-    <select hx-put="/novels/{{novelId}}/page/{{pageNumber}}/layout"
-            hx-swap="none"
-            hx-trigger="change"
-            hx-on::after-request="if(event.detail.successful) window.location.reload()"
-            name="layout">
+    <select name="layout">
       <option value="full" {{#if isFullLayout}}selected{{/if}}>Full Page</option>
       <option value="two-panel" {{#if isTwoPanelLayout}}selected{{/if}}>Two Panels</option>
       <option value="three-panel" {{#if isThreePanelLayout}}selected{{/if}}>Three Panels</option>
       <option value="four-grid" {{#if isFourGridLayout}}selected{{/if}}>Four Grid</option>
       <option value="six-grid" {{#if isSixGridLayout}}selected{{/if}}>Six Grid</option>
     </select>
-  </div>
+    <button type="submit" class="btn btn-small">Apply</button>
+  </form>
 
-  <button class="btn btn-small btn-danger"
-          hx-delete="/novels/{{novelId}}/page/{{pageNumber}}"
-          hx-confirm="Delete this page?"
-          hx-swap="none"
-          hx-on::after-request="if(event.detail.successful) window.location.href='/novels/{{novelId}}'">
-    Delete Page
-  </button>
+  <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/delete" style="display: inline;"
+        onsubmit="return confirm('Delete this page?')">
+    <button type="submit" class="btn btn-small btn-danger">Delete Page</button>
+  </form>
 </div>
 
 <div class="page-canvas layout-{{layoutTemplate}}">
@@ -38,19 +32,12 @@
         Regenerate
       </button>
     </div>
-    <div class="panel-caption-container">
-      <input type="text" value="{{caption}}"
-             hx-put="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/caption"
-             hx-trigger="blur, keyup[key=='Enter']"
-             hx-swap="none"
-             name="caption"
-             placeholder="Add caption..."
-             class="panel-caption-input">
-    </div>
-    <form class="panel-prompt-form" style="display: none;"
-          hx-post="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-          hx-target="#panel-{{panelIndex}}"
-          hx-swap="innerHTML">
+    <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/caption" class="panel-caption-form">
+      <input type="text" name="caption" value="{{caption}}" placeholder="Add caption..." class="panel-caption-input">
+      <button type="submit" class="btn btn-small">Save</button>
+    </form>
+    <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
+          class="panel-prompt-form" style="display: none;">
       <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input">{{prompt}}</textarea>
       <div class="panel-prompt-actions">
         <button type="button" class="btn btn-small btn-secondary"
@@ -61,17 +48,12 @@
       </div>
     </form>
     {{else if isGenerating}}
-    <div class="panel-generating">
-      <div class="spinner"></div>
-      <span>Generating...</span>
-    </div>
+    {{> novels/_panel-generating }}
     {{else if isError}}
     <div class="panel-error">
       <span class="error-icon">!</span>
       <p>Generation failed</p>
-      <form hx-post="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-            hx-target="#panel-{{panelIndex}}"
-            hx-swap="innerHTML"
+      <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
             class="panel-prompt-form">
         <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input">{{prompt}}</textarea>
         <button type="submit" class="btn btn-small btn-primary">Retry</button>
@@ -79,9 +61,7 @@
     </div>
     {{else}}
     <div class="panel-empty">
-      <form hx-post="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
-            hx-target="#panel-{{panelIndex}}"
-            hx-swap="innerHTML"
+      <form method="POST" action="/novels/{{novelId}}/page/{{pageNumber}}/panel/{{panelIndex}}/generate"
             class="panel-prompt-form">
         <textarea name="prompt" placeholder="Describe this panel..." class="panel-prompt-input"></textarea>
         <button type="submit" class="btn btn-small btn-primary">Generate</button>
