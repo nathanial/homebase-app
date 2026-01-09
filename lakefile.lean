@@ -7,7 +7,7 @@ package homebaseApp where
 require loom from git "https://github.com/nathanial/loom" @ "v0.1.3"
 -- require loom from "../../web/loom"
 
-require crucible from git "https://github.com/nathanial/crucible" @ "v0.0.3"
+require crucible from git "https://github.com/nathanial/crucible" @ "v0.0.7"
 -- require crucible from "../../testing/crucible"
 
 require chronicle from git "https://github.com/nathanial/chronicle" @ "v0.0.1"
