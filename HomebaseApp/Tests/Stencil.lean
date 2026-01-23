@@ -58,6 +58,4 @@ test "list all registered partials" := do
   -- This test always passes - it's just for debugging
   true ≡ true
 
-#generate_tests
-
 end HomebaseApp.Tests.Stencil

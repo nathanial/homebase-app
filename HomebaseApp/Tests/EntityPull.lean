@@ -191,5 +191,3 @@ test "DbCard.pull with multiple column values (move bug)" := do
   | none =>
     IO.println "DbCard.pull FAILED - this is the bug!"
     throw <| IO.userError "DbCard.pull returned none when multiple column values exist!"
-
-#generate_tests

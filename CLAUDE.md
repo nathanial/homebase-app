@@ -172,7 +172,6 @@ test "test description" := do
   shouldSatisfy condition "message"    -- Condition assertion
   shouldContain list item              -- List containment
 
-#generate_tests  -- Required at end of file
 ```
 
 ## Common Issues

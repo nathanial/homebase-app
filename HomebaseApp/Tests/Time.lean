@@ -252,6 +252,4 @@ test "BUG: timeGetNowMs should return wall clock time" := do
 -- "9:30" -> some 34200 (single digit hour should work)
 -- "09:5" -> some (9 * 3600 + 5 * 60) (single digit minute should work)
 
-#generate_tests
-
 end HomebaseApp.Tests.Time

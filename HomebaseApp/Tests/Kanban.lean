@@ -260,6 +260,4 @@ test "set_order retracts old value" := do
   values.length ≡ 1
   conn.db.getOne card DbCard.attr_order ≡ some (.int 10)
 
-#generate_tests
-
 end HomebaseApp.Tests.Kanban
